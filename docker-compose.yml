@@ -1,0 +1,131 @@
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: credit_management
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  user-management-service:
+    build: ./user-management-service
+    container_name: user_management_service
+    ports:
+      - "8001:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth_service
+    ports:
+      - "8003:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  affair-management-service:
+    build: ./affair-management-service
+    container_name: affair_management_service
+    ports:
+      - "8004:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  general-application-service:
+    build: ./general-application-service
+    container_name: general_application_service
+    ports:
+      - "8005:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  student-info-service:
+    build: ./student-info-service
+    container_name: student_info_service
+    ports:
+      - "8006:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  teacher-info-service:
+    build: ./teacher-info-service
+    container_name: teacher_info_service
+    ports:
+      - "8007:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_PORT=5432
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api_gateway
+    ports:
+      - "8000:8080"
+    depends_on:
+      - user-management-service
+      - auth-service
+      - affair-management-service
+      - general-application-service
+      - student-info-service
+      - teacher-info-service
+    restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api-gateway
+    restart: on-failure
+
+volumes:
+  postgres_data:
