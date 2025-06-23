@@ -55,7 +55,9 @@ func main() {
 		if err := handlers.InitializeAdminUser(tx); err != nil {
 			return err
 		}
-		// 可以在这里加入其他初始化，如InitializePermissions
+		// 初始化权限和角色
+		permissionHandler := handlers.NewPermissionHandler(tx)
+		permissionHandler.InitializePermissions(nil) // 传入nil context，因为这是初始化调用
 		return nil
 	})
 	if err != nil {

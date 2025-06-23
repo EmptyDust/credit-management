@@ -64,10 +64,29 @@ func main() {
 	{
 		// 认证服务路由
 		api.Any("/auth/*path", createProxyHandler(config.AuthServiceURL))
-		api.Any("/permissions/*path", createProxyHandler(config.AuthServiceURL))
-		api.POST("/init-permissions", createProxyHandler(config.AuthServiceURL))
 
-		// 用户管理服务路由（register用POST方法注册）
+		// 权限管理服务路由
+		// api.Any("/permissions/*path", createProxyHandler(config.AuthServiceURL))
+		// 明确列出权限相关路由，代理到权限服务
+		api.POST("/permissions/roles", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions/roles", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions/roles/:roleID", createProxyHandler(config.AuthServiceURL))
+		api.PUT("/permissions/roles/:roleID", createProxyHandler(config.AuthServiceURL))
+		api.DELETE("/permissions/roles/:roleID", createProxyHandler(config.AuthServiceURL))
+		api.POST("/permissions", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions/:id", createProxyHandler(config.AuthServiceURL))
+		api.DELETE("/permissions/:id", createProxyHandler(config.AuthServiceURL))
+		api.POST("/permissions/users/:userID/roles", createProxyHandler(config.AuthServiceURL))
+		api.DELETE("/permissions/users/:userID/roles/:roleID", createProxyHandler(config.AuthServiceURL))
+		api.POST("/permissions/users/:userID/permissions", createProxyHandler(config.AuthServiceURL))
+		api.DELETE("/permissions/users/:userID/permissions/:permissionID", createProxyHandler(config.AuthServiceURL))
+		api.POST("/permissions/roles/:roleID/permissions", createProxyHandler(config.AuthServiceURL))
+		api.DELETE("/permissions/roles/:roleID/permissions/:permissionID", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions/users/:userID/roles", createProxyHandler(config.AuthServiceURL))
+		api.GET("/permissions/users/:userID/permissions", createProxyHandler(config.AuthServiceURL))
+
+		// 用户管理服务路由
 		api.POST("/users/register", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/stats", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/profile", createProxyHandler(config.UserServiceURL))
@@ -82,19 +101,39 @@ func main() {
 		// 事项管理服务路由
 		api.GET("/affairs", createProxyHandler(config.AffairServiceURL))
 		api.POST("/affairs", createProxyHandler(config.AffairServiceURL))
-		api.Any("/affairs/*path", createProxyHandler(config.AffairServiceURL))
+		api.GET("/affairs/:id", createProxyHandler(config.AffairServiceURL))
+		api.PUT("/affairs/:id", createProxyHandler(config.AffairServiceURL))
+		api.DELETE("/affairs/:id", createProxyHandler(config.AffairServiceURL))
 
 		// 学生信息服务路由
 		api.POST("/students", createProxyHandler(config.StudentServiceURL))
-		api.Any("/students/*path", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/:studentID", createProxyHandler(config.StudentServiceURL))
+		api.PUT("/students/:studentID", createProxyHandler(config.StudentServiceURL))
+		api.DELETE("/students/:studentID", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/college/:college", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/major/:major", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/class/:class", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/status/:status", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/search", createProxyHandler(config.StudentServiceURL))
 
 		// 教师信息服务路由
 		api.POST("/teachers", createProxyHandler(config.TeacherServiceURL))
-		api.Any("/teachers/*path", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/:username", createProxyHandler(config.TeacherServiceURL))
+		api.PUT("/teachers/:username", createProxyHandler(config.TeacherServiceURL))
+		api.DELETE("/teachers/:username", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/department/:department", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/title/:title", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/status/:status", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/search", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/active", createProxyHandler(config.TeacherServiceURL))
 
 		// 申请管理服务路由
 		api.POST("/applications", createProxyHandler(config.ApplicationServiceURL))
-		api.Any("/applications/*path", createProxyHandler(config.ApplicationServiceURL))
+		api.GET("/applications/:id", createProxyHandler(config.ApplicationServiceURL))
+		api.PUT("/applications/:id/status", createProxyHandler(config.ApplicationServiceURL))
+		api.GET("/applications/user/:studentNumber", createProxyHandler(config.ApplicationServiceURL))
 	}
 
 	// 默认路由 - 返回API信息

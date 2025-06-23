@@ -501,10 +501,16 @@ func (h *PermissionHandler) InitializePermissions(c *gin.Context) {
 		{Name: "通知管理", Description: "管理通知信息", Resource: "notification", Action: "manage"},
 	}
 
+	// 创建权限并保存ID
+	permissionMap := make(map[string]uint)
 	for _, permission := range permissions {
 		var existingPermission models.Permission
 		if err := h.db.Where("resource = ? AND action = ?", permission.Resource, permission.Action).First(&existingPermission).Error; err != nil {
-			h.db.Create(&permission)
+			if err := h.db.Create(&permission).Error; err == nil {
+				permissionMap[permission.Resource+"_"+permission.Action] = permission.ID
+			}
+		} else {
+			permissionMap[permission.Resource+"_"+permission.Action] = existingPermission.ID
 		}
 	}
 
@@ -515,12 +521,37 @@ func (h *PermissionHandler) InitializePermissions(c *gin.Context) {
 		{Name: "student", Description: "学生", IsSystem: true},
 	}
 
+	// 创建角色并保存ID
+	roleMap := make(map[string]uint)
 	for _, role := range roles {
 		var existingRole models.Role
 		if err := h.db.Where("name = ?", role.Name).First(&existingRole).Error; err != nil {
-			h.db.Create(&role)
+			if err := h.db.Create(&role).Error; err == nil {
+				roleMap[role.Name] = role.ID
+			}
+		} else {
+			roleMap[role.Name] = existingRole.ID
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permissions initialized successfully"})
+	// 为admin角色分配所有权限
+	if adminRoleID, exists := roleMap["admin"]; exists {
+		for _, permissionID := range permissionMap {
+			// 检查是否已经分配
+			var existingRolePermission models.RolePermission
+			if err := h.db.Where("role_id = ? AND permission_id = ?", adminRoleID, permissionID).First(&existingRolePermission).Error; err != nil {
+				// 如果不存在，则分配权限
+				rolePermission := models.RolePermission{
+					RoleID:       adminRoleID,
+					PermissionID: permissionID,
+				}
+				h.db.Create(&rolePermission)
+			}
+		}
+	}
+
+	// 只有在HTTP请求上下文中才返回JSON响应
+	if c != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Permissions initialized successfully"})
+	}
 }
