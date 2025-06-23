@@ -6,6 +6,7 @@ import Students from "./pages/Students";
 import Teachers from "./pages/Teachers";
 import Affairs from "./pages/Affairs";
 import Applications from "./pages/Applications";
+import ProfilePage from "./pages/Profile";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -26,6 +27,7 @@ function App() {
                 <Route path="/teachers" element={<Teachers />} />
                 <Route path="/affairs" element={<Affairs />} />
                 <Route path="/applications" element={<Applications />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Route>
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
