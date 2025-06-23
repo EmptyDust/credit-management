@@ -3,15 +3,19 @@ package models
 import "time"
 
 type Application struct {
-    ID            uint      `gorm:"primaryKey"`
-    AffairID      uint      // 事项编号
-    StudentID     string    // 学生学号
-    ApplyTime     time.Time // 申请时间
-    Status        string    // 状态
-    ReviewerID    *string   // 审核者ID
-    ReviewOpinion string    // 审核意见
-    AppliedCredit float64   // 申请学分
-    FinalCredit   float64   // 认定学分
-    CreatedAt     time.Time
-    UpdatedAt     time.Time
-} 
+	ID            uint   `gorm:"primaryKey"`
+	UserID        uint   `gorm:"not null"`
+	StudentID     uint   `gorm:"not null"`
+	AffairID      uint   `gorm:"not null"`
+	Title         string `gorm:"not null"`
+	Description   string
+	Type          string     `gorm:"not null"`                   // 申请类型
+	Status        string     `gorm:"not null;default:'pending'"` // pending, approved, rejected
+	Credits       float64    `gorm:"not null;default:0"`         // 认定学分
+	AttachmentURL string     // 附件URL
+	ReviewerID    *uint      // 审核人ID
+	ReviewComment string     // 审核意见
+	ReviewDate    *time.Time // 审核时间
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}

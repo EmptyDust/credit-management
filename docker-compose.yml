@@ -1,131 +1,110 @@
+version: '3.8'
+
 services:
+  # PostgreSQL数据库
   postgres:
-    image: docker.m.daocloud.io/library/postgres:15-alpine
-    container_name: postgres_db
+    image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
       POSTGRES_DB: credit_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - credit-network
 
-  user-management-service:
-    build: ./user-management-service
-    container_name: user_management_service
-    ports:
-      - "8001:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
-  auth-service:
-    build: ./auth-service
-    container_name: auth_service
-    ports:
-      - "8003:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
-  affair-management-service:
-    build: ./affair-management-service
-    container_name: affair_management_service
-    ports:
-      - "8004:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
-  general-application-service:
-    build: ./general-application-service
-    container_name: general_application_service
-    ports:
-      - "8005:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
-  student-info-service:
-    build: ./student-info-service
-    container_name: student_info_service
-    ports:
-      - "8006:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
-  teacher-info-service:
-    build: ./teacher-info-service
-    container_name: teacher_info_service
-    ports:
-      - "8007:8080"
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=user
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - DB_PORT=5432
-    depends_on:
-      - postgres
-    restart: on-failure
-
+  # API网关
   api-gateway:
     build: ./api-gateway
-    container_name: api_gateway
     ports:
-      - "8000:8080"
+      - "8080:8080"
     depends_on:
+      - postgres
       - user-management-service
-      - auth-service
-      - affair-management-service
-      - general-application-service
       - student-info-service
       - teacher-info-service
-    restart: on-failure
+      - affair-management-service
+      - general-application-service
+    networks:
+      - credit-network
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend
+  # 用户管理服务
+  user-management-service:
+    build: ./user-management-service
     ports:
-      - "5173:5173"
+      - "8081:8081"
+    depends_on:
+      - postgres
+    environment:
+      - PORT=8081
+    networks:
+      - credit-network
+
+  # 学生信息服务
+  student-info-service:
+    build: ./student-info-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres
+    environment:
+      - PORT=8084
+    networks:
+      - credit-network
+
+  # 教师信息服务
+  teacher-info-service:
+    build: ./teacher-info-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      - postgres
+    environment:
+      - PORT=8085
+    networks:
+      - credit-network
+
+  # 事项管理服务
+  affair-management-service:
+    build: ./affair-management-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres
+    environment:
+      - PORT=8083
+    networks:
+      - credit-network
+
+  # 通用申请服务
+  general-application-service:
+    build: ./general-application-service
+    ports:
+      - "8086:8086"
+    depends_on:
+      - postgres
+    environment:
+      - PORT=8086
+    networks:
+      - credit-network
+
+  # 前端应用
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
     depends_on:
       - api-gateway
-    restart: on-failure
+    networks:
+      - credit-network
 
 volumes:
   postgres_data:
+
+
+networks:
+  credit-network:
+    driver: bridge
