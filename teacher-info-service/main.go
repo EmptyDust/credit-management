@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// 自动迁移数据库表
-	err = db.AutoMigrate(&models.Teacher{}, &models.User{})
+	err = db.AutoMigrate(&models.Teacher{})
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -85,7 +85,7 @@ func main() {
 	})
 
 	// 启动服务器
-	port := getEnv("PORT", "8083")
+	port := getEnv("PORT", "8085")
 	log.Printf("Teacher Info Service starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)

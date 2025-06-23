@@ -19,7 +19,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -a -installsuffix cgo \
-    -o main .
+    -o auth-service .
 
 # 运行阶段
 FROM alpine:latest
@@ -34,7 +34,7 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /app/main .
+COPY --from=builder /app/auth-service .
 
 # 更改文件所有者
 RUN chown -R appuser:appgroup /app
@@ -43,11 +43,11 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # 暴露端口
-EXPOSE 8085
+EXPOSE 8081
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8085/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
 
 # 运行应用
-CMD ["./main"] 
+CMD ["./auth-service"] 

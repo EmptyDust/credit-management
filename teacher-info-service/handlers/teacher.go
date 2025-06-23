@@ -64,7 +64,7 @@ func (h *TeacherHandler) GetTeacher(c *gin.Context) {
 	}
 
 	var teacher models.Teacher
-	err := h.db.Preload("User").Where("username = ?", username).First(&teacher).Error
+	err := h.db.Where("username = ?", username).First(&teacher).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教师不存在"})
@@ -162,7 +162,7 @@ func (h *TeacherHandler) DeleteTeacher(c *gin.Context) {
 // GetAllTeachers 获取所有教师
 func (h *TeacherHandler) GetAllTeachers(c *gin.Context) {
 	var teachers []models.Teacher
-	err := h.db.Preload("User").Find(&teachers).Error
+	err := h.db.Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询教师失败: " + err.Error()})
 		return
@@ -180,7 +180,7 @@ func (h *TeacherHandler) GetTeachersByDepartment(c *gin.Context) {
 	}
 
 	var teachers []models.Teacher
-	err := h.db.Preload("User").Where("department = ?", department).Find(&teachers).Error
+	err := h.db.Where("department = ?", department).Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询教师失败: " + err.Error()})
 		return

@@ -44,6 +44,20 @@ type RoleResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// Permission 权限模型
+type Permission struct {
+	ID          uint           `json:"id" gorm:"primaryKey"`
+	Name        string         `json:"name" gorm:"uniqueIndex;not null"`
+	Description string         `json:"description"`
+	Resource    string         `json:"resource" gorm:"not null"` // 资源类型
+	Action      string         `json:"action" gorm:"not null"`   // 操作类型
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
+
+	Users []User `json:"users,omitempty" gorm:"many2many:user_permissions;"`
+}
+
 // PermissionGroup 权限组模型
 type PermissionGroup struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
@@ -148,4 +162,4 @@ type RolePermissionResponse struct {
 	Permission   string `json:"permission"`
 	Resource     string `json:"resource"`
 	Action       string `json:"action"`
-}
+} 

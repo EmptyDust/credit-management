@@ -18,25 +18,11 @@ type Student struct {
 	Status      string    `json:"status" gorm:"column:status;default:'active'"` // active, inactive, graduated
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
-	
-	// 关联关系
-	User User `json:"user" gorm:"foreignKey:Username"`
 }
 
 // TableName 指定表名
 func (Student) TableName() string {
 	return "students"
-}
-
-// 关联模型定义
-type User struct {
-	Username     string    `json:"username" gorm:"primaryKey;column:username"`
-	UserType     string    `json:"user_type" gorm:"column:user_type;not null"`
-	RegisterTime time.Time `json:"register_time" gorm:"column:register_time;autoCreateTime"`
-}
-
-func (User) TableName() string {
-	return "users"
 }
 
 // StudentRequest 学生创建请求

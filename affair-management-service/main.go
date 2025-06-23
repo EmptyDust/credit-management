@@ -38,7 +38,6 @@ func main() {
 	err = db.AutoMigrate(
 		&models.Affair{},
 		&models.AffairStudent{},
-		&models.Student{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
@@ -70,22 +69,11 @@ func main() {
 		// 事项相关路由
 		affairs := api.Group("/affairs")
 		{
-			affairs.POST("", affairHandler.CreateAffair)                           // 创建事项
-			affairs.GET("/:id", affairHandler.GetAffair)                           // 获取单个事项
-			affairs.PUT("/:id", affairHandler.UpdateAffair)                        // 更新事项
-			affairs.DELETE("/:id", affairHandler.DeleteAffair)                     // 删除事项
-			affairs.GET("", affairHandler.GetAllAffairs)                           // 获取所有事项
-			affairs.GET("/category/:category", affairHandler.GetAffairsByCategory) // 根据类别获取事项
-			affairs.GET("/active", affairHandler.GetActiveAffairs)                 // 获取活跃事项
-		}
-
-		// 事项-学生关系路由
-		affairStudents := api.Group("/affair-students")
-		{
-			affairStudents.POST("", affairHandler.AddStudentToAffair)                             // 为学生添加事项
-			affairStudents.DELETE("/:affairID/:studentID", affairHandler.RemoveStudentFromAffair) // 从事项中移除学生
-			affairStudents.GET("/affair/:affairID", affairHandler.GetStudentsByAffair)            // 获取事项下的所有学生
-			affairStudents.GET("/student/:studentID", affairHandler.GetAffairsByStudent)          // 获取学生参与的所有事项
+			affairs.POST("", affairHandler.CreateAffair)   // 创建事项
+			affairs.GET("/:id", affairHandler.GetAffair)   // 获取单个事项
+			affairs.PUT("/:id", affairHandler.UpdateAffair)  // 更新事项
+			affairs.DELETE("/:id", affairHandler.DeleteAffair) // 删除事项
+			affairs.GET("", affairHandler.GetAllAffairs)     // 获取所有事项
 		}
 	}
 

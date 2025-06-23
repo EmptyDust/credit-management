@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// User 用户模型（用户管理服务专用）
+// User 用户模型（认证服务专用）
 type User struct {
 	ID           uint           `json:"id" gorm:"primaryKey"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
@@ -23,26 +23,15 @@ type User struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// 关联关系
+	Permissions []Permission `json:"permissions,omitempty" gorm:"many2many:user_permissions;"`
 }
 
-// UserRequest 用户注册请求
-type UserRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=20"`
-	Password string `json:"password" binding:"required,min=6"`
-	Email    string `json:"email" binding:"required,email"`
-	Phone    string `json:"phone"`
-	RealName string `json:"real_name" binding:"required"`
-	UserType string `json:"user_type" binding:"required,oneof=student teacher admin"`
-}
-
-// UserUpdateRequest 用户更新请求
-type UserUpdateRequest struct {
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	RealName string `json:"real_name"`
-	UserType string `json:"user_type"`
-	Status   string `json:"status"`
-	Role     string `json:"role"`
+// UserLoginRequest 用户登录请求
+type UserLoginRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 // UserResponse 用户响应
@@ -55,22 +44,39 @@ type UserResponse struct {
 	UserType     string     `json:"user_type"`
 	Role         string     `json:"role"`
 	Status       string     `json:"status"`
-	Avatar       string     `json:"avatar"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
 	RegisterTime time.Time  `json:"register_time"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
-// UserStats 用户统计信息
-type UserStats struct {
-	TotalUsers     int64 `json:"total_users"`
-	ActiveUsers    int64 `json:"active_users"`
-	SuspendedUsers int64 `json:"suspended_users"`
-	StudentUsers   int64 `json:"student_users"`
-	TeacherUsers   int64 `json:"teacher_users"`
-	AdminUsers     int64 `json:"admin_users"`
-	NewUsersToday  int64 `json:"new_users_today"`
-	NewUsersWeek   int64 `json:"new_users_week"`
-	NewUsersMonth  int64 `json:"new_users_month"`
+// LoginResponse 登录响应
+type LoginResponse struct {
+	Token   string       `json:"token"`
+	User    UserResponse `json:"user"`
+	Message string       `json:"message"`
 }
+
+// TokenValidationRequest Token验证请求
+type TokenValidationRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
+// TokenValidationResponse Token验证响应
+type TokenValidationResponse struct {
+	Valid   bool         `json:"valid"`
+	User    UserResponse `json:"user,omitempty"`
+	Message string       `json:"message"`
+}
+
+// RefreshTokenRequest 刷新Token请求
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// RefreshTokenResponse 刷新Token响应
+type RefreshTokenResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+	Message      string `json:"message"`
+} 

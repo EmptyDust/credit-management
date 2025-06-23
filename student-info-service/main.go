@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// 自动迁移数据库表
-	err = db.AutoMigrate(&models.Student{}, &models.User{})
+	err = db.AutoMigrate(&models.Student{})
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -67,10 +67,9 @@ func main() {
 		students := api.Group("/students")
 		{
 			students.POST("", studentHandler.CreateStudent)                        // 创建学生
-			students.GET("/:username", studentHandler.GetStudent)                  // 根据用户名获取学生
-			students.GET("/id/:studentID", studentHandler.GetStudentByID)          // 根据学号获取学生
-			students.PUT("/:username", studentHandler.UpdateStudent)               // 更新学生信息
-			students.DELETE("/:username", studentHandler.DeleteStudent)            // 删除学生
+			students.GET("/:studentID", studentHandler.GetStudentByID)             // 根据学号获取学生
+			students.PUT("/:studentID", studentHandler.UpdateStudentByID)          // 更新学生信息
+			students.DELETE("/:studentID", studentHandler.DeleteStudentByID)       // 删除学生
 			students.GET("", studentHandler.GetAllStudents)                        // 获取所有学生
 			students.GET("/college/:college", studentHandler.GetStudentsByCollege) // 根据学院获取学生
 			students.GET("/major/:major", studentHandler.GetStudentsByMajor)       // 根据专业获取学生
@@ -86,7 +85,7 @@ func main() {
 	})
 
 	// 启动服务器
-	port := getEnv("PORT", "8082")
+	port := getEnv("PORT", "8084")
 	log.Printf("Student Info Service starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)

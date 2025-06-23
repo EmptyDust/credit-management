@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AuthMiddleware JWT认证中间件
+// AuthMiddleware 认证中间件
 type AuthMiddleware struct {
 	jwtSecret []byte
 }
@@ -24,6 +24,7 @@ func NewAuthMiddleware(jwtSecret string) *AuthMiddleware {
 // AuthRequired 需要认证的中间件
 func (am *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 从请求头获取token
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少认证令牌"})
@@ -32,13 +33,14 @@ func (am *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		// 检查Bearer前缀
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+		tokenParts := strings.Split(authHeader, " ")
+		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的认证格式"})
 			c.Abort()
 			return
 		}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		tokenString := tokenParts[1]
 
 		// 解析JWT token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -109,69 +111,52 @@ func NewPermissionMiddleware(db *gorm.DB) *PermissionMiddlewareHandler {
 	}
 }
 
-// RequirePermission 需要特定权限的中间件
+// RequirePermission 需要特定权限的中间件（简化版本，仅检查用户类型）
 func (pm *PermissionMiddlewareHandler) RequirePermission(resource, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
+		userType, exists := c.Get("user_type")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
 			c.Abort()
 			return
 		}
 
-		uid, ok := userID.(uint)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID"})
-			c.Abort()
+		// 简化权限检查：管理员拥有所有权限
+		if userType == "admin" {
+			c.Next()
 			return
 		}
 
-		// 检查用户权限
-		permissionManager := NewPermissionManager(pm.db)
-		hasPermission, err := permissionManager.CheckPermission(uid, resource, action)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "权限检查失败"})
-			c.Abort()
-			return
+		// 其他用户类型根据资源类型进行简单检查
+		switch resource {
+		case "user":
+			if action == "read" && (userType == "teacher" || userType == "student") {
+				c.Next()
+				return
+			}
+		case "notification":
+			if action == "read" || action == "write" {
+				c.Next()
+				return
+			}
 		}
 
-		if !hasPermission {
-			c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
+		c.JSON(http.StatusForbidden, gin.H{"error": "权限不足"})
+		c.Abort()
 	}
 }
 
-// RequireRole 需要特定角色的中间件
+// RequireRole 需要特定角色的中间件（简化版本）
 func (pm *PermissionMiddlewareHandler) RequireRole(roleName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
+		role, exists := c.Get("role")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
 			c.Abort()
 			return
 		}
 
-		uid, ok := userID.(uint)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID"})
-			c.Abort()
-			return
-		}
-
-		// 检查用户角色
-		permissionManager := NewPermissionManager(pm.db)
-		hasRole, err := permissionManager.HasRole(uid, roleName)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "角色检查失败"})
-			c.Abort()
-			return
-		}
-
-		if !hasRole {
+		if role != roleName && role != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "角色权限不足"})
 			c.Abort()
 			return
