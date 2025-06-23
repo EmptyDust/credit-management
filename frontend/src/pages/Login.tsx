@@ -1,188 +1,88 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { useAuth } from '../contexts/AuthContext';
-import { authAPI } from '../lib/api';
-import { User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import apiClient from "@/lib/api";
+import { useNavigate, Link } from "react-router-dom";
+import { LogIn, User, KeyRound } from "lucide-react";
 
-const Login: React.FC = () => {
-    const { login } = useAuth();
-    const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        username: '',
-        password: ''
-    });
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
+export default function Login() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        if (!formData.username || !formData.password) {
-            toast.error('请填写用户名和密码');
-            return;
-        }
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      // The API Gateway forwards /api/auth/login to the auth-service
+      const response = await apiClient.post("/auth/login", { username, password });
+      if (response.data && response.data.token) {
+        login(response.data.token, response.data.user);
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      setError("Failed to login. Please check your credentials.");
+      console.error(err);
+    } finally {
+        setLoading(false);
+    }
+  };
 
-        setLoading(true);
-        try {
-            const response = await authAPI.login(formData);
-            const { token, refresh_token, user } = response.data;
-            
-            // 保存token到本地存储
-            localStorage.setItem('token', token);
-            localStorage.setItem('refresh_token', refresh_token);
-            
-            // 更新认证上下文
-            await login(token, user);
-            
-            toast.success('登录成功');
-            navigate('/dashboard');
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.error || '登录失败，请检查用户名和密码';
-            toast.error(errorMessage);
-            console.error('Login error:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
-                {/* Logo和标题 */}
-                <div className="text-center">
-                    <div className="mx-auto h-12 w-12 bg-primary rounded-full flex items-center justify-center">
-                        <User className="h-6 w-6 text-white" />
-                    </div>
-                    <h2 className="mt-6 text-3xl font-bold text-gray-900">
-                        欢迎回来
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        登录您的账户以继续
-                    </p>
-                </div>
-
-                {/* 登录表单 */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>用户登录</CardTitle>
-                        <CardDescription>
-                            请输入您的用户名和密码
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <Label htmlFor="username">用户名</Label>
-                                <div className="relative">
-                                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="username"
-                                        name="username"
-                                        type="text"
-                                        value={formData.username}
-                                        onChange={handleInputChange}
-                                        placeholder="请输入用户名"
-                                        className="pl-10"
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="password">密码</Label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="password"
-                                        name="password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={formData.password}
-                                        onChange={handleInputChange}
-                                        placeholder="请输入密码"
-                                        className="pl-10 pr-10"
-                                        required
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                    >
-                                        {showPassword ? (
-                                            <EyeOff className="h-4 w-4" />
-                                        ) : (
-                                            <Eye className="h-4 w-4" />
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <Button
-                                type="submit"
-                                className="w-full"
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        登录中...
-                                    </>
-                                ) : (
-                                    '登录'
-                                )}
-                            </Button>
-                        </form>
-
-                        {/* 其他选项 */}
-                        <div className="mt-6">
-                            <div className="relative">
-                                <div className="absolute inset-0 flex items-center">
-                                    <span className="w-full border-t" />
-                                </div>
-                                <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-background px-2 text-muted-foreground">
-                                        或者
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 text-center">
-                                <p className="text-sm text-muted-foreground">
-                                    还没有账户？{' '}
-                                    <Link
-                                        to="/register"
-                                        className="font-medium text-primary hover:text-primary/80"
-                                    >
-                                        立即注册
-                                    </Link>
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* 帮助信息 */}
-                <div className="text-center">
-                    <p className="text-xs text-muted-foreground">
-                        如果您遇到登录问题，请联系系统管理员
-                    </p>
-                </div>
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-muted/40">
+      <Card className="w-full max-w-sm border-0 shadow-lg sm:border">
+        <form onSubmit={handleLogin}>
+          <CardHeader className="text-center">
+            <CardTitle className="text-3xl font-bold flex items-center justify-center gap-2">
+              <LogIn />
+              Login
+            </CardTitle>
+            <CardDescription>
+              Enter your credentials to access your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input id="username" type="text" placeholder="Username" required value={username} onChange={(e) => setUsername(e.target.value)} className="pl-10" />
             </div>
-        </div>
-    );
-};
-
-export default Login; 
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input id="password" type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10" />
+            </div>
+            <div className="flex items-center justify-between -mt-2">
+                <Link to="/register" className="text-sm text-primary hover:underline">
+                    Create an account
+                </Link>
+                <Link to="#" className="text-sm text-primary hover:underline">
+                    Forgot password?
+                </Link>
+            </div>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+          </CardContent>
+          <CardFooter>
+            <Button className="w-full transition-transform duration-200 hover:scale-105" type="submit" disabled={loading}>
+                {loading ? "Signing in..." : <>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Sign in
+                </>}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+    </div>
+  );
+} 

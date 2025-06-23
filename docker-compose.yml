@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile
     container_name: cm_api_gateway
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -335,7 +335,7 @@ services:
       dockerfile: Dockerfile
     container_name: cm_frontend
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       api-gateway:
         condition: service_healthy

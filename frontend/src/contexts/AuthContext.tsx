@@ -1,126 +1,70 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '../lib/api';
-import toast from 'react-hot-toast';
+import { createContext, useContext, useState, useEffect } from "react";
+import apiClient from "@/lib/api";
 
+// Define a type for the user object based on your backend's response
 interface User {
-    username: string;
-    user_type: string;
-    register_time: string;
-    created_at: string;
-    updated_at: string;
+  id: number;
+  username: string;
+  userType: 'student' | 'teacher' | 'admin';
+  // Add other user properties here
 }
 
-interface AuthContextType {
-    user: User | null;
-    token: string | null;
-    login: (username: string, password: string) => Promise<boolean>;
-    register: (username: string, password: string, userType: string) => Promise<boolean>;
-    logout: () => void;
-    isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+type AuthProviderProps = {
+  children: React.ReactNode;
 };
 
-interface AuthProviderProps {
-    children: ReactNode;
+type AuthContextType = {
+  isAuthenticated: boolean;
+  user: User | null;
+  login: (token: string, user: User) => void;
+  logout: () => void;
+};
+
+const AuthContext = createContext<AuthContextType>({
+  isAuthenticated: false,
+  user: null,
+  login: () => {},
+  logout: () => {},
+});
+
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem("token"));
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const login = (token: string, user: User) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setIsAuthenticated(true);
+    setUser(user);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    delete apiClient.defaults.headers.common['Authorization'];
+    setIsAuthenticated(false);
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const initAuth = async () => {
-            const storedToken = localStorage.getItem('token');
-            if (storedToken) {
-                try {
-                    const response = await api.post('/users/validate-token', {}, {
-                        headers: { Authorization: `Bearer ${storedToken}` }
-                    });
-
-                    if (response.data.valid) {
-                        setToken(storedToken);
-                        // 获取用户信息
-                        const userResponse = await api.get(`/users/${response.data.username}`, {
-                            headers: { Authorization: `Bearer ${storedToken}` }
-                        });
-                        setUser(userResponse.data);
-                    } else {
-                        localStorage.removeItem('token');
-                        setToken(null);
-                    }
-                } catch (error) {
-                    console.error('Token validation failed:', error);
-                    localStorage.removeItem('token');
-                    setToken(null);
-                }
-            }
-            setIsLoading(false);
-        };
-
-        initAuth();
-    }, []);
-
-    const login = async (username: string, password: string): Promise<boolean> => {
-        try {
-            const response = await api.post('/users/login', { username, password });
-            const { token: newToken, user: userData } = response.data;
-
-            localStorage.setItem('token', newToken);
-            setToken(newToken);
-            setUser(userData);
-
-            toast.success('登录成功！');
-            return true;
-        } catch (error: any) {
-            const message = error.response?.data?.error || '登录失败，请检查用户名和密码';
-            toast.error(message);
-            return false;
-        }
-    };
-
-    const register = async (username: string, password: string, userType: string): Promise<boolean> => {
-        try {
-            const response = await api.post('/users/register', { username, password, user_type: userType });
-            const { user: userData } = response.data;
-
-            toast.success('注册成功！请登录');
-            return true;
-        } catch (error: any) {
-            const message = error.response?.data?.error || '注册失败，请稍后重试';
-            toast.error(message);
-            return false;
-        }
-    };
-
-    const logout = () => {
-        localStorage.removeItem('token');
-        setToken(null);
-        setUser(null);
-        toast.success('已退出登录');
-    };
-
-    const value: AuthContextType = {
-        user,
-        token,
-        login,
-        register,
-        logout,
-        isLoading,
-    };
-
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+export const useAuth = () => {
+  return useContext(AuthContext);
 }; 
