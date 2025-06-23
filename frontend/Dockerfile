@@ -4,19 +4,22 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 
 # 复制package文件
-COPY package.json pnpm-lock.yaml ./
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+
+# 安装pnpm
+RUN npm install -g pnpm
 
 # 安装依赖
-RUN npm install -g pnpm
 RUN pnpm install
 
 # 复制源代码
 COPY . .
 
 # 构建应用
-RUN pnpm build
+RUN pnpm run build
 
-# 生产阶段
+# 运行阶段
 FROM nginx:alpine
 
 # 复制构建产物到nginx目录

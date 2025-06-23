@@ -1,13 +1,65 @@
 package models
 
+import (
+	"time"
+)
+
+// Student 学生模型
 type Student struct {
-	ID        uint   `gorm:"primaryKey"`
-	UserID    uint   `gorm:"unique;not null"`
-	Username  string `gorm:"unique;not null"`
-	Name      string `gorm:"not null"`
-	StudentNo string `gorm:"unique;not null"`
-	College   string
-	Major     string
-	Class     string
-	Contact   string
+	Username    string    `json:"username" gorm:"primaryKey;column:username"`
+	StudentID   string    `json:"student_id" gorm:"column:student_id;unique;not null"`
+	Name        string    `json:"name" gorm:"column:name;not null"`
+	College     string    `json:"college" gorm:"column:college"`
+	Major       string    `json:"major" gorm:"column:major"`
+	Class       string    `json:"class" gorm:"column:class"`
+	Contact     string    `json:"contact" gorm:"column:contact"`
+	Email       string    `json:"email" gorm:"column:email"`
+	Grade       string    `json:"grade" gorm:"column:grade"` // 年级
+	Status      string    `json:"status" gorm:"column:status;default:'active'"` // active, inactive, graduated
+	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	
+	// 关联关系
+	User User `json:"user" gorm:"foreignKey:Username"`
+}
+
+// TableName 指定表名
+func (Student) TableName() string {
+	return "students"
+}
+
+// 关联模型定义
+type User struct {
+	Username     string    `json:"username" gorm:"primaryKey;column:username"`
+	UserType     string    `json:"user_type" gorm:"column:user_type;not null"`
+	RegisterTime time.Time `json:"register_time" gorm:"column:register_time;autoCreateTime"`
+}
+
+func (User) TableName() string {
+	return "users"
+}
+
+// StudentRequest 学生创建请求
+type StudentRequest struct {
+	Username  string `json:"username" binding:"required"`
+	StudentID string `json:"student_id" binding:"required"`
+	Name      string `json:"name" binding:"required"`
+	College   string `json:"college"`
+	Major     string `json:"major"`
+	Class     string `json:"class"`
+	Contact   string `json:"contact"`
+	Email     string `json:"email"`
+	Grade     string `json:"grade"`
+}
+
+// StudentUpdateRequest 学生更新请求
+type StudentUpdateRequest struct {
+	Name    string `json:"name"`
+	College string `json:"college"`
+	Major   string `json:"major"`
+	Class   string `json:"class"`
+	Contact string `json:"contact"`
+	Email   string `json:"email"`
+	Grade   string `json:"grade"`
+	Status  string `json:"status"`
 } 

@@ -3,7 +3,8 @@ version: '3.8'
 services:
   # PostgreSQL数据库
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: credit_management_postgres
     environment:
       POSTGRES_DB: credit_management
       POSTGRES_USER: postgres
@@ -14,97 +15,160 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
-      - credit-network
+      - credit_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 用户管理服务
+  user-management-service:
+    build: ./user-management-service
+    container_name: credit_management_user_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: credit_management
+      DB_SSLMODE: disable
+      PORT: 8081
+      JWT_SECRET: your-secret-key-here
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  # 学生信息服务
+  student-info-service:
+    build: ./student-info-service
+    container_name: credit_management_student_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: credit_management
+      DB_SSLMODE: disable
+      PORT: 8082
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  # 教师信息服务
+  teacher-info-service:
+    build: ./teacher-info-service
+    container_name: credit_management_teacher_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: credit_management
+      DB_SSLMODE: disable
+      PORT: 8083
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  # 事项管理服务
+  affair-management-service:
+    build: ./affair-management-service
+    container_name: credit_management_affair_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: credit_management
+      DB_SSLMODE: disable
+      PORT: 8087
+    ports:
+      - "8087:8087"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  # 通用申请服务
+  general-application-service:
+    build: ./general-application-service
+    container_name: credit_management_application_service
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: credit_management
+      DB_SSLMODE: disable
+      PORT: 8086
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
 
   # API网关
   api-gateway:
     build: ./api-gateway
+    container_name: credit_management_api_gateway
+    environment:
+      PORT: 8080
+      USER_SERVICE_URL: http://user-management-service:8081
+      STUDENT_SERVICE_URL: http://student-info-service:8082
+      TEACHER_SERVICE_URL: http://teacher-info-service:8083
+      AFFAIR_SERVICE_URL: http://affair-management-service:8087
+      APPLICATION_SERVICE_URL: http://general-application-service:8086
     ports:
       - "8080:8080"
     depends_on:
-      - postgres
       - user-management-service
       - student-info-service
       - teacher-info-service
       - affair-management-service
       - general-application-service
     networks:
-      - credit-network
+      - credit_network
+    restart: unless-stopped
 
-  # 用户管理服务
-  user-management-service:
-    build: ./user-management-service
-    ports:
-      - "8081:8081"
-    depends_on:
-      - postgres
-    environment:
-      - PORT=8081
-    networks:
-      - credit-network
-
-  # 学生信息服务
-  student-info-service:
-    build: ./student-info-service
-    ports:
-      - "8084:8084"
-    depends_on:
-      - postgres
-    environment:
-      - PORT=8084
-    networks:
-      - credit-network
-
-  # 教师信息服务
-  teacher-info-service:
-    build: ./teacher-info-service
-    ports:
-      - "8085:8085"
-    depends_on:
-      - postgres
-    environment:
-      - PORT=8085
-    networks:
-      - credit-network
-
-  # 事项管理服务
-  affair-management-service:
-    build: ./affair-management-service
-    ports:
-      - "8083:8083"
-    depends_on:
-      - postgres
-    environment:
-      - PORT=8083
-    networks:
-      - credit-network
-
-  # 通用申请服务
-  general-application-service:
-    build: ./general-application-service
-    ports:
-      - "8086:8086"
-    depends_on:
-      - postgres
-    environment:
-      - PORT=8086
-    networks:
-      - credit-network
-
-  # 前端应用
+  # 前端服务
   frontend:
     build: ./frontend
+    container_name: credit_management_frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
     ports:
-      - "80:80"
+      - "3000:3000"
     depends_on:
       - api-gateway
     networks:
-      - credit-network
+      - credit_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
 
 
 networks:
-  credit-network:
+  credit_network:
     driver: bridge
