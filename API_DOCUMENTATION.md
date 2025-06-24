@@ -20,7 +20,31 @@ This document provides a comprehensive and detailed overview of the API endpoint
   - [5. Student Info Service (`/students`)](#5-student-info-service-students)
   - [6. Teacher Info Service (`/teachers`)](#6-teacher-info-service-teachers)
   - [7. Affair Management Service (`/affairs`)](#7-affair-management-service-affairs)
+    - [Affair Model](#affair-model)
+    - [AffairStudent Model](#affairstudent-model)
+    - [Endpoints](#endpoints)
+      - [Create Affair Example](#create-affair-example)
+      - [Get Affair with Participants Example](#get-affair-with-participants-example)
+      - [Get Affair Applications Example](#get-affair-applications-example)
   - [8. Application Management Service (`/applications`)](#8-application-management-service-applications)
+    - [Application Model](#application-model)
+    - [Five Credit Types](#five-credit-types)
+      - [1. Innovation Practice Credit (创新创业实践活动学分)](#1-innovation-practice-credit-创新创业实践活动学分)
+      - [2. Discipline Competition Credit (学科竞赛学分)](#2-discipline-competition-credit-学科竞赛学分)
+      - [3. Student Entrepreneurship Project Credit (大学生创业项目学分)](#3-student-entrepreneurship-project-credit-大学生创业项目学分)
+      - [4. Entrepreneurship Practice Credit (创业实践项目学分)](#4-entrepreneurship-practice-credit-创业实践项目学分)
+      - [5. Paper Patent Credit (论文专利学分)](#5-paper-patent-credit-论文专利学分)
+    - [Endpoints](#endpoints-1)
+    - [Application Workflow](#application-workflow)
+    - [Permission Control](#permission-control)
+    - [Example Requests](#example-requests)
+      - [Batch Create Applications](#batch-create-applications)
+      - [Update Application Details](#update-application-details)
+      - [Submit Application](#submit-application)
+      - [Review Application](#review-application)
+  - [9. Permission Management Service (`/permissions`)](#9-permission-management-service-permissions)
+    - [Endpoints](#endpoints-2)
+      - [Initialize Permissions Example](#initialize-permissions-example)
 
 ---
 
@@ -155,25 +179,244 @@ Manages detailed teacher information. All endpoints are prefixed with `/api/teac
 
 ## 7. Affair Management Service (`/affairs`)
 
-Manages the types of affairs for which credit can be applied. All endpoints are prefixed with `/api/affairs`.
+Manages affairs (事务) for which credit can be applied. All endpoints are prefixed with `/api/affairs`.
 
-| Method   | Endpoint | Description                 | Authentication |
-| :------- | :------- | :-------------------------- | :------------- |
-| `POST`   | ``       | Creates a new affair type.  | Admin Required |
-| `GET`    | `/:id`   | Gets a single affair type.  | Required       |
-| `PUT`    | `/:id`   | Updates an affair type.     | Admin Required |
-| `DELETE` | `/:id`   | Deletes an affair type.     | Admin Required |
-| `GET`    | ``       | Gets a list of all affairs. | Required       |
+### Affair Model
+
+| Field        | Type    | Description                |
+| ------------| ------- | --------------------------|
+| id          | int     | Affair ID                  |
+| name        | string  | Affair name                |
+| description | string  | Affair description         |
+| creator_id  | string  | Creator's user ID (学号)   |
+| attachments | string  | JSON string for attachments|
+
+### AffairStudent Model
+
+| Field      | Type   | Description                |
+| ----------| ------ | --------------------------|
+| affair_id | int    | Affair ID                  |
+| student_id| string | Student ID                 |
+| is_primary| bool   | Is main responsible        |
+| role      | string | Role: 'primary'/'member'   |
+
+### Endpoints
+
+| Method   | Endpoint                        | Description                                 | Authentication |
+| :------- | :------------------------------ | :------------------------------------------ | :------------- |
+| `POST`   | ``                              | Create a new affair (with participants, etc, will auto-create applications) | Required       |
+| `GET`    | `/:id`                          | Get a single affair (with participants)     | Required       |
+| `PUT`    | `/:id`                          | Update an affair (creator only)             | Creator Only   |
+| `DELETE` | `/:id`                          | Delete an affair                            | Creator/Admin  |
+| `GET`    | ``                              | Get a list of all affairs                   | Required       |
+| `GET`    | `/:id/participants`             | Get all participants of an affair           | Required       |
+| `GET`    | `/:id/applications`             | Get all applications under an affair        | Required       |
+
+#### Create Affair Example
+
+```json
+POST /api/affairs
+{
+  "name": "创新创业项目",
+  "description": "2024年创新创业大赛",
+  "creator_id": "2021001",
+  "participants": ["2021001", "2021002"],
+  "attachments": "[{\"name\":\"附件1.pdf\",\"url\":\"/uploads/1.pdf\"}]"
+}
+```
+
+#### Get Affair with Participants Example
+
+```json
+GET /api/affairs/1
+{
+  "affair": {
+    "id": 1,
+    "name": "创新创业项目",
+    "description": "2024年创新创业大赛",
+    "creator_id": "2021001",
+    "attachments": "[...]"
+  },
+  "participants": [
+    { "affair_id": 1, "student_id": "2021001", "is_primary": true, "role": "primary" },
+    { "affair_id": 1, "student_id": "2021002", "is_primary": false, "role": "member" }
+  ]
+}
+```
+
+#### Get Affair Applications Example
+
+```json
+GET /api/affairs/1/applications
+{
+  "applications": [
+    { "id": 1, "affair_id": 1, "student_number": "2021001", ... },
+    { "id": 2, "affair_id": 1, "student_number": "2021002", ... }
+  ],
+  "total": 2
+}
+```
 
 ---
 
 ## 8. Application Management Service (`/applications`)
 
-Manages credit applications. All endpoints are prefixed with `/api/applications` and require authentication.
+Manages credit applications with support for five different credit types. All endpoints are prefixed with `/api/applications` and require authentication.
 
-| Method | Endpoint                | Description                            | User Role      |
-| :----- | :---------------------- | :------------------------------------- | :------------- |
-| `POST` | ``                      | Creates a new application.             | Student        |
-| `GET`  | `/:id`                  | Gets a single application by ID.       | Owner/Admin    |
-| `PUT`  | `/:id/status`           | Updates an application's status.       | Admin/Reviewer |
-| `GET`  | `/user/:studentNumber`  | Gets all applications for a student.   | Owner/Admin    |
+### Application Model
+
+| Field            | Type      | Description                    |
+| ----------------| --------- | ------------------------------ |
+| id              | uint      | Application ID                 |
+| affair_id       | uint      | Associated affair ID           |
+| student_number  | string    | Student ID                     |
+| submission_time | time.Time | Submission timestamp           |
+| status          | string    | Status: 未提交/待审核/已通过/已拒绝 |
+| reviewer_id     | uint      | Reviewer ID                    |
+| review_comment  | string    | Review comments                |
+| applied_credits | float64   | Applied credits                |
+| approved_credits| float64   | Approved credits               |
+| review_time     | *time.Time| Review timestamp               |
+
+### Five Credit Types
+
+#### 1. Innovation Practice Credit (创新创业实践活动学分)
+| Field           | Type   | Description     |
+| ---------------| ------ | --------------- |
+| internship     | string | 实习单位        |
+| project_id     | string | 项目编号        |
+| certifying_body| string | 认证机构        |
+| date           | string | 实践日期        |
+| hours          | int    | 实践时长        |
+
+#### 2. Discipline Competition Credit (学科竞赛学分)
+| Field    | Type   | Description     |
+| -------- | ------ | --------------- |
+| level    | string | 竞赛级别        |
+| name     | string | 竞赛名称        |
+| award    | string | 获奖等级        |
+| ranking  | int    | 排名            |
+
+#### 3. Student Entrepreneurship Project Credit (大学生创业项目学分)
+| Field        | Type   | Description     |
+| ------------ | ------ | --------------- |
+| project_name | string | 项目名称        |
+| project_level| string | 项目级别        |
+| project_rank | int    | 项目排名        |
+
+#### 4. Entrepreneurship Practice Credit (创业实践项目学分)
+| Field      | Type    | Description     |
+| ---------- | ------- | --------------- |
+| company_name| string  | 公司名称        |
+| company_rep| string   | 公司代表        |
+| share_ratio| float64 | 持股比例        |
+
+#### 5. Paper Patent Credit (论文专利学分)
+| Field   | Type   | Description     |
+| ------- | ------ | --------------- |
+| name    | string | 论文/专利名称   |
+| category| string | 类别            |
+| ranking | int    | 排名/影响因子   |
+
+### Endpoints
+
+| Method | Endpoint                        | Description                           | User Role      |
+| :----- | :------------------------------ | :------------------------------------ | :------------- |
+| `POST` | ``                              | Create a single application           | Student        |
+| `POST` | `/batch`                        | Batch create applications for affair  | System         |
+| `GET`  | `/:id`                          | Get application detail                | Owner/Admin    |
+| `GET`  | `/:id/detail`                   | Get full application with credit details | Owner/Admin |
+| `PUT`  | `/:id/details`                  | Update application details            | Owner Only     |
+| `POST` | `/:id/submit`                   | Submit application for review         | Owner Only     |
+| `PUT`  | `/:id/status`                   | Update application status (review)    | Admin/Reviewer |
+| `GET`  | `/user/:studentNumber`          | Get user's applications               | Owner/Admin    |
+| `GET`  | ``                              | Get all applications                  | Admin/Reviewer |
+
+### Application Workflow
+
+1. **Create Affair** → Auto-generate applications (status: 未提交)
+2. **Edit Application** → Students fill in credit details
+3. **Submit Application** → Status changes to 待审核
+4. **Review Application** → Teacher reviews and approves/rejects
+
+### Permission Control
+
+- **Students**: Can only edit their own applications
+- **Teachers/Admins**: Can view and review all applications
+- **Affair Creator**: Can edit affair information
+
+### Example Requests
+
+#### Batch Create Applications
+```json
+POST /api/applications/batch
+{
+  "affair_id": 1,
+  "creator_id": "2021001",
+  "participants": ["2021001", "2021002", "2021003"]
+}
+```
+
+#### Update Application Details
+```json
+PUT /api/applications/1/details
+{
+  "applied_credits": 2.0,
+  "details": {
+    "level": "国家级",
+    "name": "全国大学生数学竞赛",
+    "award": "一等奖",
+    "ranking": 1
+  }
+}
+```
+
+#### Submit Application
+```json
+POST /api/applications/1/submit
+```
+
+#### Review Application
+```json
+PUT /api/applications/1/status
+{
+  "status": "已通过",
+  "review_comment": "材料完整，符合要求",
+  "approved_credits": 2.0
+}
+```
+
+---
+
+## 9. Permission Management Service (`/permissions`)
+
+Handles roles, permissions, and their assignments. All endpoints are prefixed with `/api/permissions`.
+
+### Endpoints
+
+| Method   | Endpoint             | Description           |
+| :------- | :------------------- | :-------------------- |
+| `POST`   | `/init`              | Initialize permissions and roles (no auth required) |
+| `POST`   | `/roles`             | Creates a new role.   |
+| `GET`    | `/roles`             | Gets all roles.       |
+| `GET`    | `/roles/:roleID`     | Gets a specific role. |
+| `PUT`    | `/roles/:roleID`     | Updates a role.       |
+| `DELETE` | `/roles/:roleID`     | Deletes a role.       |
+| `POST`   | ``                   | Creates a permission. |
+| `GET`    | ``                   | Gets all permissions. |
+| `GET`    | `/:id`               | Gets a single permission.|
+| `DELETE` | `/:id`               | Deletes a permission. |
+| `POST`   | `/users/:userID/roles` | Assigns a role to a user. |
+| `DELETE` | `/users/:userID/roles/:roleID` | Removes a role from a user. |
+| `POST`   | `/users/:userID/permissions` | Assigns a permission to a user. |
+| `DELETE` | `/users/:userID/permissions/:permissionID` | Removes a permission from a user. |
+| `POST`   | `/roles/:roleID/permissions` | Assigns a permission to a role. |
+| `DELETE` | `/roles/:roleID/permissions/:permissionID` | Removes a permission from a role. |
+| `GET`    | `/users/:userID/roles` | Gets a user's roles. |
+| `GET`    | `/users/:userID/permissions` | Gets a user's permissions. |
+
+#### Initialize Permissions Example
+```json
+POST /api/permissions/init
+Response: { "message": "Permissions initialized successfully" }
+```

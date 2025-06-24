@@ -23,7 +23,7 @@ $loginBody = @{ username = $username; password = $password } | ConvertTo-Json
 try {
     $response = Invoke-RestMethod -Uri "$baseUrl/api/auth/login" -Method Post -Body $loginBody -Headers @{"Content-Type" = "application/json" }
     $jwtToken = $response.token
-    $authHeaders = @{ "Authorization" = "Bearer $jwtToken"; "Content-Type" = "application/json" }
+    $authHeaders = @{ "Authorization" = "Bearer $jwtToken"; "Content-Type" = "application/json"; "X-User-Id" = $username }
     Write-Host "PASS: Student login successful." -ForegroundColor Green
 } catch {
     Write-Host "FAIL: Student login failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -32,7 +32,13 @@ try {
 
 # --- Create Affair First ---
 $affairName = "test_affair_$(Get-Random)"
-$createAffairBody = @{ name = $affairName } | ConvertTo-Json
+$createAffairBody = @{ 
+    name = $affairName; 
+    description = "Test affair for application testing"; 
+    creator_id = $username; 
+    participants = @($username, "student_001", "student_002"); 
+    attachments = "[{`"name`":`"test.pdf`",`"url`":`"/uploads/test.pdf`"}]" 
+} | ConvertTo-Json -Depth 5
 try {
     $affairResp = Invoke-RestMethod -Uri "$baseUrl/api/affairs" -Method Post -Headers $authHeaders -Body $createAffairBody
     $affairId = $affairResp.id
@@ -42,47 +48,112 @@ try {
     exit 1
 }
 
-# --- Create Application ---
-$createBody = @{ 
+# --- Test Batch Create Applications ---
+$batchCreateBody = @{ 
     affair_id = $affairId; 
-    student_number = $studentNumber; 
+    creator_id = $username; 
+    participants = @($username, "student_001", "student_002") 
+} | ConvertTo-Json -Depth 5
+try {
+    $batchResp = Invoke-RestMethod -Uri "$baseUrl/api/applications/batch" -Method Post -Headers $authHeaders -Body $batchCreateBody
+    Write-Host "PASS: Batch create applications successful. Count: $($batchResp.count)" -ForegroundColor Green
+    $appId = $batchResp.applications[0].id
+} catch {
+    Write-Host "FAIL: Batch create applications failed: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+
+# --- Test Get Application Detail ---
+try {
+    $appDetail = Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/detail" -Method Get -Headers $authHeaders
+    if ($appDetail.application) {
+        Write-Host "PASS: Get application detail successful. Status: $($appDetail.application.status)" -ForegroundColor Green
+    } else {
+        Write-Host "FAIL: Get application detail response format incorrect" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "FAIL: Get application detail failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+# --- Test Update Application Details ---
+$updateDetailsBody = @{ 
+    applied_credits = 3.0; 
     details = @{ 
-        name = "Test Application"; 
-        applied_credits = 5.0;
-        level = "National";
-        award = "1st Prize";
-        ranking = 1
+        level = "国家级"; 
+        name = "全国大学生数学竞赛"; 
+        award = "一等奖"; 
+        ranking = 1 
     } 
 } | ConvertTo-Json -Depth 5
 try {
-    $resp = Invoke-RestMethod -Uri "$baseUrl/api/applications" -Method Post -Headers $authHeaders -Body $createBody
-    $appId = $resp.id
-    Write-Host "PASS: Application created. ID: $appId" -ForegroundColor Green
+    Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/details" -Method Put -Headers $authHeaders -Body $updateDetailsBody
+    Write-Host "PASS: Update application details successful." -ForegroundColor Green
 } catch {
-    Write-Host "FAIL: Create application failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "FAIL: Update application details failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-# --- Get Application ---
+# --- Test Submit Application ---
 try {
-    $app = Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId" -Method Get -Headers $authHeaders
-    Write-Host "PASS: Get application successful." -ForegroundColor Green
+    Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/submit" -Method Post -Headers $authHeaders
+    Write-Host "PASS: Submit application successful." -ForegroundColor Green
 } catch {
-    Write-Host "FAIL: Get application failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "FAIL: Submit application failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
-# --- Update Application Status ---
-$updateBody = @{ status = "审核通过"; review_comment = "Test"; approved_credits = 5.0 } | ConvertTo-Json
+# --- Test Update Application Status (as Teacher/Admin) ---
+$updateStatusBody = @{ 
+    status = "已通过"; 
+    review_comment = "材料完整，符合要求"; 
+    approved_credits = 3.0 
+} | ConvertTo-Json
 try {
-    Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/status" -Method Put -Headers $authHeaders -Body $updateBody
+    Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/status" -Method Put -Headers $authHeaders -Body $updateStatusBody
     Write-Host "PASS: Update application status successful." -ForegroundColor Green
 } catch {
     Write-Host "FAIL: Update application status failed: $($_.Exception.Message)" -ForegroundColor Red
 }
 
+# --- Test Permission Control (Different User) ---
+# Register another student
+$guid2 = [guid]::NewGuid().ToString().Substring(0, 8)
+$username2 = "student_$guid2"
+$registerBody2 = @{ username = $username2; password = $password; user_type = "student"; email = "$($username2)@test.com"; real_name = "Test Student 2" } | ConvertTo-Json
+try {
+    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/register" -Method Post -Body $registerBody2 -Headers @{"Content-Type" = "application/json" }
+    $loginBody2 = @{ username = $username2; password = $password } | ConvertTo-Json
+    $response = Invoke-RestMethod -Uri "$baseUrl/api/auth/login" -Method Post -Body $loginBody2 -Headers @{"Content-Type" = "application/json" }
+    $jwtToken2 = $response.token
+    $authHeaders2 = @{ "Authorization" = "Bearer $jwtToken2"; "Content-Type" = "application/json"; "X-User-Id" = $username2 }
+    
+    # Try to update application details with different user
+    Invoke-RestMethod -Uri "$baseUrl/api/applications/$appId/details" -Method Put -Headers $authHeaders2 -Body $updateDetailsBody
+    Write-Host "FAIL: Update application details should have failed for different user" -ForegroundColor Red
+} catch {
+    if ($_.Exception.Response.StatusCode -eq 403) {
+        Write-Host "PASS: Update application details correctly rejected for different user (403 Forbidden)" -ForegroundColor Green
+    } else {
+        Write-Host "FAIL: Update application details failed with unexpected error: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
 # --- Get Applications by User ---
 try {
-    $apps = Invoke-RestMethod -Uri "$baseUrl/api/applications/user/$studentNumber" -Method Get -Headers $authHeaders
-    Write-Host "PASS: Get applications by user successful." -ForegroundColor Green
+    $apps = Invoke-RestMethod -Uri "$baseUrl/api/applications/user/$username" -Method Get -Headers $authHeaders
+    Write-Host "PASS: Get applications by user successful. Count: $($apps.Count)" -ForegroundColor Green
 } catch {
     Write-Host "FAIL: Get applications by user failed: $($_.Exception.Message)" -ForegroundColor Red
-} 
+}
+
+# --- Get All Applications ---
+try {
+    $allApps = Invoke-RestMethod -Uri "$baseUrl/api/applications" -Method Get -Headers $authHeaders
+    if ($allApps.applications.Count -ge 1) {
+        Write-Host "PASS: Get all applications successful. Count: $($allApps.applications.Count)" -ForegroundColor Green
+    } else {
+        Write-Host "FAIL: Get all applications returned empty list." -ForegroundColor Red
+    }
+} catch {
+    Write-Host "FAIL: Get all applications failed: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+Write-Host "`n=== Application Management Service Tests Completed ===" -ForegroundColor Cyan 

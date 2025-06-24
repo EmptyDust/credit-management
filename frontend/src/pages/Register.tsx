@@ -10,161 +10,264 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import apiClient from "@/lib/api";
 import { useNavigate, Link } from "react-router-dom";
-import { UserPlus, User, KeyRound, Mail, Phone, FileSignature } from "lucide-react";
+import { UserPlus, User, KeyRound, Mail, Phone, FileSignature, Eye, EyeOff } from "lucide-react";
+import * as z from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import toast from "react-hot-toast";
+
+const registerSchema = z.object({
+  username: z.string()
+    .min(3, "用户名至少3个字符")
+    .max(20, "用户名最多20个字符")
+    .regex(/^[a-zA-Z0-9_]+$/, "用户名只能包含字母、数字和下划线"),
+  password: z.string()
+    .min(6, "密码至少6个字符")
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "密码必须包含大小写字母和数字"),
+  email: z.string().email("请输入有效的邮箱地址"),
+  phone: z.string().optional(),
+  real_name: z.string().min(1, "真实姓名不能为空"),
+  user_type: z.enum(["student", "teacher"], {
+    required_error: "请选择用户类型",
+  }),
+});
+
+type RegisterForm = z.infer<typeof registerSchema>;
 
 export default function Register() {
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-    email: "",
-    phone: "",
-    real_name: "",
-    user_type: "student",
-  });
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
-    if (formErrors[e.target.id]) {
-      setFormErrors({ ...formErrors, [e.target.id]: "" });
-    }
-  };
+  const form = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+      email: "",
+      phone: "",
+      real_name: "",
+      user_type: "student",
+    },
+  });
 
-  const handleSelectChange = (value: string) => {
-    setFormData({ ...formData, user_type: value });
-  };
-
-  const validateForm = (): Record<string, string> => {
-    const errors: Record<string, string> = {};
-
-    if (formData.username.length < 3 || formData.username.length > 20) {
-      errors.username = "Username must be between 3 and 20 characters.";
-    }
-    if (formData.password.length < 6) {
-      errors.password = "Password must be at least 6 characters long.";
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "Please enter a valid email address.";
-    }
-    if (!formData.real_name) {
-      errors.real_name = "Real name is required.";
-    }
-
-    return errors;
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setFormErrors({});
-
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setFormErrors(validationErrors);
-      return;
-    }
-
+  const onSubmit = async (values: RegisterForm) => {
     setLoading(true);
     try {
-      await apiClient.post("/users/register", formData);
-      setSuccess("Registration successful! You will be redirected to login.");
+      await apiClient.post("/users/register", values);
+      toast.success("注册成功！正在跳转到登录页面...");
       setTimeout(() => {
         navigate("/login");
       }, 2000);
-    } catch (err: any) {
-      const serverError = err.response?.data?.error || "Failed to register. Please try again.";
-      setError(serverError);
-      console.error(err);
+    } catch (err: unknown) {
+      // Error is already handled by the API interceptor
+      console.error("Register error:", err);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-muted/40">
-      <Card className="w-full max-w-md">
-        <form onSubmit={handleRegister}>
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold flex items-center justify-center gap-2">
-              <UserPlus />
-              Create an Account
-            </CardTitle>
-            <CardDescription>
-              Enter your details below to create your account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div>
-              <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="username" placeholder="Username" value={formData.username} onChange={handleChange} className="pl-10" />
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-gray-800">
+      <Card className="w-full max-w-md border-0 shadow-2xl sm:border bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <CardHeader className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                <UserPlus className="h-8 w-8 text-primary" />
               </div>
-              {formErrors.username && <p className="text-red-500 text-sm pt-1">{formErrors.username}</p>}
-            </div>
-            <div>
-              <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="password" type="password" placeholder="Password" value={formData.password} onChange={handleChange} className="pl-10" />
+              <div>
+                <CardTitle className="text-2xl font-bold">创建账号</CardTitle>
+                <CardDescription className="mt-2">
+                  请填写以下信息完成注册
+                </CardDescription>
               </div>
-              {formErrors.password && <p className="text-red-500 text-sm pt-1">{formErrors.password}</p>}
-            </div>
-            <div>
-              <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} className="pl-10" />
-              </div>
-              {formErrors.email && <p className="text-red-500 text-sm pt-1">{formErrors.email}</p>}
-            </div>
-            <div>
-              <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="phone" placeholder="Phone (Optional)" value={formData.phone} onChange={handleChange} className="pl-10" />
-              </div>
-            </div>
-            <div>
-              <div className="relative">
-                  <FileSignature className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input id="real_name" placeholder="Real Name" value={formData.real_name} onChange={handleChange} className="pl-10" />
-              </div>
-              {formErrors.real_name && <p className="text-red-500 text-sm pt-1">{formErrors.real_name}</p>}
-            </div>
-            <Select onValueChange={handleSelectChange} defaultValue={formData.user_type}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Select user type" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="teacher">Teacher</SelectItem>
-                </SelectContent>
-            </Select>
-            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-            {success && <p className="text-green-500 text-sm text-center">{success}</p>}
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            <Button className="w-full transition-transform duration-200 hover:scale-105" type="submit" disabled={loading}>
-                {loading ? "Registering..." : <>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>用户名</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          placeholder="请输入用户名"
+                          className="pl-10"
+                          disabled={loading}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>密码</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          type={showPassword ? "text" : "password"}
+                          placeholder="请输入密码"
+                          className="pl-10 pr-10"
+                          disabled={loading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          disabled={loading}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>邮箱</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="请输入邮箱地址"
+                          className="pl-10"
+                          disabled={loading}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>手机号码（可选）</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          placeholder="请输入手机号码"
+                          className="pl-10"
+                          disabled={loading}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="real_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>真实姓名</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <FileSignature className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          {...field}
+                          placeholder="请输入真实姓名"
+                          className="pl-10"
+                          disabled={loading}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="user_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>用户类型</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger disabled={loading}>
+                          <SelectValue placeholder="请选择用户类型" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="student">学生</SelectItem>
+                        <SelectItem value="teacher">教师</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+              <Button
+                type="submit"
+                className="w-full h-11 transition-all duration-200 hover:scale-[1.02]"
+                disabled={loading}
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    注册中...
+                  </div>
+                ) : (
+                  <>
                     <UserPlus className="mr-2 h-4 w-4" />
-                    Register
-                </>}
-            </Button>
-            <Link to="/login" className="text-sm text-primary hover:underline">
-                Already have an account? Sign in
-            </Link>
-          </CardFooter>
-        </form>
+                    注册
+                  </>
+                )}
+              </Button>
+              <Link
+                to="/login"
+                className="text-sm text-primary hover:underline transition-colors"
+              >
+                已有账号？立即登录
+              </Link>
+            </CardFooter>
+          </form>
+        </Form>
       </Card>
     </div>
   );

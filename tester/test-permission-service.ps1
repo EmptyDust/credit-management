@@ -19,7 +19,7 @@ try {
 
 # --- Initialize Permissions First ---
 try {
-    Invoke-RestMethod -Uri "$baseUrl/api/init-permissions" -Method Post -Headers $authHeaders
+    Invoke-RestMethod -Uri "$baseUrl/api/permissions/init" -Method Post -Headers $authHeaders
     Write-Host "PASS: Permissions initialized successfully." -ForegroundColor Green
 } catch {
     Write-Host "FAIL: Initialize permissions failed: $($_.Exception.Message)" -ForegroundColor Red

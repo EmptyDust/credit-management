@@ -68,6 +68,7 @@ func main() {
 		// 权限管理服务路由
 		// api.Any("/permissions/*path", createProxyHandler(config.AuthServiceURL))
 		// 明确列出权限相关路由，代理到权限服务
+		api.POST("/permissions/init", createProxyHandler(config.AuthServiceURL))
 		api.POST("/permissions/roles", createProxyHandler(config.AuthServiceURL))
 		api.GET("/permissions/roles", createProxyHandler(config.AuthServiceURL))
 		api.GET("/permissions/roles/:roleID", createProxyHandler(config.AuthServiceURL))
@@ -101,6 +102,8 @@ func main() {
 		// 事项管理服务路由
 		api.GET("/affairs", createProxyHandler(config.AffairServiceURL))
 		api.POST("/affairs", createProxyHandler(config.AffairServiceURL))
+		api.GET("/affairs/:id/participants", createProxyHandler(config.AffairServiceURL))
+		api.GET("/affairs/:id/applications", createProxyHandler(config.AffairServiceURL))
 		api.GET("/affairs/:id", createProxyHandler(config.AffairServiceURL))
 		api.PUT("/affairs/:id", createProxyHandler(config.AffairServiceURL))
 		api.DELETE("/affairs/:id", createProxyHandler(config.AffairServiceURL))
@@ -131,9 +134,14 @@ func main() {
 
 		// 申请管理服务路由
 		api.POST("/applications", createProxyHandler(config.ApplicationServiceURL))
-		api.GET("/applications/:id", createProxyHandler(config.ApplicationServiceURL))
+		api.POST("/applications/batch", createProxyHandler(config.ApplicationServiceURL))
+		api.GET("/applications/:id/detail", createProxyHandler(config.ApplicationServiceURL))
+		api.PUT("/applications/:id/details", createProxyHandler(config.ApplicationServiceURL))
+		api.POST("/applications/:id/submit", createProxyHandler(config.ApplicationServiceURL))
 		api.PUT("/applications/:id/status", createProxyHandler(config.ApplicationServiceURL))
+		api.GET("/applications/:id", createProxyHandler(config.ApplicationServiceURL))
 		api.GET("/applications/user/:studentNumber", createProxyHandler(config.ApplicationServiceURL))
+		api.GET("/applications", createProxyHandler(config.ApplicationServiceURL))
 	}
 
 	// 默认路由 - 返回API信息

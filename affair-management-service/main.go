@@ -70,10 +70,12 @@ func main() {
 		affairs := api.Group("/affairs")
 		{
 			affairs.POST("", affairHandler.CreateAffair)   // 创建事项
-			affairs.GET("/:id", affairHandler.GetAffair)   // 获取单个事项
-			affairs.PUT("/:id", affairHandler.UpdateAffair)  // 更新事项
-			affairs.DELETE("/:id", affairHandler.DeleteAffair) // 删除事项
+			affairs.GET(":id", affairHandler.GetAffair)   // 获取单个事项
+			affairs.PUT(":id", affairHandler.UpdateAffair)  // 更新事项
+			affairs.DELETE(":id", affairHandler.DeleteAffair) // 删除事项
 			affairs.GET("", affairHandler.GetAllAffairs)     // 获取所有事项
+			affairs.GET(":id/participants", affairHandler.GetAffairParticipants) // 获取参与者
+			affairs.GET(":id/applications", affairHandler.GetAffairApplications) // 获取事务下所有申请
 		}
 	}
 

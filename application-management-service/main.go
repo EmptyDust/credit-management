@@ -71,9 +71,14 @@ func main() {
 		applications.Use(authMiddleware.AuthRequired())
 		{
 			applications.POST("", applicationHandler.CreateApplication)
-			applications.GET("/:id", applicationHandler.GetApplication)
-			applications.PUT("/:id/status", applicationHandler.UpdateApplicationStatus)
+			applications.POST("/batch", applicationHandler.BatchCreateApplications)
+			applications.GET(":id", applicationHandler.GetApplicationDetail)
+			applications.GET(":id/detail", applicationHandler.GetApplicationDetail)
+			applications.PUT(":id/details", applicationHandler.UpdateApplicationDetails)
+			applications.POST(":id/submit", applicationHandler.SubmitApplication)
+			applications.PUT(":id/status", applicationHandler.UpdateApplicationStatus)
 			applications.GET("/user/:studentNumber", applicationHandler.GetUserApplications)
+			applications.GET("", applicationHandler.GetAllApplications)
 		}
 	}
 

@@ -1,3 +1,6 @@
+# ===========================================
+# Go specific ignores
+# ===========================================
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -14,30 +17,20 @@
 # Go workspace file
 go.work
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Go build artifacts
+*.o
+*.a
+*.so
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Go vendor directory
+vendor/
 
-# Logs
-*.log
+# Go specific
+go.sum.backup
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
+# ===========================================
+# Node.js / JavaScript / TypeScript
+# ===========================================
 # Dependency directories
 node_modules/
 jspm_packages/
@@ -48,6 +41,30 @@ jspm_packages/
 # Optional eslint cache
 .eslintcache
 
+# Node.js specific
+.npmrc
+.yarnrc
+.yarn-integrity
+yarn-error.log
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+node_modules/.tmp/
+
+# ===========================================
+# React / Vite specific
+# ===========================================
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+*.local
+
+# ===========================================
+# Environment and Configuration
+# ===========================================
 # dotenv environment variables file
 .env
 .env.local
@@ -55,18 +72,160 @@ jspm_packages/
 .env.test.local
 .env.production.local
 
-# Build outputs
-dist/
-build/
+# Configuration files with sensitive data
+config.json
+secrets.json
+credentials.json
+*.kubeconfig
 
-# Docker
-.dockerignore
+# ===========================================
+# IDE and Editor files
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Database
+# IDE specific
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# ===========================================
+# OS generated files
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+*.lnk
+
+# ===========================================
+# Logs and Runtime data
+# ===========================================
+# Logs
+*.log
+logs/
+log/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ===========================================
+# Build and Temporary files
+# ===========================================
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Coverage reports
+coverage/
+*.coverage
+*.cover
+
+# Profiling data
+*.prof
+
+# ===========================================
+# Database files
+# ===========================================
 *.db
 *.sqlite
 *.sqlite3
 
-# Temporary files
-tmp/
-temp/ 
+# ===========================================
+# Docker and Containerization
+# ===========================================
+.dockerignore
+
+# ===========================================
+# Upload and Media files
+# ===========================================
+uploads/
+files/
+media/
+
+# ===========================================
+# Backup and Archive files
+# ===========================================
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+
+# ===========================================
+# Certificate and Security files
+# ===========================================
+# Certificate files
+*.pem
+*.key
+*.crt
+*.csr
+
+# ===========================================
+# Infrastructure and Deployment
+# ===========================================
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Helm
+charts/*.tgz
+
+# ===========================================
+# Local development
+# ===========================================
+.local/
+local/
+
+# ===========================================
+# Testing
+# ===========================================
+# Test coverage
+coverage/
+.nyc_output/
+
+# ===========================================
+# Package managers
+# ===========================================
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# pnpm
+.pnpm-store/ 
