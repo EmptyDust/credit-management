@@ -81,7 +81,7 @@ const formSchema = z.object({
   contact: z.string().optional(),
   email: z.string().email({ message: "请输入有效的邮箱地址" }).optional().or(z.literal('')),
   grade: z.string().min(1, "年级不能为空"),
-  status: z.enum(['active', 'inactive']).default('active'),
+  status: z.enum(['active', 'inactive']),
 });
 
 export default function StudentsPage() {
@@ -115,6 +115,7 @@ export default function StudentsPage() {
     const fetchStudents = async () => {
         try {
             setLoading(true);
+            setError("");
             let endpoint = '/students';
             const params = new URLSearchParams();
             
@@ -132,12 +133,30 @@ export default function StudentsPage() {
                 endpoint += `?${params.toString()}`;
             }
             
+            console.log('Fetching students from:', endpoint);
             const response = await apiClient.get(endpoint);
-            setStudents(response.data.students || []);
-        } catch (err) {
-            setError("获取学生列表失败");
-            console.error(err);
-            toast.error("获取学生列表失败");
+            console.log('API response:', response.data);
+            
+            // 处理不同的响应格式
+            let studentsData = [];
+            if (response.data && Array.isArray(response.data)) {
+                // 直接返回数组的情况
+                studentsData = response.data;
+            } else if (response.data && response.data.students) {
+                // 包装在students字段中的情况
+                studentsData = response.data.students;
+            } else {
+                console.warn('Unexpected response format:', response.data);
+                studentsData = [];
+            }
+            
+            setStudents(studentsData);
+            console.log('Students loaded:', studentsData.length);
+        } catch (err: any) {
+            const errorMessage = err.response?.data?.error || err.message || "获取学生列表失败";
+            setError(errorMessage);
+            console.error('Error fetching students:', err);
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -223,7 +242,7 @@ export default function StudentsPage() {
     const canManageStudents = hasPermission('manage_students');
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 p-4 md:p-8">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold">学生管理</h1>

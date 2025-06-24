@@ -322,15 +322,15 @@ export default function AffairDetailPage() {
               <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">{approvedApps.length}</div>
-                  <div className="text-sm text-muted-foreground">已通过</div>
+                  <div className="text-sm text-muted-foreground">Approved</div>
                 </div>
                 <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                   <div className="text-2xl font-bold text-yellow-600">{pendingApps.length}</div>
-                  <div className="text-sm text-muted-foreground">待审核</div>
+                  <div className="text-sm text-muted-foreground">Pending</div>
                 </div>
                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <div className="text-2xl font-bold text-red-600">{rejectedApps.length}</div>
-                  <div className="text-sm text-muted-foreground">已拒绝</div>
+                  <div className="text-sm text-muted-foreground">Rejected</div>
                 </div>
               </div>
 

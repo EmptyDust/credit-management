@@ -3,12 +3,13 @@ package models
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // User 用户模型（用户管理服务专用）
 type User struct {
-	ID           uint           `json:"id" gorm:"primaryKey"`
+	ID           string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex"`
@@ -23,6 +24,14 @@ type User struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// BeforeCreate 在创建前自动生成UUID
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = uuid.New().String()
+	}
+	return nil
 }
 
 // UserRequest 用户注册请求
@@ -47,7 +56,7 @@ type UserUpdateRequest struct {
 
 // UserResponse 用户响应
 type UserResponse struct {
-	ID           uint       `json:"id"`
+	ID           string     `json:"id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`

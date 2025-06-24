@@ -63,16 +63,16 @@ func (h *StudentHandler) CreateStudent(c *gin.Context) {
 	})
 }
 
-// GetStudentByID 根据学号获取学生信息
+// GetStudentByID 根据UUID获取学生信息
 func (h *StudentHandler) GetStudentByID(c *gin.Context) {
-	studentID := c.Param("studentID")
+	studentID := c.Param("id")
 	if studentID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "学号不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "学生ID不能为空"})
 		return
 	}
 
 	var student models.Student
-	err := h.db.Where("student_id = ?", studentID).First(&student).Error
+	err := h.db.Where("id = ?", studentID).First(&student).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "学生不存在"})
@@ -85,9 +85,9 @@ func (h *StudentHandler) GetStudentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, student)
 }
 
-// UpdateStudentByID updates a student's information by student ID
+// UpdateStudentByID updates a student's information by UUID
 func (h *StudentHandler) UpdateStudentByID(c *gin.Context) {
-	studentID := c.Param("studentID")
+	studentID := c.Param("id")
 	var req models.StudentUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
@@ -95,7 +95,7 @@ func (h *StudentHandler) UpdateStudentByID(c *gin.Context) {
 	}
 
 	var student models.Student
-	if err := h.db.Where("student_id = ?", studentID).First(&student).Error; err != nil {
+	if err := h.db.Where("id = ?", studentID).First(&student).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
 		} else {
@@ -111,10 +111,10 @@ func (h *StudentHandler) UpdateStudentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, student)
 }
 
-// DeleteStudentByID deletes a student by student ID
+// DeleteStudentByID deletes a student by UUID
 func (h *StudentHandler) DeleteStudentByID(c *gin.Context) {
-	studentID := c.Param("studentID")
-	if err := h.db.Where("student_id = ?", studentID).Delete(&models.Student{}).Error; err != nil {
+	studentID := c.Param("id")
+	if err := h.db.Where("id = ?", studentID).Delete(&models.Student{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete student: " + err.Error()})
 		return
 	}
@@ -130,7 +130,7 @@ func (h *StudentHandler) GetAllStudents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students})
 }
 
 // GetStudentsByCollege 根据学院获取学生
@@ -148,7 +148,7 @@ func (h *StudentHandler) GetStudentsByCollege(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students, "count": len(students)})
 }
 
 // GetStudentsByMajor 根据专业获取学生
@@ -166,7 +166,7 @@ func (h *StudentHandler) GetStudentsByMajor(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students})
 }
 
 // GetStudentsByClass 根据班级获取学生
@@ -184,7 +184,7 @@ func (h *StudentHandler) GetStudentsByClass(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students})
 }
 
 // GetStudentsByStatus 根据状态获取学生
@@ -202,7 +202,7 @@ func (h *StudentHandler) GetStudentsByStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students})
 }
 
 // SearchStudents 搜索学生
@@ -222,5 +222,5 @@ func (h *StudentHandler) SearchStudents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"students": students})
 }

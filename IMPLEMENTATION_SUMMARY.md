@@ -150,9 +150,9 @@ DELETE /applications/files/:id - 删除文件
 GET /applications/:id/files - 获取申请文件
 
 # 统计和查询
-GET /applications/pending - 待审核申请
-GET /applications/approved - 已通过申请
-GET /applications/rejected - 已拒绝申请
+GET /applications/pending - Pending applications
+GET /applications/approved - Approved applications
+GET /applications/rejected - Rejected applications
 GET /applications/stats - 申请统计
 ```
 

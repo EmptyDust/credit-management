@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"credit-management/affair-management-service/models"
 
@@ -95,11 +94,11 @@ func (h *AffairHandler) CreateAffair(c *gin.Context) {
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		// 如果调用失败，记录错误但不影响事务创建
-		fmt.Printf("Warning: Failed to create applications for affair %d: %v\n", affair.ID, err)
+		fmt.Printf("Warning: Failed to create applications for affair %s: %v\n", affair.ID, err)
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
-			fmt.Printf("Warning: Application service returned status %d for affair %d\n", resp.StatusCode, affair.ID)
+			fmt.Printf("Warning: Application service returned status %d for affair %s\n", resp.StatusCode, affair.ID)
 		}
 	}
 
@@ -108,13 +107,13 @@ func (h *AffairHandler) CreateAffair(c *gin.Context) {
 
 // GetAffair 返回详情（含参与者）
 func (h *AffairHandler) GetAffair(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的事项ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "事项ID不能为空"})
 		return
 	}
 	var affair models.Affair
-	if err := h.db.First(&affair, id).Error; err != nil {
+	if err := h.db.Where("affair_id = ?", id).First(&affair).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "事项不存在"})
 		} else {
@@ -129,14 +128,18 @@ func (h *AffairHandler) GetAffair(c *gin.Context) {
 
 // UpdateAffair 仅允许创建者编辑
 func (h *AffairHandler) UpdateAffair(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的事项ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "事项ID不能为空"})
 		return
 	}
 	var affair models.Affair
-	if err := h.db.First(&affair, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "事项不存在"})
+	if err := h.db.Where("affair_id = ?", id).First(&affair).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "事项不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询事项失败: " + err.Error()})
+		}
 		return
 	}
 	// 权限校验（假设从header获取user_id）
@@ -166,13 +169,13 @@ func (h *AffairHandler) UpdateAffair(c *gin.Context) {
 
 // DeleteAffair 删除事项
 func (h *AffairHandler) DeleteAffair(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的事项ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "事项ID不能为空"})
 		return
 	}
 
-	if err := h.db.Delete(&models.Affair{}, id).Error; err != nil {
+	if err := h.db.Where("affair_id = ?", id).Delete(&models.Affair{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除事项失败: " + err.Error()})
 		return
 	}
@@ -193,23 +196,30 @@ func (h *AffairHandler) GetAllAffairs(c *gin.Context) {
 
 // GetAffairParticipants 获取事务参与者
 func (h *AffairHandler) GetAffairParticipants(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的事项ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "事项ID不能为空"})
 		return
 	}
 	var participants []models.AffairStudent
-	h.db.Where("affair_id = ?", id).Find(&participants)
+	if err := h.db.Where("affair_id = ?", id).Find(&participants).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询参与者失败: " + err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, participants)
 }
 
 // GetAffairApplications 获取事务下所有申请（调用 application-management-service）
 func (h *AffairHandler) GetAffairApplications(c *gin.Context) {
 	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "事项ID不能为空"})
+		return
+	}
 	
 	// 验证事务是否存在
 	var affair models.Affair
-	if err := h.db.First(&affair, id).Error; err != nil {
+	if err := h.db.Where("affair_id = ?", id).First(&affair).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "事务不存在"})
 		} else {

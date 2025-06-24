@@ -2,20 +2,33 @@ package models
 
 import (
 	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // Teacher 教师模型
 type Teacher struct {
-	Username   string    `json:"username" gorm:"primaryKey;column:username"`
-	Name       string    `json:"name" gorm:"column:name;not null"`
-	Contact    string    `json:"contact" gorm:"column:contact"`
-	Email      string    `json:"email" gorm:"column:email"`
-	Department string    `json:"department" gorm:"column:department"`          // 所属院系
-	Title      string    `json:"title" gorm:"column:title"`                    // 职称
-	Specialty  string    `json:"specialty" gorm:"column:specialty"`            // 专业领域
-	Status     string    `json:"status" gorm:"column:status;default:'active'"` // active, inactive, retired
-	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt  time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	Username   string         `json:"username" gorm:"uniqueIndex;not null"`
+	Name       string         `json:"name" gorm:"column:name;not null"`
+	Contact    string         `json:"contact" gorm:"column:contact"`
+	Email      string         `json:"email" gorm:"column:email"`
+	Department string         `json:"department" gorm:"column:department"`          // 所属院系
+	Title      string         `json:"title" gorm:"column:title"`                    // 职称
+	Specialty  string         `json:"specialty" gorm:"column:specialty"`            // 专业领域
+	Status     string         `json:"status" gorm:"column:status;default:'active'"` // active, inactive, retired
+	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt  gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// BeforeCreate 在创建前自动生成UUID
+func (t *Teacher) BeforeCreate(tx *gorm.DB) error {
+	if t.ID == "" {
+		t.ID = uuid.New().String()
+	}
+	return nil
 }
 
 // TableName 指定表名

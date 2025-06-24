@@ -57,14 +57,14 @@ func (h *TeacherHandler) CreateTeacher(c *gin.Context) {
 
 // GetTeacher 获取教师信息
 func (h *TeacherHandler) GetTeacher(c *gin.Context) {
-	username := c.Param("username")
-	if username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+	teacherID := c.Param("id")
+	if teacherID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "教师ID不能为空"})
 		return
 	}
 
 	var teacher models.Teacher
-	err := h.db.Where("username = ?", username).First(&teacher).Error
+	err := h.db.Where("id = ?", teacherID).First(&teacher).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教师不存在"})
@@ -79,9 +79,9 @@ func (h *TeacherHandler) GetTeacher(c *gin.Context) {
 
 // UpdateTeacher 更新教师信息
 func (h *TeacherHandler) UpdateTeacher(c *gin.Context) {
-	username := c.Param("username")
-	if username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+	teacherID := c.Param("id")
+	if teacherID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "教师ID不能为空"})
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *TeacherHandler) UpdateTeacher(c *gin.Context) {
 	}
 
 	var teacher models.Teacher
-	if err := h.db.Where("username = ?", username).First(&teacher).Error; err != nil {
+	if err := h.db.Where("id = ?", teacherID).First(&teacher).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教师不存在"})
 		} else {
@@ -135,14 +135,14 @@ func (h *TeacherHandler) UpdateTeacher(c *gin.Context) {
 
 // DeleteTeacher 删除教师
 func (h *TeacherHandler) DeleteTeacher(c *gin.Context) {
-	username := c.Param("username")
-	if username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+	teacherID := c.Param("id")
+	if teacherID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "教师ID不能为空"})
 		return
 	}
 
 	var teacher models.Teacher
-	if err := h.db.Where("username = ?", username).First(&teacher).Error; err != nil {
+	if err := h.db.Where("id = ?", teacherID).First(&teacher).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教师不存在"})
 		} else {
@@ -168,7 +168,7 @@ func (h *TeacherHandler) GetAllTeachers(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
 }
 
 // GetTeachersByDepartment 根据院系获取教师
@@ -186,7 +186,7 @@ func (h *TeacherHandler) GetTeachersByDepartment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers, "count": len(teachers)})
 }
 
 // GetTeachersByTitle 根据职称获取教师
@@ -198,13 +198,13 @@ func (h *TeacherHandler) GetTeachersByTitle(c *gin.Context) {
 	}
 
 	var teachers []models.Teacher
-	err := h.db.Preload("User").Where("title = ?", title).Find(&teachers).Error
+	err := h.db.Where("title = ?", title).Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询教师失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
 }
 
 // GetTeachersByStatus 根据状态获取教师
@@ -216,13 +216,13 @@ func (h *TeacherHandler) GetTeachersByStatus(c *gin.Context) {
 	}
 
 	var teachers []models.Teacher
-	err := h.db.Preload("User").Where("status = ?", status).Find(&teachers).Error
+	err := h.db.Where("status = ?", status).Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询教师失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
 }
 
 // SearchTeachers 搜索教师
@@ -234,26 +234,25 @@ func (h *TeacherHandler) SearchTeachers(c *gin.Context) {
 	}
 
 	var teachers []models.Teacher
-	err := h.db.Preload("User").
-		Where("name LIKE ? OR department LIKE ? OR title LIKE ? OR specialty LIKE ?",
-			"%"+query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
+	err := h.db.Where("name LIKE ? OR department LIKE ? OR title LIKE ? OR specialty LIKE ?",
+		"%"+query+"%", "%"+query+"%", "%"+query+"%", "%"+query+"%").
 		Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "搜索教师失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
 }
 
 // GetActiveTeachers 获取活跃教师
 func (h *TeacherHandler) GetActiveTeachers(c *gin.Context) {
 	var teachers []models.Teacher
-	err := h.db.Preload("User").Where("status = ?", "active").Find(&teachers).Error
+	err := h.db.Where("status = ?", "active").Find(&teachers).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询教师失败: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, teachers)
+	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
 }

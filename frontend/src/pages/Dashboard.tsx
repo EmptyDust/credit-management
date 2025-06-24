@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import apiClient from '@/lib/api';
 import { 
   Users, 
@@ -18,7 +20,14 @@ import {
   RefreshCw,
   Activity,
   BarChart3,
-  Target
+  Target,
+  Star,
+  BookOpen,
+  Trophy,
+  Zap,
+  Lightbulb,
+  Globe,
+  Eye
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,44 +42,54 @@ interface UserStats {
   new_users_this_month: number;
 }
 
-interface AppStats {
-    total_applications: number;
-    pending_applications: number;
-    approved_applications: number;
+interface ApplicationStats {
+  total_applications: number;
+  pending_applications: number;
+  approved_applications: number;
   rejected_applications: number;
-  recent_applications: number;
+  unsubmitted_applications: number;
   applications_this_month: number;
   approval_rate: number;
+  total_credits_awarded: number;
+  average_credits_per_application: number;
+  credits_this_month: number;
 }
 
 interface AffairStats {
   total_affairs: number;
   active_affairs: number;
+  recent_affairs: Array<{
+    id: string;
+    name: string;
+    description: string;
+    participant_count: number;
+    application_count: number;
+    created_at: string;
+  }>;
   popular_affairs: Array<{
-    id: number;
+    id: string;
     name: string;
     application_count: number;
+    participant_count: number;
   }>;
 }
 
 interface RecentActivity {
-  id: number;
-  type: 'application' | 'user' | 'affair' | 'review';
+  id: string;
+  type: 'application' | 'affair' | 'user' | 'review';
   action: string;
   timestamp: string;
   user: string;
   details?: string;
+  status?: string;
 }
 
-interface CreditStats {
-  total_credits_awarded: number;
-  average_credits_per_application: number;
-  credits_this_month: number;
-  top_students: Array<{
-    username: string;
-    name: string;
-    total_credits: number;
-  }>;
+interface CreditTypeStats {
+  innovation_practice: number;
+  discipline_competition: number;
+  entrepreneurship_project: number;
+  entrepreneurship_practice: number;
+  paper_patent: number;
 }
 
 const StatCard = ({ 
@@ -81,7 +100,8 @@ const StatCard = ({
   description, 
   trend,
   color = "default",
-  loading = false
+  loading = false,
+  subtitle
 }: { 
   title: string, 
   value: string | number, 
@@ -89,39 +109,51 @@ const StatCard = ({
   to?: string, 
   description?: string,
   trend?: { value: number, isPositive: boolean },
-  color?: "default" | "success" | "warning" | "danger" | "info",
-  loading?: boolean
+  color?: "default" | "success" | "warning" | "danger" | "info" | "purple",
+  loading?: boolean,
+  subtitle?: string
 }) => {
   const colorClasses = {
     default: "text-muted-foreground",
     success: "text-green-600",
     warning: "text-yellow-600", 
     danger: "text-red-600",
-    info: "text-blue-600"
+    info: "text-blue-600",
+    purple: "text-purple-600"
   };
 
-    const content = (
-    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div className="p-2 rounded-full bg-primary/10">
+  const bgClasses = {
+    default: "bg-muted/20",
+    success: "bg-green-100 dark:bg-green-900/20",
+    warning: "bg-yellow-100 dark:bg-yellow-900/20", 
+    danger: "bg-red-100 dark:bg-red-900/20",
+    info: "bg-blue-100 dark:bg-blue-900/20",
+    purple: "bg-purple-100 dark:bg-purple-900/20"
+  };
+
+  const content = (
+    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <div className={`p-3 rounded-xl ${bgClasses[color]}`}>
           <Icon className={`h-6 w-6 ${colorClasses[color]}`} />
         </div>
-        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-        <div className="text-3xl font-extrabold mb-1">{value}</div>
-                {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">{value}</div>
+        {subtitle && <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>}
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
         {trend && (
-          <div className="flex items-center mt-2">
+          <div className="flex items-center mt-3">
             <TrendingUp className={`h-4 w-4 mr-1 ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`} />
-            <span className={`text-xs ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+            <span className={`text-xs font-medium ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
               {trend.isPositive ? '+' : ''}{trend.value}%
             </span>
           </div>
         )}
-            </CardContent>
-        </Card>
-    );
+      </CardContent>
+    </Card>
+  );
 
   return to ? <Link to={to} className="block">{content}</Link> : content;
 };
@@ -131,10 +163,10 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
     switch (activity.type) {
       case 'application':
         return <FileText className="h-4 w-4" />;
-      case 'user':
-        return <Users className="h-4 w-4" />;
       case 'affair':
         return <Award className="h-4 w-4" />;
+      case 'user':
+        return <Users className="h-4 w-4" />;
       case 'review':
         return <CheckCircle className="h-4 w-4" />;
       default:
@@ -145,16 +177,30 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
   const getColor = () => {
     switch (activity.type) {
       case 'application':
-        return 'bg-blue-100 text-blue-600';
-      case 'user':
-        return 'bg-green-100 text-green-600';
+        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/20';
       case 'affair':
-        return 'bg-purple-100 text-purple-600';
+        return 'bg-purple-100 text-purple-600 dark:bg-purple-900/20';
+      case 'user':
+        return 'bg-green-100 text-green-600 dark:bg-green-900/20';
       case 'review':
-        return 'bg-orange-100 text-orange-600';
+        return 'bg-orange-100 text-orange-600 dark:bg-orange-900/20';
       default:
-        return 'bg-gray-100 text-gray-600';
+        return 'bg-gray-100 text-gray-600 dark:bg-gray-900/20';
     }
+  };
+
+  const getStatusBadge = (status?: string) => {
+    if (!status) return null;
+    
+    const statusConfig = {
+      'pending': { label: '待审核', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20' },
+      'approved': { label: '已通过', color: 'bg-green-100 text-green-800 dark:bg-green-900/20' },
+      'rejected': { label: '已拒绝', color: 'bg-red-100 text-red-800 dark:bg-red-900/20' },
+      'unsubmitted': { label: '未提交', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20' }
+    };
+    
+    const config = statusConfig[status as keyof typeof statusConfig];
+    return config ? <Badge className={config.color}>{config.label}</Badge> : null;
   };
 
   const formatTime = (timestamp: string) => {
@@ -168,47 +214,83 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
   };
 
   return (
-    <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/40 transition-colors">
-      <div className={`p-2 rounded-full ${getColor()} shadow-md`}>{getIcon()}</div>
+    <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-muted">
+      <div className={`p-2 rounded-full ${getColor()} shadow-sm`}>{getIcon()}</div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{activity.action}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium truncate">{activity.action}</p>
+          {getStatusBadge(activity.status)}
+        </div>
         <p className="text-xs text-muted-foreground">by {activity.user}</p>
         {activity.details && (
           <p className="text-xs text-muted-foreground mt-1">{activity.details}</p>
         )}
       </div>
-      <div className="text-xs text-muted-foreground">
+      <div className="text-xs text-muted-foreground whitespace-nowrap">
         {formatTime(activity.timestamp)}
       </div>
     </div>
   );
 };
 
+const CreditTypeCard = ({ type, count, total, icon: Icon, color }: {
+  type: string;
+  count: number;
+  total: number;
+  icon: React.ElementType;
+  color: string;
+}) => {
+  const percentage = total > 0 ? (count / total) * 100 : 0;
+  
+  return (
+    <Card className="rounded-lg border-0 shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className={`p-2 rounded-lg ${color}`}>
+            <Icon className="h-5 w-5 text-white" />
+          </div>
+          <span className="text-2xl font-bold">{count}</span>
+        </div>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{type}</p>
+          <Progress value={percentage} className="h-2" />
+          <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}% of total</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function Dashboard() {
   const { user, hasPermission } = useAuth();
-    const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [appStats, setAppStats] = useState<AppStats>({ 
-    total_applications: 0, 
-    pending_applications: 0, 
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [appStats, setAppStats] = useState<ApplicationStats>({
+    total_applications: 0,
+    pending_applications: 0,
     approved_applications: 0,
     rejected_applications: 0,
-    recent_applications: 0,
+    unsubmitted_applications: 0,
     applications_this_month: 0,
-    approval_rate: 0
+    approval_rate: 0,
+    total_credits_awarded: 0,
+    average_credits_per_application: 0,
+    credits_this_month: 0
   });
   const [affairStats, setAffairStats] = useState<AffairStats>({
     total_affairs: 0,
     active_affairs: 0,
+    recent_affairs: [],
     popular_affairs: []
   });
-  const [creditStats, setCreditStats] = useState<CreditStats>({
-    total_credits_awarded: 0,
-    average_credits_per_application: 0,
-    credits_this_month: 0,
-    top_students: []
+  const [creditTypeStats, setCreditTypeStats] = useState<CreditTypeStats>({
+    innovation_practice: 0,
+    discipline_competition: 0,
+    entrepreneurship_project: 0,
+    entrepreneurship_practice: 0,
+    paper_patent: 0
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchDashboardData = async () => {
@@ -246,67 +328,10 @@ export default function Dashboard() {
         const pending = applications.filter((app: any) => app.status === 'pending').length;
         const approved = applications.filter((app: any) => app.status === 'approved').length;
         const rejected = applications.filter((app: any) => app.status === 'rejected').length;
+        const unsubmitted = applications.filter((app: any) => app.status === 'unsubmitted').length;
         const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
         
-        setAppStats({
-          total_applications: total,
-          pending_applications: pending,
-          approved_applications: approved,
-          rejected_applications: rejected,
-          recent_applications: applications.slice(0, 5).length,
-          applications_this_month: applications.filter((app: any) => {
-            const appDate = new Date(app.submission_time);
-            const now = new Date();
-            return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
-          }).length,
-          approval_rate: approvalRate
-        });
-      } catch (error) {
-        console.error('Failed to fetch applications:', error);
-        // Use fallback data for application stats
-        setAppStats({ 
-          total_applications: 152, 
-          pending_applications: 25, 
-          approved_applications: 127,
-          rejected_applications: 8,
-          recent_applications: 12,
-          applications_this_month: 45,
-          approval_rate: 83.5
-        });
-      }
-
-      // Fetch affair stats
-      try {
-        const affairResponse = await apiClient.get('/affairs');
-        const affairs = affairResponse.data.affairs || affairResponse.data || [];
-        setAffairStats({
-          total_affairs: affairs.length,
-          active_affairs: affairs.filter((a: any) => a.status === 'active').length,
-          popular_affairs: affairs
-            .sort((a: any, b: any) => (b.application_count || 0) - (a.application_count || 0))
-            .slice(0, 5)
-        });
-      } catch (error) {
-        console.error('Failed to fetch affairs:', error);
-        setAffairStats({ 
-          total_affairs: 15, 
-          active_affairs: 12,
-          popular_affairs: [
-            { id: 1, name: "创新创业项目", application_count: 25 },
-            { id: 2, name: "学科竞赛", application_count: 18 },
-            { id: 3, name: "志愿服务", application_count: 12 }
-          ]
-        });
-      }
-
-      // Calculate credit stats from applications
-      try {
-        const endpoint = user?.userType === 'student' 
-          ? `/applications/user/${user.username}` 
-          : '/applications';
-        const appResponse = await apiClient.get(endpoint);
-        const applications = appResponse.data.applications || appResponse.data || [];
-        
+        // Calculate credit stats
         const approvedApps = applications.filter((app: any) => app.status === 'approved');
         const totalCredits = approvedApps.reduce((sum: number, app: any) => sum + (app.approved_credits || 0), 0);
         const avgCredits = approvedApps.length > 0 ? Math.round((totalCredits / approvedApps.length) * 10) / 10 : 0;
@@ -318,67 +343,158 @@ export default function Dashboard() {
           return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
         }).reduce((sum: number, app: any) => sum + (app.approved_credits || 0), 0);
         
-        setCreditStats({
+        setAppStats({
+          total_applications: total,
+          pending_applications: pending,
+          approved_applications: approved,
+          rejected_applications: rejected,
+          unsubmitted_applications: unsubmitted,
+          applications_this_month: applications.filter((app: any) => {
+            const appDate = new Date(app.submission_time);
+            const now = new Date();
+            return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
+          }).length,
+          approval_rate: approvalRate,
           total_credits_awarded: totalCredits,
           average_credits_per_application: avgCredits,
-          credits_this_month: thisMonthCredits,
-          top_students: [] // This would need a separate API call to get all students and their credits
+          credits_this_month: thisMonthCredits
         });
       } catch (error) {
-        console.error('Failed to calculate credit stats:', error);
-        setCreditStats({
+        console.error('Failed to fetch applications:', error);
+        // Use fallback data for application stats
+        setAppStats({
+          total_applications: 152,
+          pending_applications: 25,
+          approved_applications: 127,
+          rejected_applications: 8,
+          unsubmitted_applications: 20,
+          applications_this_month: 45,
+          approval_rate: 83.5,
           total_credits_awarded: 456.5,
           average_credits_per_application: 2.3,
-          credits_this_month: 89.5,
-          top_students: [
-            { username: "2021001", name: "张三", total_credits: 15.5 },
-            { username: "2021002", name: "李四", total_credits: 12.0 },
-            { username: "2021003", name: "王五", total_credits: 10.5 }
+          credits_this_month: 89.5
+        });
+      }
+
+      // Fetch affair stats
+      try {
+        const affairResponse = await apiClient.get('/affairs');
+        const affairs = affairResponse.data.affairs || affairResponse.data || [];
+        
+        // Get participants for each affair
+        const affairsWithParticipants = await Promise.all(
+          affairs.map(async (affair: any) => {
+            try {
+              const participantsResponse = await apiClient.get(`/affairs/${affair.id}/participants`);
+              const participants = participantsResponse.data || [];
+              return {
+                ...affair,
+                participant_count: participants.length,
+                application_count: participants.length // Each participant has one application
+              };
+            } catch (error) {
+              return {
+                ...affair,
+                participant_count: 0,
+                application_count: 0
+              };
+            }
+          })
+        );
+        
+        setAffairStats({
+          total_affairs: affairs.length,
+          active_affairs: affairs.filter((a: any) => a.status === 'active').length,
+          recent_affairs: affairsWithParticipants
+            .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 5),
+          popular_affairs: affairsWithParticipants
+            .sort((a: any, b: any) => (b.application_count || 0) - (a.application_count || 0))
+            .slice(0, 5)
+        });
+      } catch (error) {
+        console.error('Failed to fetch affairs:', error);
+        setAffairStats({
+          total_affairs: 15,
+          active_affairs: 12,
+          recent_affairs: [
+            {
+              id: "1",
+              name: "创新创业项目",
+              description: "参与各类创新创业项目",
+              participant_count: 25,
+              application_count: 25,
+              created_at: new Date().toISOString()
+            },
+            {
+              id: "2",
+              name: "学科竞赛",
+              description: "参加各类学科竞赛",
+              participant_count: 42,
+              application_count: 42,
+              created_at: new Date(Date.now() - 86400000).toISOString()
+            }
+          ],
+          popular_affairs: [
+            { id: "1", name: "创新创业项目", application_count: 25, participant_count: 25 },
+            { id: "2", name: "学科竞赛", application_count: 18, participant_count: 18 },
+            { id: "3", name: "志愿服务", application_count: 12, participant_count: 12 }
           ]
         });
       }
 
+      // Mock credit type stats (would need API endpoint)
+      setCreditTypeStats({
+        innovation_practice: 45,
+        discipline_competition: 38,
+        entrepreneurship_project: 25,
+        entrepreneurship_practice: 20,
+        paper_patent: 15
+      });
+
       // Mock recent activities (since there's no activity API)
       setRecentActivities([
         {
-          id: 1,
+          id: "1",
           type: 'application',
           action: '新申请提交',
           timestamp: new Date().toISOString(),
           user: '张三',
-          details: '创新创业项目申请'
+          details: '创新创业项目申请',
+          status: 'pending'
         },
         {
-          id: 2,
+          id: "2",
           type: 'review',
           action: '申请审核完成',
           timestamp: new Date(Date.now() - 1800000).toISOString(),
           user: '王老师',
-          details: '学科竞赛申请已通过'
+          details: '学科竞赛申请已通过',
+          status: 'approved'
         },
         {
-          id: 3,
+          id: "3",
+          type: 'affair',
+          action: '新事务创建',
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          user: '李老师',
+          details: '2024年志愿服务项目'
+        },
+        {
+          id: "4",
           type: 'user',
           action: '新用户注册',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          user: '李四',
-          details: '学生用户'
-        },
-        {
-          id: 4,
-          type: 'affair',
-          action: '事务状态更新',
           timestamp: new Date(Date.now() - 7200000).toISOString(),
-          user: '管理员',
-          details: '志愿服务事务已激活'
+          user: '赵同学',
+          details: '学生用户'
         }
       ]);
 
-            } catch (err) {
+    } catch (err) {
       toast.error('获取仪表板数据失败');
-                console.error(err);
-            } finally {
-                setLoading(false);
+      console.error(err);
+    } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -391,7 +507,7 @@ export default function Dashboard() {
     fetchDashboardData();
   };
 
-    if (loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="flex items-center gap-2">
@@ -400,24 +516,32 @@ export default function Dashboard() {
         </div>
       </div>
     );
-    }
+  }
 
   return (
-    <div className="flex-1 space-y-8 p-4 md:p-8">
+    <div className="flex-1 space-y-8 p-4 md:p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">仪表板</h1>
-        <p className="text-muted-foreground">
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            仪表板
+          </h1>
+          <p className="text-muted-foreground text-lg">
             欢迎回来，{user?.fullName || user?.username}！这里是系统概览。
           </p>
         </div>
-        <Button onClick={handleRefresh} disabled={refreshing} variant="outline" className="rounded-lg shadow">
+        <Button 
+          onClick={handleRefresh} 
+          disabled={refreshing} 
+          variant="outline" 
+          className="rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+        >
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          刷新
+          刷新数据
         </Button>
-        </div>
+      </div>
 
-      {/* User Statistics */}
+      {/* User Statistics - Admin Only */}
       {hasPermission('view_user_stats') && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard 
@@ -509,37 +633,48 @@ export default function Dashboard() {
       {/* Affairs and Activities */}
       <div className="grid gap-8 md:grid-cols-2">
         {/* Affairs Statistics */}
-        <Card className="rounded-xl shadow-lg">
+        <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Award className="h-6 w-6 text-purple-600" />
               事务统计
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">总事务数</span>
-              <span className="text-2xl font-bold">{affairStats.total_affairs}</span>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                <div className="text-3xl font-bold text-blue-600">{affairStats.total_affairs}</div>
+                <div className="text-sm text-muted-foreground">总事务数</div>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
+                <div className="text-3xl font-bold text-green-600">{affairStats.active_affairs}</div>
+                <div className="text-sm text-muted-foreground">活跃事务</div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">活跃事务</span>
-              <span className="text-2xl font-bold text-green-600">{affairStats.active_affairs}</span>
-            </div>
-            {affairStats.popular_affairs.length > 0 && (
+            
+            {affairStats.recent_affairs.length > 0 && (
               <div>
-                <span className="text-sm text-muted-foreground">热门事务</span>
-                <div className="mt-2 space-y-2">
-                  {affairStats.popular_affairs.slice(0, 3).map((affair) => (
-                    <div key={affair.id} className="flex justify-between items-center text-sm">
-                      <span className="truncate">{affair.name}</span>
-                      <span className="text-muted-foreground">{affair.application_count} 申请</span>
+                <h4 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">最近事务</h4>
+                <div className="space-y-3">
+                  {affairStats.recent_affairs.slice(0, 3).map((affair) => (
+                    <div key={affair.id} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{affair.name}</p>
+                        <p className="text-xs text-muted-foreground">{affair.participant_count} 参与者</p>
+                      </div>
+                      <Link to={`/affairs/${affair.id}`}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </Link>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+            
             <div className="pt-4">
-              <Link to="/affairs" className="text-sm text-primary hover:underline">
+              <Link to="/affairs" className="text-sm text-primary hover:underline font-medium">
                 查看所有事务 →
               </Link>
             </div>
@@ -547,14 +682,14 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Activities */}
-        <Card className="rounded-xl shadow-lg">
+        <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-blue-500" />
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Activity className="h-6 w-6 text-blue-600" />
               最近活动
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 max-h-96 overflow-y-auto">
             {recentActivities.length > 0 ? (
               recentActivities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
@@ -570,102 +705,163 @@ export default function Dashboard() {
       </div>
 
       {/* Credit Statistics */}
-      <Card className="rounded-xl shadow-lg">
+      <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <BarChart3 className="h-6 w-6 text-green-600" />
             学分统计
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{creditStats.total_credits_awarded}</div>
+          <div className="grid gap-6 md:grid-cols-4 mb-8">
+            <div className="text-center p-6 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
+              <div className="text-3xl font-bold text-green-600">{appStats.total_credits_awarded}</div>
               <div className="text-sm text-muted-foreground">总授予学分</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{creditStats.average_credits_per_application}</div>
+            <div className="text-center p-6 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+              <div className="text-3xl font-bold text-blue-600">{appStats.average_credits_per_application}</div>
               <div className="text-sm text-muted-foreground">平均学分/申请</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{creditStats.credits_this_month}</div>
+            <div className="text-center p-6 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
+              <div className="text-3xl font-bold text-purple-600">{appStats.credits_this_month}</div>
               <div className="text-sm text-muted-foreground">本月授予学分</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{creditStats.top_students.length}</div>
-              <div className="text-sm text-muted-foreground">优秀学生</div>
+            <div className="text-center p-6 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
+              <div className="text-3xl font-bold text-orange-600">{appStats.applications_this_month}</div>
+              <div className="text-sm text-muted-foreground">本月申请数</div>
             </div>
           </div>
-          {creditStats.top_students.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-medium mb-3">学分排行榜</h4>
-              <div className="space-y-2">
-                {creditStats.top_students.map((student, index) => (
-                  <div key={student.username} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
-                        {index + 1}
-                      </span>
-                      <span>{student.name}</span>
-                    </div>
-                    <span className="font-medium">{student.total_credits} 学分</span>
-                  </div>
-                ))}
-              </div>
+          
+          {/* Credit Types Distribution */}
+          <div>
+            <h4 className="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300">学分类型分布</h4>
+            <div className="grid gap-4 md:grid-cols-5">
+              <CreditTypeCard
+                type="创新创业实践"
+                count={creditTypeStats.innovation_practice}
+                total={Object.values(creditTypeStats).reduce((a, b) => a + b, 0)}
+                icon={Lightbulb}
+                color="bg-blue-500"
+              />
+              <CreditTypeCard
+                type="学科竞赛"
+                count={creditTypeStats.discipline_competition}
+                total={Object.values(creditTypeStats).reduce((a, b) => a + b, 0)}
+                icon={Trophy}
+                color="bg-yellow-500"
+              />
+              <CreditTypeCard
+                type="创业项目"
+                count={creditTypeStats.entrepreneurship_project}
+                total={Object.values(creditTypeStats).reduce((a, b) => a + b, 0)}
+                icon={Zap}
+                color="bg-green-500"
+              />
+              <CreditTypeCard
+                type="创业实践"
+                count={creditTypeStats.entrepreneurship_practice}
+                total={Object.values(creditTypeStats).reduce((a, b) => a + b, 0)}
+                icon={Briefcase}
+                color="bg-purple-500"
+              />
+              <CreditTypeCard
+                type="论文专利"
+                count={creditTypeStats.paper_patent}
+                total={Object.values(creditTypeStats).reduce((a, b) => a + b, 0)}
+                icon={BookOpen}
+                color="bg-red-500"
+              />
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
       {/* Quick Actions */}
-      {user?.userType === 'student' && (
-        <Card className="rounded-xl shadow-lg">
-          <CardHeader>
-            <CardTitle>快速操作</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Link to="/applications">
-                <Button className="flex items-center gap-2 rounded-lg shadow">
-                  <FileText className="h-4 w-4" />
-                  提交申请
-                </Button>
-              </Link>
-              <Link to="/profile">
-                <Button variant="outline" className="flex items-center gap-2 rounded-lg shadow">
-                  <UserCheck className="h-4 w-4" />
-                  查看资料
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Student Quick Actions */}
+        {user?.userType === 'student' && (
+          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Star className="h-6 w-6 text-yellow-600" />
+                学生快速操作
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Link to="/applications">
+                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                    <FileText className="h-6 w-6" />
+                    <span className="text-sm font-medium">查看申请</span>
+                  </Button>
+                </Link>
+                <Link to="/profile">
+                  <Button variant="outline" className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
+                    <UserCheck className="h-6 w-6" />
+                    <span className="text-sm font-medium">个人资料</span>
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Teacher Quick Actions */}
-      {user?.userType === 'teacher' && (
-        <Card className="rounded-xl shadow-lg">
-          <CardHeader>
-            <CardTitle>快速操作</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Link to="/applications">
-                <Button className="flex items-center gap-2 rounded-lg shadow">
-                  <CheckCircle className="h-4 w-4" />
-                  审核申请
-                </Button>
-              </Link>
-              <Link to="/students">
-                <Button variant="outline" className="flex items-center gap-2 rounded-lg shadow">
-                  <Users className="h-4 w-4" />
-                  查看学生
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {/* Teacher Quick Actions */}
+        {user?.userType === 'teacher' && (
+          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Trophy className="h-6 w-6 text-purple-600" />
+                教师快速操作
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Link to="/applications">
+                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700">
+                    <CheckCircle className="h-6 w-6" />
+                    <span className="text-sm font-medium">审核申请</span>
+                  </Button>
+                </Link>
+                <Link to="/students">
+                  <Button variant="outline" className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
+                    <Users className="h-6 w-6" />
+                    <span className="text-sm font-medium">查看学生</span>
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Admin Quick Actions */}
+        {hasPermission('admin') && (
+          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Globe className="h-6 w-6 text-indigo-600" />
+                管理员快速操作
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Link to="/affairs">
+                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700">
+                    <Award className="h-6 w-6" />
+                    <span className="text-sm font-medium">管理事务</span>
+                  </Button>
+                </Link>
+                <Link to="/users">
+                  <Button variant="outline" className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200">
+                    <Users className="h-6 w-6" />
+                    <span className="text-sm font-medium">用户管理</span>
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 } 

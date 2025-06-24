@@ -67,9 +67,9 @@ func main() {
 		students := api.Group("/students")
 		{
 			students.POST("", studentHandler.CreateStudent)                        // 创建学生
-			students.GET("/:studentID", studentHandler.GetStudentByID)             // 根据学号获取学生
-			students.PUT("/:studentID", studentHandler.UpdateStudentByID)          // 更新学生信息
-			students.DELETE("/:studentID", studentHandler.DeleteStudentByID)       // 删除学生
+			students.GET("/:id", studentHandler.GetStudentByID)             // 根据UUID获取学生
+			students.PUT("/:id", studentHandler.UpdateStudentByID)          // 更新学生信息
+			students.DELETE("/:id", studentHandler.DeleteStudentByID)       // 删除学生
 			students.GET("", studentHandler.GetAllStudents)                        // 获取所有学生
 			students.GET("/college/:college", studentHandler.GetStudentsByCollege) // 根据学院获取学生
 			students.GET("/major/:major", studentHandler.GetStudentsByMajor)       // 根据专业获取学生

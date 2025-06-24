@@ -125,7 +125,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 		return
 	}
 
-	userID, ok := claims["user_id"].(float64)
+	userID, ok := claims["user_id"].(string)
 	if !ok {
 		c.JSON(http.StatusOK, models.TokenValidationResponse{
 			Valid:   false,
@@ -136,7 +136,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.First(&user, uint(userID)).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusOK, models.TokenValidationResponse{
 			Valid:   false,
 			Message: "User not found",
@@ -201,7 +201,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	userID, ok := claims["user_id"].(float64)
+	userID, ok := claims["user_id"].(string)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
 		return
@@ -209,7 +209,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.First(&user, uint(userID)).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}

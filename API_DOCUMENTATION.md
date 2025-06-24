@@ -2,6 +2,8 @@
 
 This document provides a comprehensive and detailed overview of the API endpoints for the Credit Management System. All endpoints are proxied through the API Gateway and are prefixed with `/api`.
 
+**Important Note**: All user, student, and teacher IDs are now UUID strings instead of integers for better security and uniqueness.
+
 ---
 
 ## Table of Contents
@@ -88,9 +90,9 @@ Handles user profiles and administrative user management. All endpoints are pref
 | `GET`    | `/stats`             | Gets user statistics.                     | Admin Required            |
 | `GET`    | `/profile`           | Gets the current user's profile.          | Required                  |
 | `PUT`    | `/profile`           | Updates the current user's profile.       | Required                  |
-| `GET`    | `/:username`         | Gets a specific user's profile.           | Admin Required            |
-| `PUT`    | `/:username`         | Updates a specific user's profile.        | Admin Required            |
-| `DELETE` | `/:username`         | Deletes a user.                           | Admin Required            |
+| `GET`    | `/:id`               | Gets a specific user's profile by UUID.   | Admin Required            |
+| `PUT`    | `/:id`               | Updates a specific user's profile by UUID.| Admin Required            |
+| `DELETE` | `/:id`               | Deletes a user by UUID.                   | Admin Required            |
 | `GET`    | ``                   | Gets a list of all users.                 | Admin Required            |
 | `GET`    | `/type/:userType`    | Gets users by their type (`student`/`teacher`). | Admin Required      |
 
@@ -146,9 +148,9 @@ Manages detailed student information. All endpoints are prefixed with `/api/stud
 | Method   | Endpoint          | Description                             | Authentication |
 | :------- | :---------------- | :-------------------------------------- | :------------- |
 | `POST`   | ``                | Creates a new student record.           | Admin Required |
-| `GET`    | `/:studentID`     | Gets a student by Student ID.           | Required       |
-| `PUT`    | `/:studentID`     | Updates a student's info.               | Required       |
-| `DELETE` | `/:studentID`     | Deletes a student.                      | Admin Required |
+| `GET`    | `/:id`            | Gets a student by UUID.                 | Required       |
+| `PUT`    | `/:id`            | Updates a student's info by UUID.       | Required       |
+| `DELETE` | `/:id`            | Deletes a student by UUID.              | Admin Required |
 | `GET`    | ``                | Gets a list of all students.            | Required       |
 | `GET`    | `/college/:college`| Gets students by college.              | Required       |
 | `GET`    | `/major/:major`   | Gets students by major.                 | Required       |
@@ -165,9 +167,9 @@ Manages detailed teacher information. All endpoints are prefixed with `/api/teac
 | Method   | Endpoint              | Description                               | Authentication |
 | :------- | :-------------------- | :---------------------------------------- | :------------- |
 | `POST`   | ``                    | Creates a new teacher record.             | Admin Required |
-| `GET`    | `/:username`          | Gets a teacher by username.               | Required       |
-| `PUT`    | `/:username`          | Updates a teacher's info.                 | Required       |
-| `DELETE` | `/:username`          | Deletes a teacher.                        | Admin Required |
+| `GET`    | `/:id`                | Gets a teacher by UUID.                   | Required       |
+| `PUT`    | `/:id`                | Updates a teacher's info by UUID.         | Required       |
+| `DELETE` | `/:id`                | Deletes a teacher by UUID.                | Admin Required |
 | `GET`    | ``                    | Gets a list of all teachers.              | Required       |
 | `GET`    | `/department/:department`| Gets teachers by department.           | Required       |
 | `GET`    | `/title/:title`       | Gets teachers by title.                   | Required       |
@@ -185,20 +187,19 @@ Manages affairs (事务) for which credit can be applied. All endpoints are pref
 
 | Field        | Type    | Description                |
 | ------------| ------- | --------------------------|
-| id          | int     | Affair ID                  |
+| id          | string  | Affair UUID                |
 | name        | string  | Affair name                |
 | description | string  | Affair description         |
-| creator_id  | string  | Creator's user ID (学号)   |
+| creator_id  | string  | Creator's user UUID        |
 | attachments | string  | JSON string for attachments|
 
 ### AffairStudent Model
 
 | Field      | Type   | Description                |
 | ----------| ------ | --------------------------|
-| affair_id | int    | Affair ID                  |
-| student_id| string | Student ID                 |
+| affair_id | string | Affair UUID                |
+| student_id| string | Student UUID               |
 | is_primary| bool   | Is main responsible        |
-| role      | string | Role: 'primary'/'member'   |
 
 ### Endpoints
 
@@ -219,8 +220,8 @@ POST /api/affairs
 {
   "name": "创新创业项目",
   "description": "2024年创新创业大赛",
-  "creator_id": "2021001",
-  "participants": ["2021001", "2021002"],
+  "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
+  "participants": ["50685abe-8f89-4149-a245-020b8b32ffcb", "9b4e548b-fe91-4769-8f72-8ae7e8954169"],
   "attachments": "[{\"name\":\"附件1.pdf\",\"url\":\"/uploads/1.pdf\"}]"
 }
 ```
@@ -228,18 +229,18 @@ POST /api/affairs
 #### Get Affair with Participants Example
 
 ```json
-GET /api/affairs/1
+GET /api/affairs/45dea375-7e7f-4ed4-90db-9d1385dedf7e
 {
   "affair": {
-    "id": 1,
+    "id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e",
     "name": "创新创业项目",
     "description": "2024年创新创业大赛",
-    "creator_id": "2021001",
+    "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
     "attachments": "[...]"
   },
   "participants": [
-    { "affair_id": 1, "student_id": "2021001", "is_primary": true, "role": "primary" },
-    { "affair_id": 1, "student_id": "2021002", "is_primary": false, "role": "member" }
+    { "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_id": "50685abe-8f89-4149-a245-020b8b32ffcb", "is_primary": true },
+    { "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_id": "9b4e548b-fe91-4769-8f72-8ae7e8954169", "is_primary": false }
   ]
 }
 ```
@@ -247,11 +248,11 @@ GET /api/affairs/1
 #### Get Affair Applications Example
 
 ```json
-GET /api/affairs/1/applications
+GET /api/affairs/45dea375-7e7f-4ed4-90db-9d1385dedf7e/applications
 {
   "applications": [
-    { "id": 1, "affair_id": 1, "student_number": "2021001", ... },
-    { "id": 2, "affair_id": 1, "student_number": "2021002", ... }
+    { "id": 1, "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_number": "50685abe-8f89-4149-a245-020b8b32ffcb", ... },
+    { "id": 2, "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_number": "9b4e548b-fe91-4769-8f72-8ae7e8954169", ... }
   ],
   "total": 2
 }
@@ -268,11 +269,11 @@ Manages credit applications with support for five different credit types. All en
 | Field            | Type      | Description                    |
 | ----------------| --------- | ------------------------------ |
 | id              | uint      | Application ID                 |
-| affair_id       | uint      | Associated affair ID           |
-| student_number  | string    | Student ID                     |
+| affair_id       | string    | Associated affair UUID         |
+| student_number  | string    | Student UUID                   |
 | submission_time | time.Time | Submission timestamp           |
-| status          | string    | Status: 未提交/待审核/已通过/已拒绝 |
-| reviewer_id     | uint      | Reviewer ID                    |
+| status          | string    | Status: unsubmitted/pending/approved/rejected |
+| reviewer_id     | string    | Reviewer UUID                  |
 | review_comment  | string    | Review comments                |
 | applied_credits | float64   | Applied credits                |
 | approved_credits| float64   | Approved credits               |
@@ -334,9 +335,9 @@ Manages credit applications with support for five different credit types. All en
 
 ### Application Workflow
 
-1. **Create Affair** → Auto-generate applications (status: 未提交)
+1. **Create Affair** → Auto-generate applications (status: unsubmitted)
 2. **Edit Application** → Students fill in credit details
-3. **Submit Application** → Status changes to 待审核
+3. **Submit Application** → Status changes to pending
 4. **Review Application** → Teacher reviews and approves/rejects
 
 ### Permission Control
@@ -351,9 +352,9 @@ Manages credit applications with support for five different credit types. All en
 ```json
 POST /api/applications/batch
 {
-  "affair_id": 1,
-  "creator_id": "2021001",
-  "participants": ["2021001", "2021002", "2021003"]
+  "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e",
+  "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
+  "participants": ["50685abe-8f89-4149-a245-020b8b32ffcb", "9b4e548b-fe91-4769-8f72-8ae7e8954169", "45dea375-7e7f-4ed4-90db-9d1385dedf7e"]
 }
 ```
 
@@ -380,8 +381,8 @@ POST /api/applications/1/submit
 ```json
 PUT /api/applications/1/status
 {
-  "status": "已通过",
-  "review_comment": "材料完整，符合要求",
+  "status": "approved",
+  "review_comment": "Materials complete, requirements met",
   "approved_credits": 2.0
 }
 ```

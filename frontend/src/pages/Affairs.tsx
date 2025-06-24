@@ -56,7 +56,7 @@ import { useNavigate } from "react-router-dom";
 
 // Types
 interface Affair {
-    id: number;
+    id: string;
     name: string;
     description?: string;
     max_credits?: number;
@@ -121,7 +121,7 @@ export default function AffairsPage() {
             // Fallback to mock data
             setAffairs([
                 {
-                    id: 1,
+                    id: "1",
                     name: "创新创业项目",
                     description: "参与各类创新创业项目，包括创业计划书撰写、项目路演等",
                     max_credits: 3,
@@ -133,7 +133,7 @@ export default function AffairsPage() {
                     application_count: 18
                 },
                 {
-                    id: 2,
+                    id: "2",
                     name: "学科竞赛",
                     description: "参加各类学科竞赛，如数学建模、程序设计、英语竞赛等",
                     max_credits: 2,
@@ -145,7 +145,7 @@ export default function AffairsPage() {
                     application_count: 35
                 },
                 {
-                    id: 3,
+                    id: "3",
                     name: "志愿服务",
                     description: "参与社会志愿服务，包括社区服务、公益活动等",
                     max_credits: 1,
@@ -212,7 +212,7 @@ export default function AffairsPage() {
         setIsDialogOpen(true);
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: string) => {
         if (!window.confirm("确定要删除这个事务吗？此操作不可撤销。")) return;
         
         try {
@@ -275,7 +275,6 @@ export default function AffairsPage() {
                     <h1 className="text-3xl font-bold tracking-tight">事务管理</h1>
                     <p className="text-muted-foreground">管理学分相关事务类型</p>
                 </div>
-                {console.log('user:', user)}
                 {(hasPermission('manage_affairs') || user?.userType === 'student') && (
                     <Button onClick={() => handleDialogOpen(null)} className="rounded-lg shadow transition-all duration-200 hover:scale-105 bg-primary text-white font-bold">
                     <PlusCircle className="mr-2 h-4 w-4" />

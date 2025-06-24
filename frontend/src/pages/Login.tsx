@@ -35,6 +35,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -48,20 +49,49 @@ export default function Login() {
 
   const onSubmit = async (values: LoginForm) => {
     setLoading(true);
+    setLoginError("");
     try {
       const response = await apiClient.post("/auth/login", values);
       if (response.data && response.data.token) {
-        // Handle both old and new API response formats
         const token = response.data.token;
         const refreshToken = response.data.refresh_token || response.data.refreshToken || '';
         const user = response.data.user || response.data;
-        
         login(token, refreshToken, user);
         navigate("/dashboard");
       }
-    } catch (err: unknown) {
-      // Error is already handled by the API interceptor
+    } catch (err: any) {
       console.error("Login error:", err);
+      
+      // 处理不同类型的错误
+      if (err.response) {
+        const { status, data } = err.response;
+        
+        switch (status) {
+          case 401:
+            setLoginError("用户名或密码错误");
+            break;
+          case 422:
+            // 验证错误
+            if (data.errors && Array.isArray(data.errors)) {
+              const errorMessages = data.errors.map((err: any) => err.message || err.field).join(', ');
+              setLoginError(`数据验证失败: ${errorMessages}`);
+            } else {
+              setLoginError(data.message || data.error || '数据验证失败');
+            }
+            break;
+          case 500:
+            setLoginError("服务器内部错误，请稍后再试");
+            break;
+          default:
+            setLoginError(data?.message || data?.error || "登录失败，请重试");
+        }
+      } else if (err.request) {
+        // 网络错误
+        setLoginError("网络连接失败，请检查网络设置");
+      } else {
+        // 其他错误
+        setLoginError("登录失败，请重试");
+      }
     } finally {
       setLoading(false);
     }
@@ -70,19 +100,19 @@ export default function Login() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <Card className="w-full max-w-md border-0 shadow-2xl sm:border bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+            <LogIn className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl font-bold">欢迎回来</CardTitle>
+            <CardDescription className="mt-2">
+              请输入您的账号信息登录系统
+            </CardDescription>
+          </div>
+        </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardHeader className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                <LogIn className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-2xl font-bold">欢迎回来</CardTitle>
-                <CardDescription className="mt-2">
-                  请输入您的账号信息登录系统
-                </CardDescription>
-              </div>
-            </CardHeader>
             <CardContent className="space-y-4">
               <FormField
                 control={form.control}
@@ -139,6 +169,11 @@ export default function Login() {
                   </FormItem>
                 )}
               />
+              {loginError && (
+                <div className="text-red-500 text-sm text-center bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-200 dark:border-red-800">
+                  {loginError}
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm">
                 <Link
                   to="/register"

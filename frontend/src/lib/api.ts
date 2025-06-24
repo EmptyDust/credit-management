@@ -31,6 +31,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const { response, config } = error;
     
+    // 如果是登录请求，不要触发token刷新逻辑
+    if (config.url === '/auth/login') {
+      return Promise.reject(error);
+    }
+    
     if (response) {
       const { status, data } = response;
       
@@ -73,6 +78,11 @@ apiClient.interceptors.response.use(
           break;
         case 404:
           toast.error('请求的资源不存在');
+          break;
+        case 409:
+          // Conflict error - usually username or email already exists
+          const conflictMessage = data?.error || data?.message || '用户名或邮箱已存在';
+          toast.error(conflictMessage);
           break;
         case 422:
           // Validation error

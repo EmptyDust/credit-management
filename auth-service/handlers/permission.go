@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -72,15 +71,19 @@ func (h *PermissionHandler) GetRoles(c *gin.Context) {
 
 // GetRole 获取指定角色
 func (h *PermissionHandler) GetRole(c *gin.Context) {
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
 	var role models.Role
-	if err := h.db.First(&role, roleID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
 		return
 	}
 
@@ -96,9 +99,9 @@ func (h *PermissionHandler) GetRole(c *gin.Context) {
 
 // UpdateRole 更新角色
 func (h *PermissionHandler) UpdateRole(c *gin.Context) {
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
@@ -109,8 +112,12 @@ func (h *PermissionHandler) UpdateRole(c *gin.Context) {
 	}
 
 	var role models.Role
-	if err := h.db.First(&role, roleID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
 		return
 	}
 
@@ -140,15 +147,19 @@ func (h *PermissionHandler) UpdateRole(c *gin.Context) {
 
 // DeleteRole 删除角色
 func (h *PermissionHandler) DeleteRole(c *gin.Context) {
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
 	var role models.Role
-	if err := h.db.First(&role, roleID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
 		return
 	}
 
@@ -222,15 +233,19 @@ func (h *PermissionHandler) GetPermissions(c *gin.Context) {
 
 // GetPermission 获取指定权限
 func (h *PermissionHandler) GetPermission(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
 		return
 	}
 
 	var permission models.Permission
-	if err := h.db.First(&permission, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+	if err := h.db.Where("id = ?", id).First(&permission).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
 		return
 	}
 
@@ -247,15 +262,19 @@ func (h *PermissionHandler) GetPermission(c *gin.Context) {
 
 // DeletePermission 删除权限
 func (h *PermissionHandler) DeletePermission(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
 		return
 	}
 
 	var permission models.Permission
-	if err := h.db.First(&permission, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+	if err := h.db.Where("id = ?", id).First(&permission).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+		}
 		return
 	}
 
@@ -269,9 +288,9 @@ func (h *PermissionHandler) DeletePermission(c *gin.Context) {
 
 // AssignRole 分配角色给用户
 func (h *PermissionHandler) AssignRole(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
@@ -282,7 +301,7 @@ func (h *PermissionHandler) AssignRole(c *gin.Context) {
 	}
 
 	userRole := models.UserRole{
-		UserID: uint(userID),
+		UserID: userID,
 		RoleID: req.RoleID,
 	}
 
@@ -296,15 +315,15 @@ func (h *PermissionHandler) AssignRole(c *gin.Context) {
 
 // RemoveRole 移除用户角色
 func (h *PermissionHandler) RemoveRole(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
@@ -318,9 +337,9 @@ func (h *PermissionHandler) RemoveRole(c *gin.Context) {
 
 // AssignPermission 分配权限给用户
 func (h *PermissionHandler) AssignPermission(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
@@ -331,7 +350,7 @@ func (h *PermissionHandler) AssignPermission(c *gin.Context) {
 	}
 
 	userPermission := models.UserPermission{
-		UserID:       uint(userID),
+		UserID:       userID,
 		PermissionID: req.PermissionID,
 	}
 
@@ -345,15 +364,15 @@ func (h *PermissionHandler) AssignPermission(c *gin.Context) {
 
 // RemovePermission 移除用户权限
 func (h *PermissionHandler) RemovePermission(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
-	permissionID, err := strconv.ParseUint(c.Param("permissionID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+	permissionID := c.Param("permissionID")
+	if permissionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
 		return
 	}
 
@@ -367,9 +386,9 @@ func (h *PermissionHandler) RemovePermission(c *gin.Context) {
 
 // AssignPermissionToRole 分配权限给角色
 func (h *PermissionHandler) AssignPermissionToRole(c *gin.Context) {
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
@@ -380,7 +399,7 @@ func (h *PermissionHandler) AssignPermissionToRole(c *gin.Context) {
 	}
 
 	rolePermission := models.RolePermission{
-		RoleID:       uint(roleID),
+		RoleID:       roleID,
 		PermissionID: req.PermissionID,
 	}
 
@@ -394,15 +413,15 @@ func (h *PermissionHandler) AssignPermissionToRole(c *gin.Context) {
 
 // RemovePermissionFromRole 移除角色权限
 func (h *PermissionHandler) RemovePermissionFromRole(c *gin.Context) {
-	roleID, err := strconv.ParseUint(c.Param("roleID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+	roleID := c.Param("roleID")
+	if roleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
 		return
 	}
 
-	permissionID, err := strconv.ParseUint(c.Param("permissionID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+	permissionID := c.Param("permissionID")
+	if permissionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
 		return
 	}
 
@@ -416,9 +435,9 @@ func (h *PermissionHandler) RemovePermissionFromRole(c *gin.Context) {
 
 // GetUserRoles 获取用户角色
 func (h *PermissionHandler) GetUserRoles(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
@@ -431,7 +450,7 @@ func (h *PermissionHandler) GetUserRoles(c *gin.Context) {
 	var roles []models.Role
 	for _, userRole := range userRoles {
 		var role models.Role
-		if err := h.db.First(&role, userRole.RoleID).Error; err == nil {
+		if err := h.db.Where("id = ?", userRole.RoleID).First(&role).Error; err == nil {
 			roles = append(roles, role)
 		}
 	}
@@ -453,9 +472,9 @@ func (h *PermissionHandler) GetUserRoles(c *gin.Context) {
 
 // GetUserPermissions 获取用户权限
 func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("userID"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+	userID := c.Param("userID")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
 		return
 	}
 
@@ -468,7 +487,7 @@ func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
 	var permissions []models.Permission
 	for _, userPermission := range userPermissions {
 		var permission models.Permission
-		if err := h.db.First(&permission, userPermission.PermissionID).Error; err == nil {
+		if err := h.db.Where("id = ?", userPermission.PermissionID).First(&permission).Error; err == nil {
 			permissions = append(permissions, permission)
 		}
 	}
@@ -502,7 +521,7 @@ func (h *PermissionHandler) InitializePermissions(c *gin.Context) {
 	}
 
 	// 创建权限并保存ID
-	permissionMap := make(map[string]uint)
+	permissionMap := make(map[string]string)
 	for _, permission := range permissions {
 		var existingPermission models.Permission
 		if err := h.db.Where("resource = ? AND action = ?", permission.Resource, permission.Action).First(&existingPermission).Error; err != nil {
@@ -522,7 +541,7 @@ func (h *PermissionHandler) InitializePermissions(c *gin.Context) {
 	}
 
 	// 创建角色并保存ID
-	roleMap := make(map[string]uint)
+	roleMap := make(map[string]string)
 	for _, role := range roles {
 		var existingRole models.Role
 		if err := h.db.Where("name = ?", role.Name).First(&existingRole).Error; err != nil {

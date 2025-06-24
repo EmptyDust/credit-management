@@ -87,8 +87,14 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=credit_management
       - JWT_SECRET=your-secret-key
+      - STUDENT_SERVICE_URL=http://student-info-service:8084
+      - TEACHER_SERVICE_URL=http://teacher-info-service:8085
     depends_on:
       postgres:
+        condition: service_healthy
+      student-info-service:
+        condition: service_healthy
+      teacher-info-service:
         condition: service_healthy
     networks:
       - cm_network

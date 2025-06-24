@@ -118,7 +118,7 @@ src/
 
 ### 申请管理 (`/applications`)
 - 申请列表展示
-- 状态筛选（待审核/已通过/已拒绝）
+- 状态筛选（pending/approved/rejected）
 - 搜索功能
 - 申请详情查看
 - 文件上传下载

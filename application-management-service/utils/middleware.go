@@ -54,18 +54,21 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		userID, ok := claims["user_id"].(float64)
+		userID, ok := claims["user_id"].(string)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
 			c.Abort()
 			return
 		}
 
-		// 将用户信息存储到上下文中
-		c.Set("user_id", uint(userID))
-		c.Set("username", claims["username"])
-		c.Set("user_type", claims["user_type"])
-		c.Set("role", claims["role"])
+		username, _ := claims["username"].(string)
+		userType, _ := claims["user_type"].(string)
+		role, _ := claims["role"].(string)
+
+		c.Set("user_id", userID)
+		c.Set("username", username)
+		c.Set("user_type", userType)
+		c.Set("role", role)
 
 		c.Next()
 	}

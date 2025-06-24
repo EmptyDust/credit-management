@@ -67,9 +67,9 @@ func main() {
 		teachers := api.Group("/teachers")
 		{
 			teachers.POST("", teacherHandler.CreateTeacher)                                 // 创建教师
-			teachers.GET("/:username", teacherHandler.GetTeacher)                           // 根据用户名获取教师
-			teachers.PUT("/:username", teacherHandler.UpdateTeacher)                        // 更新教师信息
-			teachers.DELETE("/:username", teacherHandler.DeleteTeacher)                     // 删除教师
+			teachers.GET("/:id", teacherHandler.GetTeacher)                           // 根据UUID获取教师
+			teachers.PUT("/:id", teacherHandler.UpdateTeacher)                        // 更新教师信息
+			teachers.DELETE("/:id", teacherHandler.DeleteTeacher)                     // 删除教师
 			teachers.GET("", teacherHandler.GetAllTeachers)                                 // 获取所有教师
 			teachers.GET("/department/:department", teacherHandler.GetTeachersByDepartment) // 根据院系获取教师
 			teachers.GET("/title/:title", teacherHandler.GetTeachersByTitle)                // 根据职称获取教师

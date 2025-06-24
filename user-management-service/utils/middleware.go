@@ -61,36 +61,18 @@ func (am *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		userID, ok := claims["user_id"].(float64)
+		userID, ok := claims["user_id"].(string)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户ID"})
 			c.Abort()
 			return
 		}
 
-		username, ok := claims["username"].(string)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户名"})
-			c.Abort()
-			return
-		}
+		username, _ := claims["username"].(string)
+		userType, _ := claims["user_type"].(string)
+		role, _ := claims["role"].(string)
 
-		userType, ok := claims["user_type"].(string)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户类型"})
-			c.Abort()
-			return
-		}
-
-		role, ok := claims["role"].(string)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户角色"})
-			c.Abort()
-			return
-		}
-
-		// 将用户信息存储到上下文中
-		c.Set("user_id", uint(userID))
+		c.Set("user_id", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
 		c.Set("role", role)

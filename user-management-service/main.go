@@ -46,8 +46,12 @@ func main() {
 	// JWT密钥
 	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
 
+	// 服务URL配置
+	studentServiceURL := getEnv("STUDENT_SERVICE_URL", "http://student-info-service:8084")
+	teacherServiceURL := getEnv("TEACHER_SERVICE_URL", "http://teacher-info-service:8085")
+
 	// 创建处理器
-	userHandler := handlers.NewUserHandler(db, jwtSecret)
+	userHandler := handlers.NewUserHandler(db, jwtSecret, studentServiceURL, teacherServiceURL)
 
 	// 创建中间件
 	authMiddleware := utils.NewAuthMiddleware(jwtSecret)
@@ -96,9 +100,9 @@ func main() {
 			admin := users.Group("")
 			admin.Use(authMiddleware.AuthRequired())
 			{
-				admin.GET("/:username", userHandler.GetUser)             // 获取指定用户信息
-				admin.PUT("/:username", userHandler.UpdateUser)          // 更新指定用户信息
-				admin.DELETE("/:username", userHandler.DeleteUser)       // 删除用户
+				admin.GET("/:id", userHandler.GetUser)             // 获取指定用户信息
+				admin.PUT("/:id", userHandler.UpdateUser)          // 更新指定用户信息
+				admin.DELETE("/:id", userHandler.DeleteUser)       // 删除用户
 				admin.GET("", userHandler.GetAllUsers)                   // 获取所有用户
 				admin.GET("/type/:userType", userHandler.GetUsersByType) // 根据用户类型获取用户
 			}

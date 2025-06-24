@@ -1,7 +1,12 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -13,12 +18,16 @@ import (
 )
 
 type UserHandler struct {
-	db *gorm.DB
+	db                 *gorm.DB
+	studentServiceURL  string
+	teacherServiceURL  string
 }
 
-func NewUserHandler(db *gorm.DB, jwtSecret string) *UserHandler {
+func NewUserHandler(db *gorm.DB, jwtSecret, studentServiceURL, teacherServiceURL string) *UserHandler {
 	return &UserHandler{
-		db: db,
+		db:                 db,
+		studentServiceURL:  studentServiceURL,
+		teacherServiceURL:  teacherServiceURL,
 	}
 }
 
@@ -67,6 +76,14 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 根据用户类型创建对应的学生或教师记录
+	if err := h.createUserProfile(user); err != nil {
+		// 如果创建用户档案失败，删除已创建的用户
+		h.db.Delete(&user)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户档案失败: " + err.Error()})
+		return
+	}
+
 	// 返回用户信息（不包含密码）
 	userResponse := models.UserResponse{
 		ID:           user.ID,
@@ -90,21 +107,104 @@ func (h *UserHandler) Register(c *gin.Context) {
 	})
 }
 
+// createUserProfile 根据用户类型创建对应的学生或教师记录
+func (h *UserHandler) createUserProfile(user models.User) error {
+	switch user.UserType {
+	case "student":
+		return h.createStudentProfile(user)
+	case "teacher":
+		return h.createTeacherProfile(user)
+	default:
+		return fmt.Errorf("不支持的用户类型: %s", user.UserType)
+	}
+}
+
+// createStudentProfile 创建学生档案
+func (h *UserHandler) createStudentProfile(user models.User) error {
+	// 构建学生创建请求
+	studentReq := map[string]interface{}{
+		"username":   user.Username,
+		"student_id": user.ID, // 使用用户ID作为学号
+		"name":       user.RealName,
+		"email":      user.Email,
+		"contact":    user.Phone,
+		"status":     "active",
+	}
+
+	// 通过API Gateway调用学生信息服务创建学生记录
+	return h.callExternalService("POST", "http://api-gateway:8000/api/students", studentReq)
+}
+
+// createTeacherProfile 创建教师档案
+func (h *UserHandler) createTeacherProfile(user models.User) error {
+	// 构建教师创建请求
+	teacherReq := map[string]interface{}{
+		"username": user.Username,
+		"name":     user.RealName,
+		"email":    user.Email,
+		"contact":  user.Phone,
+		"status":   "active",
+	}
+
+	// 通过API Gateway调用教师信息服务创建教师记录
+	return h.callExternalService("POST", "http://api-gateway:8000/api/teachers", teacherReq)
+}
+
+// callExternalService 调用外部服务
+func (h *UserHandler) callExternalService(method, url string, data interface{}) error {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("序列化请求数据失败: %v", err)
+	}
+
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("创建HTTP请求失败: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("调用外部服务失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 新增日志
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("调用外部服务: %s %s\n请求体: %s\n响应状态: %d\n响应内容: %s\n", method, url, string(jsonData), resp.StatusCode, string(body))
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("外部服务返回错误状态码: %d, 响应内容: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// getEnv 获取环境变量
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 // GetUser 获取用户信息
 func (h *UserHandler) GetUser(c *gin.Context) {
-	username := c.Param("username")
-	// 如果URL中没有username，则从JWT token中获取
-	if username == "" {
-		jwtUsername, exists := c.Get("username")
+	userID := c.Param("id")
+	// 如果URL中没有id，则从JWT token中获取
+	if userID == "" {
+		jwtUserID, exists := c.Get("user_id")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
 			return
 		}
-		username = jwtUsername.(string)
+		userID = jwtUserID.(string)
 	}
 
 	var user models.User
-	if err := h.db.Where("username = ?", username).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		} else {
@@ -135,14 +235,14 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 
 // UpdateUser 更新用户信息
 func (h *UserHandler) UpdateUser(c *gin.Context) {
-	username := c.Param("username")
-	if username == "" {
-		jwtUsername, exists := c.Get("username")
+	userID := c.Param("id")
+	if userID == "" {
+		jwtUserID, exists := c.Get("user_id")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
 			return
 		}
-		username = jwtUsername.(string)
+		userID = jwtUserID.(string)
 	}
 
 	var req models.UserUpdateRequest
@@ -153,7 +253,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("username = ?", username).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		} else {
@@ -227,15 +327,15 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 // DeleteUser 删除用户
 func (h *UserHandler) DeleteUser(c *gin.Context) {
-	username := c.Param("username")
-	if username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户名不能为空"})
+	userID := c.Param("id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "用户ID不能为空"})
 		return
 	}
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("username = ?", username).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 		} else {
