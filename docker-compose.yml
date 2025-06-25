@@ -1,16 +1,18 @@
 services:
   # PostgreSQL数据库
   postgres:
-    image: postgres:15
+    build: ./database
     container_name: credit_management_postgres
     environment:
       POSTGRES_DB: credit_management
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./database/backups:/backups
     networks:
       - credit_network
     healthcheck:
@@ -18,6 +20,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   # API网关
   api-gateway:
@@ -29,13 +32,12 @@ services:
       - CREDIT_ACTIVITY_SERVICE_URL=http://credit-activity-service:8083
       - AUTH_SERVICE_URL=http://auth-service:8081
       - USER_SERVICE_URL=http://user-service:8084
-      - STUDENT_SERVICE_URL=http://student-service:8085
-      - TEACHER_SERVICE_URL=http://teacher-service:8086
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - credit_network
+    restart: unless-stopped
 
   # 认证服务
   auth-service:
@@ -49,12 +51,14 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
+      - DB_SSLMODE=disable
       - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - credit_network
+    restart: unless-stopped
 
   # 学分活动服务（合并了事务和申请管理功能）
   credit-activity-service:
@@ -68,15 +72,17 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
+      - DB_SSLMODE=disable
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - credit_network
+    restart: unless-stopped
 
-  # 用户管理服务
+  # 统一用户服务（合并了用户管理、学生信息、教师信息服务）
   user-service:
-    build: ./user-management-service
+    build: ./user-service
     container_name: credit_management_user
     ports:
       - "8084:8084"
@@ -86,47 +92,14 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
+      - DB_SSLMODE=disable
+      - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - credit_network
-
-  # 学生信息服务
-  student-service:
-    build: ./student-info-service
-    container_name: credit_management_student
-    ports:
-      - "8085:8085"
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - credit_network
-
-  # 教师信息服务
-  teacher-service:
-    build: ./teacher-info-service
-    container_name: credit_management_teacher
-    ports:
-      - "8086:8086"
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - credit_network
+    restart: unless-stopped
 
   # 前端应用
   frontend:
@@ -139,10 +112,13 @@ services:
         condition: service_started
     networks:
       - credit_network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
   affair_uploads:
+    driver: local
 
 networks:
   credit_network:

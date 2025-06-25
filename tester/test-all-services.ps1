@@ -25,15 +25,13 @@ function Test-AllServices {
     $global:testResults = @()
     $global:authToken = $null
     $global:testUserId = $null
-    $global:testStudentId = $null
-    $global:testTeacherId = $null
     $global:testActivityId = $null
     $global:testApplicationId = $null
     
     # 生成唯一测试用户名
     $timestamp = Get-Date -Format "yyyyMMddHHmmss"
     $testUsername = "testall_$timestamp"
-    $testPassword = "password123"
+    $testPassword = "Password123"
     $testEmail = "$testUsername@example.com"
     
     Info "测试用户名: $testUsername"
@@ -44,15 +42,21 @@ function Test-AllServices {
         username = $testUsername
         password = $testPassword
         email = $testEmail
-        real_name = "综合测试用户"
+        phone = "13800138000"
+        real_name = "综合测试学生"
         user_type = "student"
+        student_id = "2024$timestamp"
+        college = "计算机学院"
+        major = "软件工程"
+        class = "软工2024-1班"
+        grade = "2024"
     } | ConvertTo-Json
     
     try {
         $regResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/register" -Method POST -Body $registerBody -ContentType "application/json"
         if ($regResp.code -eq 0) {
-            $global:testUserId = $regResp.data.id
-            $global:testResults += Pass "用户注册成功，用户ID: $($regResp.data.id)"
+            $global:testUserId = $regResp.data.user.user_id
+            $global:testResults += Pass "用户注册成功，用户ID: $($regResp.data.user.user_id)"
         } else {
             $global:testResults += Fail "用户注册失败: $($regResp.message)"
         }
@@ -79,71 +83,65 @@ function Test-AllServices {
         $global:testResults += Fail "用户登录异常: $($_.Exception.Message)"
     }
     
-    # 3. 测试创建学生信息
-    Info "3. 测试创建学生信息"
+    # 3. 测试获取用户信息
+    Info "3. 测试获取用户信息"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        $studentBody = @{
-            user_id = $global:testUserId
-            student_id = "2024$timestamp"
-            name = "综合测试学生"
-            college = "计算机学院"
-            major = "软件工程"
-            class = "软工2024-1班"
-            grade = "2024"
-            status = "active"
-            phone = "13800138000"
-            email = $testEmail
-        } | ConvertTo-Json
         
         try {
-            $createStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students" -Method POST -Body $studentBody -Headers $headers -ContentType "application/json"
-            if ($createStudentResp.code -eq 0) {
-                $global:testStudentId = $createStudentResp.data.id
-                $global:testResults += Pass "创建学生信息成功，学生ID: $($createStudentResp.data.id)"
+            $userResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/profile" -Method GET -Headers $headers -ContentType "application/json"
+            if ($userResp.code -eq 0) {
+                $global:testResults += Pass "获取用户信息成功"
             } else {
-                $global:testResults += Fail "创建学生信息失败: $($createStudentResp.message)"
+                $global:testResults += Fail "获取用户信息失败: $($userResp.message)"
             }
         } catch {
-            $global:testResults += Fail "创建学生信息异常: $($_.Exception.Message)"
+            $global:testResults += Fail "获取用户信息异常: $($_.Exception.Message)"
         }
     } else {
-        $global:testResults += Fail "跳过创建学生信息测试 - 无有效令牌"
+        $global:testResults += Fail "跳过获取用户信息测试 - 无有效令牌"
     }
     
-    # 4. 测试创建教师信息
-    Info "4. 测试创建教师信息"
+    # 4. 测试获取学生列表
+    Info "4. 测试获取学生列表"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        $teacherBody = @{
-            user_id = $global:testUserId
-            teacher_id = "T2024$timestamp"
-            name = "综合测试教师"
-            department = "计算机学院"
-            title = "副教授"
-            status = "active"
-            phone = "13800138000"
-            email = $testEmail
-            research_area = "软件工程"
-        } | ConvertTo-Json
         
         try {
-            $createTeacherResp = Invoke-RestMethod -Uri "$BaseUrl/api/teachers" -Method POST -Body $teacherBody -Headers $headers -ContentType "application/json"
-            if ($createTeacherResp.code -eq 0) {
-                $global:testTeacherId = $createTeacherResp.data.id
-                $global:testResults += Pass "创建教师信息成功，教师ID: $($createTeacherResp.data.id)"
+            $studentsResp = Invoke-RestMethod -Uri "$BaseUrl/api/students" -Method GET -Headers $headers -ContentType "application/json"
+            if ($studentsResp.code -eq 0) {
+                $global:testResults += Pass "获取学生列表成功"
             } else {
-                $global:testResults += Fail "创建教师信息失败: $($createTeacherResp.message)"
+                $global:testResults += Fail "获取学生列表失败: $($studentsResp.message)"
             }
         } catch {
-            $global:testResults += Fail "创建教师信息异常: $($_.Exception.Message)"
+            $global:testResults += Fail "获取学生列表异常: $($_.Exception.Message)"
         }
     } else {
-        $global:testResults += Fail "跳过创建教师信息测试 - 无有效令牌"
+        $global:testResults += Fail "跳过获取学生列表测试 - 无有效令牌"
     }
     
-    # 5. 测试创建学分活动
-    Info "5. 测试创建学分活动"
+    # 5. 测试获取教师列表
+    Info "5. 测试获取教师列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        
+        try {
+            $teachersResp = Invoke-RestMethod -Uri "$BaseUrl/api/teachers" -Method GET -Headers $headers -ContentType "application/json"
+            if ($teachersResp.code -eq 0) {
+                $global:testResults += Pass "获取教师列表成功"
+            } else {
+                $global:testResults += Fail "获取教师列表失败: $($teachersResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取教师列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取教师列表测试 - 无有效令牌"
+    }
+    
+    # 6. 测试创建学分活动
+    Info "6. 测试创建学分活动"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
         $activityBody = @{
@@ -173,8 +171,8 @@ function Test-AllServices {
         $global:testResults += Fail "跳过创建学分活动测试 - 无有效令牌"
     }
     
-    # 6. 测试创建申请
-    Info "6. 测试创建申请"
+    # 7. 测试创建申请
+    Info "7. 测试创建申请"
     if ($global:authToken -and $global:testActivityId) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
         $applicationBody = @{
@@ -198,66 +196,32 @@ function Test-AllServices {
         $global:testResults += Fail "跳过创建申请测试 - 无有效令牌或无活动ID"
     }
     
-    # 7. 测试获取活动参与者列表
-    Info "7. 测试获取活动参与者列表"
-    if ($global:authToken -and $global:testActivityId) {
-        $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        try {
-            $participantsResp = Invoke-RestMethod -Uri "$BaseUrl/api/activities/$global:testActivityId/participants" -Method GET -Headers $headers
-            if ($participantsResp.code -eq 0) {
-                $global:testResults += Pass "获取活动参与者列表成功"
-            } else {
-                $global:testResults += Fail "获取活动参与者列表失败: $($participantsResp.message)"
-            }
-        } catch {
-            $global:testResults += Fail "获取活动参与者列表异常: $($_.Exception.Message)"
-        }
-    } else {
-        $global:testResults += Fail "跳过获取活动参与者列表测试 - 无有效令牌或无活动ID"
-    }
-    
-    # 8. 测试获取活动申请列表
-    Info "8. 测试获取活动申请列表"
-    if ($global:authToken -and $global:testActivityId) {
-        $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        try {
-            $applicationsResp = Invoke-RestMethod -Uri "$BaseUrl/api/applications" -Method GET -Headers $headers
-            if ($applicationsResp.code -eq 0) {
-                $global:testResults += Pass "获取活动申请列表成功"
-            } else {
-                $global:testResults += Fail "获取活动申请列表失败: $($applicationsResp.message)"
-            }
-        } catch {
-            $global:testResults += Fail "获取活动申请列表异常: $($_.Exception.Message)"
-        }
-    } else {
-        $global:testResults += Fail "跳过获取活动申请列表测试 - 无有效令牌或无活动ID"
-    }
-    
-    # 9. 测试获取申请统计信息
-    Info "9. 测试获取申请统计信息"
+    # 8. 测试搜索功能
+    Info "8. 测试搜索功能"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        
         try {
-            $statsResp = Invoke-RestMethod -Uri "$BaseUrl/api/applications/stats" -Method GET -Headers $headers
-            if ($statsResp.code -eq 0) {
-                $global:testResults += Pass "获取申请统计信息成功"
+            $searchResp = Invoke-RestMethod -Uri "$BaseUrl/api/search/users?query=testall" -Method GET -Headers $headers -ContentType "application/json"
+            if ($searchResp.code -eq 0) {
+                $global:testResults += Pass "搜索用户成功"
             } else {
-                $global:testResults += Fail "获取申请统计信息失败: $($statsResp.message)"
+                $global:testResults += Fail "搜索用户失败: $($searchResp.message)"
             }
         } catch {
-            $global:testResults += Fail "获取申请统计信息异常: $($_.Exception.Message)"
+            $global:testResults += Fail "搜索用户异常: $($_.Exception.Message)"
         }
     } else {
-        $global:testResults += Fail "跳过获取申请统计信息测试 - 无有效令牌"
+        $global:testResults += Fail "跳过搜索功能测试 - 无有效令牌"
     }
     
-    # 10. 测试获取用户统计信息
-    Info "10. 测试获取用户统计信息"
+    # 9. 测试获取统计信息
+    Info "9. 测试获取统计信息"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        
         try {
-            $statsResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/stats" -Method GET -Headers $headers
+            $statsResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/stats" -Method GET -Headers $headers -ContentType "application/json"
             if ($statsResp.code -eq 0) {
                 $global:testResults += Pass "获取用户统计信息成功"
             } else {
@@ -267,131 +231,88 @@ function Test-AllServices {
             $global:testResults += Fail "获取用户统计信息异常: $($_.Exception.Message)"
         }
     } else {
-        $global:testResults += Fail "跳过获取用户统计信息测试 - 无有效令牌"
+        $global:testResults += Fail "跳过获取统计信息测试 - 无有效令牌"
     }
     
-    # 11. 测试搜索学生
-    Info "11. 测试搜索学生"
-    if ($global:authToken) {
-        $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        try {
-            $searchStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/search?q=综合测试学生" -Method GET -Headers $headers
-            if ($searchStudentResp.code -eq 0) {
-                $global:testResults += Pass "搜索学生成功"
-            } else {
-                $global:testResults += Fail "搜索学生失败: $($searchStudentResp.message)"
-            }
-        } catch {
-            $global:testResults += Fail "搜索学生异常: $($_.Exception.Message)"
-        }
-    } else {
-        $global:testResults += Fail "跳过搜索学生测试 - 无有效令牌"
-    }
-    
-    # 12. 测试搜索教师
-    Info "12. 测试搜索教师"
-    if ($global:authToken) {
-        $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        try {
-            $searchTeacherResp = Invoke-RestMethod -Uri "$BaseUrl/api/teachers/search?q=综合测试教师" -Method GET -Headers $headers
-            if ($searchTeacherResp.code -eq 0) {
-                $global:testResults += Pass "搜索教师成功"
-            } else {
-                $global:testResults += Fail "搜索教师失败: $($searchTeacherResp.message)"
-            }
-        } catch {
-            $global:testResults += Fail "搜索教师异常: $($_.Exception.Message)"
-        }
-    } else {
-        $global:testResults += Fail "跳过搜索教师测试 - 无有效令牌"
-    }
-    
-    # 13. 测试令牌验证
-    Info "13. 测试令牌验证"
-    if ($global:authToken) {
-        $headers = @{ "Authorization" = "Bearer $global:authToken" }
-        try {
-            $validateResp = Invoke-RestMethod -Uri "$BaseUrl/api/auth/validate" -Method POST -Headers $headers -ContentType "application/json"
-            if ($validateResp.code -eq 0 -and $validateResp.data.valid) {
-                $global:testResults += Pass "令牌验证成功"
-            } else {
-                $global:testResults += Fail "令牌验证失败: $($validateResp.message)"
-            }
-        } catch {
-            $global:testResults += Fail "令牌验证异常: $($_.Exception.Message)"
-        }
-    } else {
-        $global:testResults += Fail "跳过令牌验证测试 - 无有效令牌"
-    }
-    
-    # 14. 测试清理资源
-    Info "14. 测试清理资源"
+    # 10. 测试获取学生统计信息
+    Info "10. 测试获取学生统计信息"
     if ($global:authToken) {
         $headers = @{ "Authorization" = "Bearer $global:authToken" }
         
-        # 删除活动
+        try {
+            $studentStatsResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/stats" -Method GET -Headers $headers -ContentType "application/json"
+            if ($studentStatsResp.code -eq 0) {
+                $global:testResults += Pass "获取学生统计信息成功"
+            } else {
+                $global:testResults += Fail "获取学生统计信息失败: $($studentStatsResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取学生统计信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取学生统计信息测试 - 无有效令牌"
+    }
+    
+    # 11. 测试获取教师统计信息
+    Info "11. 测试获取教师统计信息"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        
+        try {
+            $teacherStatsResp = Invoke-RestMethod -Uri "$BaseUrl/api/teachers/stats" -Method GET -Headers $headers -ContentType "application/json"
+            if ($teacherStatsResp.code -eq 0) {
+                $global:testResults += Pass "获取教师统计信息成功"
+            } else {
+                $global:testResults += Fail "获取教师统计信息失败: $($teacherStatsResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取教师统计信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取教师统计信息测试 - 无有效令牌"
+    }
+    
+    # 12. 测试资源清理
+    Info "12. 测试资源清理"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        
+        # 清理测试数据
+        if ($global:testApplicationId) {
+            try {
+                Invoke-RestMethod -Uri "$BaseUrl/api/applications/$global:testApplicationId" -Method DELETE -Headers $headers -ContentType "application/json" | Out-Null
+                $global:testResults += Pass "清理测试申请成功"
+            } catch {
+                $global:testResults += Fail "清理测试申请失败: $($_.Exception.Message)"
+            }
+        }
+        
         if ($global:testActivityId) {
             try {
-                $deleteActivityResp = Invoke-RestMethod -Uri "$BaseUrl/api/activities/$global:testActivityId" -Method DELETE -Headers $headers
-                if ($deleteActivityResp.code -eq 0) {
-                    $global:testResults += Pass "删除活动成功"
-                } else {
-                    $global:testResults += Fail "删除活动失败: $($deleteActivityResp.message)"
-                }
+                Invoke-RestMethod -Uri "$BaseUrl/api/activities/$global:testActivityId" -Method DELETE -Headers $headers -ContentType "application/json" | Out-Null
+                $global:testResults += Pass "清理测试活动成功"
             } catch {
-                $global:testResults += Fail "删除活动异常: $($_.Exception.Message)"
+                $global:testResults += Fail "清理测试活动失败: $($_.Exception.Message)"
             }
         }
         
-        # 删除学生信息
-        if ($global:testStudentId) {
-            try {
-                $deleteStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/$global:testStudentId" -Method DELETE -Headers $headers
-                if ($deleteStudentResp.code -eq 0) {
-                    $global:testResults += Pass "删除学生信息成功"
-                } else {
-                    $global:testResults += Fail "删除学生信息失败: $($deleteStudentResp.message)"
-                }
-            } catch {
-                $global:testResults += Fail "删除学生信息异常: $($_.Exception.Message)"
-            }
-        }
-        
-        # 删除教师信息
-        if ($global:testTeacherId) {
-            try {
-                $deleteTeacherResp = Invoke-RestMethod -Uri "$BaseUrl/api/teachers/$global:testTeacherId" -Method DELETE -Headers $headers
-                if ($deleteTeacherResp.code -eq 0) {
-                    $global:testResults += Pass "删除教师信息成功"
-                } else {
-                    $global:testResults += Fail "删除教师信息失败: $($deleteTeacherResp.message)"
-                }
-            } catch {
-                $global:testResults += Fail "删除教师信息异常: $($_.Exception.Message)"
-            }
-        }
-        
-        # 删除用户
         if ($global:testUserId) {
             try {
-                $deleteUserResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method DELETE -Headers $headers
-                if ($deleteUserResp.code -eq 0) {
-                    $global:testResults += Pass "删除用户成功"
-                } else {
-                    $global:testResults += Fail "删除用户失败: $($deleteUserResp.message)"
-                }
+                Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method DELETE -Headers $headers -ContentType "application/json" | Out-Null
+                $global:testResults += Pass "清理测试用户成功"
             } catch {
-                $global:testResults += Fail "删除用户异常: $($_.Exception.Message)"
+                $global:testResults += Fail "清理测试用户失败: $($_.Exception.Message)"
             }
         }
     } else {
-        $global:testResults += Fail "跳过清理资源测试 - 无有效令牌"
+        $global:testResults += Fail "跳过资源清理测试 - 无有效令牌"
     }
     
-    # 输出测试结果统计
-    Write-Host "`n=== 测试结果统计 ===" -ForegroundColor Yellow
-    $passCount = ($global:testResults | Where-Object { $_ -eq $true }).Count
-    $failCount = ($global:testResults | Where-Object { $_ -eq $false }).Count
+    # 输出测试结果
+    Write-Host ""
+    Write-Host "=== 测试结果汇总 ===" -ForegroundColor Yellow
+    $passCount = ($global:testResults | Where-Object { $_ -like "*[PASS]*" }).Count
+    $failCount = ($global:testResults | Where-Object { $_ -like "*[FAIL]*" }).Count
     $totalCount = $global:testResults.Count
     
     Write-Host "总测试数: $totalCount" -ForegroundColor White
@@ -399,13 +320,32 @@ function Test-AllServices {
     Write-Host "失败: $failCount" -ForegroundColor Red
     
     if ($failCount -eq 0) {
-        Write-Host "`n🎉 所有测试通过！" -ForegroundColor Green
+        Write-Host "所有测试通过！" -ForegroundColor Green
         return $true
     } else {
-        Write-Host "`n❌ 有 $failCount 个测试失败" -ForegroundColor Red
+        Write-Host "有 $failCount 个测试失败" -ForegroundColor Red
         return $false
     }
 }
 
-# 执行测试
-Test-AllServices 
+# 主程序
+try {
+    Write-Host "开始综合服务测试..." -ForegroundColor Green
+    Write-Host "API网关地址: $BaseUrl" -ForegroundColor Yellow
+    Write-Host ""
+    
+    $result = Test-AllServices
+    
+    if ($result) {
+        Write-Host ""
+        Write-Host "综合测试完成，所有服务运行正常！" -ForegroundColor Green
+        exit 0
+    } else {
+        Write-Host ""
+        Write-Host "综合测试完成，发现一些问题，请检查服务状态。" -ForegroundColor Yellow
+        exit 1
+    }
+} catch {
+    Write-Host "测试过程中发生错误: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+} 

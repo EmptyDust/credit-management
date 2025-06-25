@@ -12,8 +12,6 @@ import (
 type ProxyConfig struct {
 	UserServiceURL           string
 	AuthServiceURL           string
-	StudentServiceURL        string
-	TeacherServiceURL        string
 	CreditActivityServiceURL string
 }
 
@@ -22,8 +20,6 @@ func main() {
 	config := ProxyConfig{
 		UserServiceURL:           getEnv("USER_SERVICE_URL", "http://user-service:8084"),
 		AuthServiceURL:           getEnv("AUTH_SERVICE_URL", "http://auth-service:8081"),
-		StudentServiceURL:        getEnv("STUDENT_SERVICE_URL", "http://student-service:8085"),
-		TeacherServiceURL:        getEnv("TEACHER_SERVICE_URL", "http://teacher-service:8086"),
 		CreditActivityServiceURL: getEnv("CREDIT_ACTIVITY_SERVICE_URL", "http://credit-activity-service:8083"),
 	}
 
@@ -53,7 +49,7 @@ func main() {
 		c.JSON(200, gin.H{
 			"status":  "ok",
 			"service": "api-gateway",
-			"version": "1.0.0",
+			"version": "2.0.0",
 		})
 	})
 
@@ -62,7 +58,6 @@ func main() {
 	{
 		// 认证服务路由
 		api.Any("/auth/*path", createProxyHandler(config.AuthServiceURL))
-		api.GET("/auth/validate-permission", createProxyHandler(config.AuthServiceURL))
 
 		// 权限管理服务路由
 		api.POST("/permissions/init", createProxyHandler(config.AuthServiceURL))
@@ -84,9 +79,10 @@ func main() {
 		api.GET("/permissions/users/:userID/roles", createProxyHandler(config.AuthServiceURL))
 		api.GET("/permissions/users/:userID/permissions", createProxyHandler(config.AuthServiceURL))
 
-		// 用户管理服务路由
+		// 统一用户服务路由（包含用户管理、学生信息、教师信息）
 		api.POST("/users/register", createProxyHandler(config.UserServiceURL))
 		api.POST("/users/teachers", createProxyHandler(config.UserServiceURL))
+		api.POST("/users/students", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/stats", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/profile", createProxyHandler(config.UserServiceURL))
 		api.PUT("/users/profile", createProxyHandler(config.UserServiceURL))
@@ -95,36 +91,36 @@ func main() {
 		api.GET("/users/:id", createProxyHandler(config.UserServiceURL))
 		api.PUT("/users/:id", createProxyHandler(config.UserServiceURL))
 		api.DELETE("/users/:id", createProxyHandler(config.UserServiceURL))
-		api.Any("/notifications/*path", createProxyHandler(config.UserServiceURL))
 
-		// 学生信息服务路由
-		api.POST("/students", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/search", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/search/username", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/college/:college", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/major/:major", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/class/:class", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/status/:status", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/:id", createProxyHandler(config.StudentServiceURL))
-		api.PUT("/students/:id", createProxyHandler(config.StudentServiceURL))
-		api.DELETE("/students/:id", createProxyHandler(config.StudentServiceURL))
-		api.GET("/students/user/:userID", createProxyHandler(config.StudentServiceURL))
-		api.DELETE("/students/user/:user_id", createProxyHandler(config.StudentServiceURL))
+		// 学生相关路由（统一用户服务）
+		api.POST("/students", createProxyHandler(config.UserServiceURL))
+		api.GET("/students", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/search", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/search/username", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/college/:college", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/major/:major", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/class/:class", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/status/:status", createProxyHandler(config.UserServiceURL))
+		api.GET("/students/stats", createProxyHandler(config.UserServiceURL))
+		api.PUT("/students/:id", createProxyHandler(config.UserServiceURL))
+		api.DELETE("/students/:id", createProxyHandler(config.UserServiceURL))
 
-		// 教师信息服务路由
-		api.POST("/teachers", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/:id", createProxyHandler(config.TeacherServiceURL))
-		api.PUT("/teachers/:id", createProxyHandler(config.TeacherServiceURL))
-		api.DELETE("/teachers/:id", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/department/:department", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/title/:title", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/status/:status", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/search", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/search/username", createProxyHandler(config.TeacherServiceURL))
-		api.GET("/teachers/active", createProxyHandler(config.TeacherServiceURL))
-		api.DELETE("/teachers/user/:user_id", createProxyHandler(config.TeacherServiceURL))
+		// 教师相关路由（统一用户服务）
+		api.POST("/teachers", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/:id", createProxyHandler(config.UserServiceURL))
+		api.PUT("/teachers/:id", createProxyHandler(config.UserServiceURL))
+		api.DELETE("/teachers/:id", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/department/:department", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/title/:title", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/status/:status", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/search", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/search/username", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/active", createProxyHandler(config.UserServiceURL))
+		api.GET("/teachers/stats", createProxyHandler(config.UserServiceURL))
+
+		// 搜索路由（统一用户服务）
+		api.GET("/search/users", createProxyHandler(config.UserServiceURL))
 
 		// 学分活动服务路由
 		api.GET("/activities/categories", createProxyHandler(config.CreditActivityServiceURL))
@@ -159,23 +155,21 @@ func main() {
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "Credit Management API Gateway",
-			"version": "1.0.0",
+			"version": "2.0.0",
 			"services": gin.H{
 				"auth_service":            config.AuthServiceURL,
 				"user_service":            config.UserServiceURL,
-				"student_service":         config.StudentServiceURL,
-				"teacher_service":         config.TeacherServiceURL,
 				"credit_activity_service": config.CreditActivityServiceURL,
 			},
 			"endpoints": gin.H{
-				"auth":          "/api/auth",
-				"permissions":   "/api/permissions",
-				"users":         "/api/users",
-				"notifications": "/api/notifications",
-				"students":      "/api/students",
-				"teachers":      "/api/teachers",
-				"activities":    "/api/activities",
-				"health":        "/health",
+				"auth":        "/api/auth",
+				"permissions": "/api/permissions",
+				"users":       "/api/users",
+				"students":    "/api/students",
+				"teachers":    "/api/teachers",
+				"search":      "/api/search",
+				"activities":  "/api/activities",
+				"health":      "/health",
 			},
 		})
 	})
@@ -194,15 +188,14 @@ func main() {
 	log.Printf("API Gateway starting on port %s", port)
 	log.Printf("Auth Service: %s", config.AuthServiceURL)
 	log.Printf("User Service: %s", config.UserServiceURL)
-	log.Printf("Student Service: %s", config.StudentServiceURL)
-	log.Printf("Teacher Service: %s", config.TeacherServiceURL)
 	log.Printf("Credit Activity Service: %s", config.CreditActivityServiceURL)
 
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		log.Fatal("Failed to start API Gateway:", err)
 	}
 }
 
+// 创建代理处理器
 func createProxyHandler(targetURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 解析目标URL
@@ -226,6 +219,7 @@ func createProxyHandler(targetURL string) gin.HandlerFunc {
 	}
 }
 
+// 获取环境变量
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

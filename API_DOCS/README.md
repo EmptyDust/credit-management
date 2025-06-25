@@ -7,12 +7,10 @@
 
 ### 微服务组成
 1. **认证服务 (auth-service)** - 用户认证、授权和权限管理
-2. **用户管理服务 (user-management-service)** - 用户基础信息管理
-3. **学生信息服务 (student-info-service)** - 学生档案信息管理
-4. **教师信息服务 (teacher-info-service)** - 教师档案信息管理
-5. **事务管理服务 (affair-management-service)** - 学分事务管理
-6. **申请管理服务 (application-management-service)** - 学分申请管理
-7. **API网关 (api-gateway)** - 统一入口和路由管理
+2. **统一用户服务 (user-service)** - 用户、学生、教师信息统一管理
+3. **事务管理服务 (affair-management-service)** - 学分事务管理
+4. **申请管理服务 (application-management-service)** - 学分申请管理
+5. **API网关 (api-gateway)** - 统一入口和路由管理
 
 ### 技术栈
 - **后端**: Go (Gin框架)
@@ -37,11 +35,9 @@
 
 ### 核心服务文档
 1. **[认证服务 API](./auth-service-API.md)** - 用户认证、授权和权限验证
-2. **[用户管理服务 API](./user-management-service-API.md)** - 用户创建、管理和删除
-3. **[学生信息服务 API](./student-info-service-API.md)** - 学生信息管理
-4. **[教师信息服务 API](./teacher-info-service-API.md)** - 教师信息管理
-5. **[事务管理服务 API](./affair-management-service-API.md)** - 事务创建、管理和审核
-6. **[申请管理服务 API](./application-management-service-API.md)** - 申请创建、管理和审核
+2. **[统一用户服务 API](./user-service-API.md)** - 用户、学生、教师信息统一管理
+3. **[事务管理服务 API](./affair-management-service-API.md)** - 事务创建、管理和审核
+4. **[申请管理服务 API](./application-management-service-API.md)** - 申请创建、管理和审核
 
 ## 主要功能
 
@@ -50,6 +46,7 @@
 - 管理员创建学生和教师
 - 用户信息更新和删除
 - 密码重置和管理
+- 统一的学生和教师信息管理
 
 ### 认证授权
 - JWT token认证
@@ -126,7 +123,7 @@
 ### 环境要求
 - Docker & Docker Compose
 - PostgreSQL 数据库
-- Go 1.21+
+- Go 1.24+
 
 ### 快速启动
 ```bash
@@ -148,9 +145,7 @@ docker-compose ps
 - 认证服务: 8081
 - 事务管理服务: 8082
 - 申请管理服务: 8083
-- 用户管理服务: 8084
-- 学生信息服务: 8085
-- 教师信息服务: 8086
+- 统一用户服务: 8084
 
 ## 开发指南
 
@@ -191,60 +186,39 @@ curl -X GET http://localhost:8080/api/students \
 ### 自动化测试
 项目包含完整的自动化测试脚本：
 - 认证服务测试
-- 用户管理测试
-- 学生信息测试
-- 教师信息测试
+- 统一用户服务测试
 - 事务管理测试
 - 申请管理测试
 
 ### 测试脚本位置
-```
-tester/
-├── test-auth-service.ps1
-├── test-user-management-service.ps1
-├── test-student-info-service.ps1
-├── test-teacher-info-service.ps1
-├── test-affair-management-service.ps1
-└── test-application-management-service.ps1
-```
+- `tester/` 目录包含所有服务的测试脚本
+- 支持PowerShell和Bash环境
+- 包含完整的API测试用例
 
-## 监控和日志
+## 服务合并说明
 
-### 日志管理
-- 结构化日志输出
-- 错误日志记录
-- 操作审计日志
-- 性能监控日志
+### 统一用户服务
+原有的三个服务（用户管理、学生信息、教师信息）已合并为统一的用户服务，提供：
+- 统一的用户管理API
+- 简化的服务架构
+- 更好的数据一致性
+- 减少的服务间通信
 
-### 健康检查
-每个服务都提供健康检查端点：
-```
-GET /health
-```
-
-## 常见问题
-
-### Q: 如何重置管理员密码？
-A: 使用用户管理服务的密码重置功能，或直接操作数据库。
-
-### Q: 如何添加新的用户角色？
-A: 修改认证服务的权限模型和相关的权限验证逻辑。
-
-### Q: 如何扩展事务类型？
-A: 在事务管理服务中添加新的事务类型和相应的处理逻辑。
-
-### Q: 如何备份数据？
-A: 使用PostgreSQL的备份工具或Docker卷备份。
+### 迁移指南
+详细的迁移说明请参考：[USER_SERVICE_MERGE_SUMMARY.md](../USER_SERVICE_MERGE_SUMMARY.md)
 
 ## 更新日志
 
-### v1.0.0 (2024-01-01)
+### v2.0.0 (最新)
+- 合并用户管理、学生信息、教师信息服务为统一用户服务
+- 简化系统架构
+- 优化API接口
+- 提升系统性能
+
+### v1.0.0
 - 初始版本发布
-- 完整的微服务架构
-- 基于角色的权限控制
-- 事务和申请管理功能
-- 文件上传和管理
-- 自动化测试脚本
+- 微服务架构设计
+- 基础功能实现
 
 ## 贡献指南
 
