@@ -199,6 +199,206 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 附件清理触发器函数 - 当附件被软删除时检查是否还有其他活动使用该文件
+CREATE OR REPLACE FUNCTION cleanup_orphaned_attachments()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_other_activities_count INTEGER;
+    v_file_path TEXT;
+BEGIN
+    -- 如果附件被软删除，检查是否还有其他活动使用相同的文件
+    IF NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL THEN
+        -- 检查是否有其他活动使用相同的MD5哈希文件
+        SELECT COUNT(*) INTO v_other_activities_count
+        FROM attachments a
+        WHERE a.md5_hash = NEW.md5_hash 
+        AND a.deleted_at IS NULL 
+        AND a.id != NEW.id;
+        
+        -- 如果没有其他活动使用该文件，则彻底删除附件记录和物理文件
+        IF v_other_activities_count = 0 THEN
+            -- 删除物理文件
+            v_file_path := 'uploads/attachments/' || NEW.file_name;
+            -- 注意：这里只是记录，实际文件删除需要在应用层处理
+            RAISE NOTICE '彻底删除附件文件: %', v_file_path;
+            
+            -- 彻底删除附件记录（不是软删除）
+            DELETE FROM attachments WHERE id = NEW.id;
+            RETURN NULL; -- 阻止软删除操作
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ========================================
+-- 4.1 活动删除存储过程（权限校验+彻底删除附件）
+-- ========================================
+
+CREATE OR REPLACE FUNCTION delete_activity_with_permission_check(
+    p_activity_id UUID,
+    p_user_id UUID,
+    p_user_type VARCHAR
+) RETURNS TEXT AS $$
+DECLARE
+    v_owner_id UUID;
+    v_status VARCHAR;
+    v_now TIMESTAMPTZ := NOW();
+    v_attachment RECORD;
+    v_file_path TEXT;
+    v_other_activities_count INTEGER;
+BEGIN
+    -- 查询活动拥有者和状态
+    SELECT owner_id, status INTO v_owner_id, v_status FROM credit_activities WHERE id = p_activity_id AND deleted_at IS NULL;
+    IF NOT FOUND THEN
+        RETURN '活动不存在或已删除';
+    END IF;
+
+    -- 权限校验：管理员可删，教师/学生只能删自己创建的
+    IF p_user_type = 'admin' THEN
+        -- 管理员可删除任何活动
+        NULL;
+    ELSIF p_user_id = v_owner_id THEN
+        -- 活动创建者可删除
+        NULL;
+    ELSE
+        RETURN '无权限删除该活动';
+    END IF;
+
+    -- 处理附件：彻底删除不被其他活动使用的附件
+    FOR v_attachment IN 
+        SELECT id, file_name, md5_hash 
+        FROM attachments 
+        WHERE activity_id = p_activity_id AND deleted_at IS NULL
+    LOOP
+        -- 检查是否有其他活动使用相同的文件
+        SELECT COUNT(*) INTO v_other_activities_count
+        FROM attachments a
+        WHERE a.md5_hash = v_attachment.md5_hash 
+        AND a.deleted_at IS NULL 
+        AND a.activity_id != p_activity_id;
+        
+        -- 如果没有其他活动使用该文件，则彻底删除
+        IF v_other_activities_count = 0 THEN
+            -- 记录需要删除的物理文件路径
+            v_file_path := 'uploads/attachments/' || v_attachment.file_name;
+            RAISE NOTICE '需要删除物理文件: %', v_file_path;
+            
+            -- 彻底删除附件记录
+            DELETE FROM attachments WHERE id = v_attachment.id;
+        ELSE
+            -- 有其他活动使用，只软删除
+            UPDATE attachments SET deleted_at = v_now WHERE id = v_attachment.id;
+        END IF;
+    END LOOP;
+
+    -- 软删除活动
+    UPDATE credit_activities SET deleted_at = v_now WHERE id = p_activity_id;
+    -- 软删除参与者
+    UPDATE activity_participants SET deleted_at = v_now WHERE activity_id = p_activity_id;
+    -- 软删除申请
+    UPDATE applications SET deleted_at = v_now WHERE activity_id = p_activity_id;
+
+    RETURN '活动删除成功';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 批量删除活动存储过程
+CREATE OR REPLACE FUNCTION batch_delete_activities(
+    p_activity_ids UUID[],
+    p_user_id UUID,
+    p_user_type VARCHAR
+) RETURNS INTEGER AS $$
+DECLARE
+    v_activity_id UUID;
+    v_deleted_count INTEGER := 0;
+    v_result TEXT;
+BEGIN
+    -- 遍历活动ID数组
+    FOREACH v_activity_id IN ARRAY p_activity_ids
+    LOOP
+        -- 调用单个删除函数
+        SELECT delete_activity_with_permission_check(v_activity_id, p_user_id, p_user_type) INTO v_result;
+        
+        -- 如果删除成功，增加计数
+        IF v_result = '活动删除成功' THEN
+            v_deleted_count := v_deleted_count + 1;
+        END IF;
+    END LOOP;
+    
+    RETURN v_deleted_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 获取用户可删除的活动列表
+CREATE OR REPLACE FUNCTION get_user_deletable_activities(
+    p_user_id UUID,
+    p_user_type VARCHAR
+) RETURNS TABLE (
+    activity_id UUID,
+    title VARCHAR(200),
+    description TEXT,
+    status VARCHAR(20),
+    category VARCHAR(100),
+    owner_id UUID,
+    created_at TIMESTAMPTZ,
+    can_delete BOOLEAN
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        ca.id,
+        ca.title,
+        ca.description,
+        ca.status,
+        ca.category,
+        ca.owner_id,
+        ca.created_at,
+        CASE 
+            WHEN p_user_type = 'admin' THEN true
+            WHEN ca.owner_id = p_user_id THEN true
+            ELSE false
+        END as can_delete
+    FROM credit_activities ca
+    WHERE ca.deleted_at IS NULL
+    AND (p_user_type = 'admin' OR ca.owner_id = p_user_id)
+    ORDER BY ca.created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 恢复已删除的活动（仅管理员）
+CREATE OR REPLACE FUNCTION restore_deleted_activity(
+    p_activity_id UUID,
+    p_user_type VARCHAR
+) RETURNS TEXT AS $$
+DECLARE
+    v_now TIMESTAMPTZ := NOW();
+BEGIN
+    -- 只有管理员可以恢复活动
+    IF p_user_type != 'admin' THEN
+        RETURN '只有管理员可以恢复活动';
+    END IF;
+
+    -- 恢复活动
+    UPDATE credit_activities SET deleted_at = NULL WHERE id = p_activity_id;
+    IF NOT FOUND THEN
+        RETURN '活动不存在';
+    END IF;
+
+    -- 恢复参与者
+    UPDATE activity_participants SET deleted_at = NULL WHERE activity_id = p_activity_id;
+    
+    -- 恢复申请
+    UPDATE applications SET deleted_at = NULL WHERE activity_id = p_activity_id;
+    
+    -- 恢复附件
+    UPDATE attachments SET deleted_at = NULL WHERE activity_id = p_activity_id;
+
+    RETURN '活动恢复成功';
+END;
+$$ LANGUAGE plpgsql;
+
 -- ========================================
 -- 5. 创建触发器
 -- ========================================
@@ -208,6 +408,7 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECU
 CREATE TRIGGER update_credit_activities_updated_at BEFORE UPDATE ON credit_activities FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_activity_participants_updated_at BEFORE UPDATE ON activity_participants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_applications_updated_at BEFORE UPDATE ON applications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_attachments_updated_at BEFORE UPDATE ON attachments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 活动通过后自动生成申请触发器
 CREATE TRIGGER trigger_generate_applications
@@ -220,6 +421,12 @@ CREATE TRIGGER trigger_delete_applications_on_withdraw
     AFTER UPDATE ON credit_activities
     FOR EACH ROW
     EXECUTE FUNCTION delete_applications_on_activity_withdraw();
+
+-- 附件清理触发器
+CREATE TRIGGER trigger_cleanup_orphaned_attachments
+    BEFORE UPDATE ON attachments
+    FOR EACH ROW
+    EXECUTE FUNCTION cleanup_orphaned_attachments();
 
 -- ========================================
 -- 6. 创建视图
@@ -349,4 +556,10 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '权限控制已简化为基于user_type的系统';
     RAISE NOTICE '默认用户：admin/adminpassword, teacher/adminpassword, student/adminpassword';
+    RAISE NOTICE '';
+    RAISE NOTICE '新增功能：';
+    RAISE NOTICE '- 活动删除时自动彻底删除不被其他活动使用的附件';
+    RAISE NOTICE '- 附件触发器自动清理孤立文件';
+    RAISE NOTICE '- 批量删除活动功能';
+    RAISE NOTICE '- 活动恢复功能（仅管理员）';
 END $$; 
