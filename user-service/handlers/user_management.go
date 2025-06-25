@@ -109,6 +109,9 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar
 	}
+	if req.Status != "" {
+		user.Status = req.Status
+	}
 
 	// 更新学生特有字段
 	if req.StudentID != nil {

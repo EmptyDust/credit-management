@@ -114,10 +114,22 @@ export default function AffairsPage() {
     const fetchAffairs = async () => {
         try {
             setLoading(true);
-            const response = await apiClient.get('/affairs');
-            setAffairs(response.data.affairs || []);
+            const response = await apiClient.get('/activities');
+            const activities = response.data.data?.activities || response.data.activities || response.data || [];
+            setAffairs(activities.map((activity: any) => ({
+                id: activity.id,
+                name: activity.title,
+                description: activity.description,
+                max_credits: activity.max_credits || 1,
+                status: activity.status === 'approved' ? 'active' : 'inactive',
+                category: activity.category,
+                created_at: activity.created_at,
+                updated_at: activity.updated_at,
+                student_count: activity.participants?.length || 0,
+                application_count: activity.participants?.length || 0
+            })));
         } catch (err) {
-            console.error("Failed to fetch affairs:", err);
+            console.error("Failed to fetch activities:", err);
             // Fallback to mock data
             setAffairs([
                 {

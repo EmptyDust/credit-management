@@ -100,7 +100,6 @@ const StatCard = ({
   description, 
   trend,
   color = "default",
-  loading = false,
   subtitle
 }: { 
   title: string, 
@@ -298,10 +297,13 @@ export default function Dashboard() {
       setRefreshing(true);
       
       // Fetch user stats (admin only)
-      if (hasPermission('view_user_stats')) {
+      if (hasPermission('view_user_stats') || user?.userType === 'admin') {
         try {
           const userResponse = await apiClient.get('/users/stats');
-          setUserStats(userResponse.data);
+          const userStatsData = userResponse.data.data || userResponse.data;
+          if (userResponse.data.code === 0) {
+            setUserStats(userStatsData);
+          }
         } catch (error) {
           console.error('Failed to fetch user stats:', error);
           // Use fallback data for user stats
@@ -316,104 +318,41 @@ export default function Dashboard() {
         }
       }
 
-      // Fetch applications to calculate stats
+      // Fetch activities to calculate stats
       try {
-        const endpoint = user?.userType === 'student' 
-          ? `/applications/user/${user.id}`  // 使用用户UUID查询
-          : '/applications';
-        const appResponse = await apiClient.get(endpoint);
-        const applications = appResponse.data.applications || appResponse.data || [];
+        const activitiesResponse = await apiClient.get('/activities');
+        const activities = activitiesResponse.data.data?.activities || activitiesResponse.data.activities || [];
         
-        const total = applications.length;
-        const pending = applications.filter((app: any) => app.status === 'pending').length;
-        const approved = applications.filter((app: any) => app.status === 'approved').length;
-        const rejected = applications.filter((app: any) => app.status === 'rejected').length;
-        const unsubmitted = applications.filter((app: any) => app.status === 'unsubmitted').length;
-        const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
-        
-        // Calculate credit stats
-        const approvedApps = applications.filter((app: any) => app.status === 'approved');
-        const totalCredits = approvedApps.reduce((sum: number, app: any) => sum + (app.approved_credits || 0), 0);
-        const avgCredits = approvedApps.length > 0 ? Math.round((totalCredits / approvedApps.length) * 10) / 10 : 0;
-        
-        // Calculate this month's credits
-        const thisMonthCredits = approvedApps.filter((app: any) => {
-          const appDate = new Date(app.review_time || app.submission_time);
-          const now = new Date();
-          return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
-        }).reduce((sum: number, app: any) => sum + (app.approved_credits || 0), 0);
-        
-        setAppStats({
-          total_applications: total,
-          pending_applications: pending,
-          approved_applications: approved,
-          rejected_applications: rejected,
-          unsubmitted_applications: unsubmitted,
-          applications_this_month: applications.filter((app: any) => {
-            const appDate = new Date(app.submission_time);
-            const now = new Date();
-            return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
-          }).length,
-          approval_rate: approvalRate,
-          total_credits_awarded: totalCredits,
-          average_credits_per_application: avgCredits,
-          credits_this_month: thisMonthCredits
-        });
-      } catch (error) {
-        console.error('Failed to fetch applications:', error);
-        // Use fallback data for application stats
-        setAppStats({
-          total_applications: 152,
-          pending_applications: 25,
-          approved_applications: 127,
-          rejected_applications: 8,
-          unsubmitted_applications: 20,
-          applications_this_month: 45,
-          approval_rate: 83.5,
-          total_credits_awarded: 456.5,
-          average_credits_per_application: 2.3,
-          credits_this_month: 89.5
-        });
-      }
-
-      // Fetch affair stats
-      try {
-        const affairResponse = await apiClient.get('/affairs');
-        const affairs = affairResponse.data.affairs || affairResponse.data || [];
-        
-        // Get participants for each affair
-        const affairsWithParticipants = await Promise.all(
-          affairs.map(async (affair: any) => {
-            try {
-              const participantsResponse = await apiClient.get(`/affairs/${affair.id}/participants`);
-              const participants = participantsResponse.data || [];
-              return {
-                ...affair,
-                participant_count: participants.length,
-                application_count: participants.length // Each participant has one application
-              };
-            } catch (error) {
-              return {
-                ...affair,
-                participant_count: 0,
-                application_count: 0
-              };
-            }
-          })
-        );
+        // Calculate activity stats
+        const totalActivities = activities.length;
+        const activeActivities = activities.filter((activity: any) => activity.status === 'approved').length;
         
         setAffairStats({
-          total_affairs: affairs.length,
-          active_affairs: affairs.filter((a: any) => a.status === 'active').length,
-          recent_affairs: affairsWithParticipants
+          total_affairs: totalActivities,
+          active_affairs: activeActivities,
+          recent_affairs: activities
             .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 5),
-          popular_affairs: affairsWithParticipants
-            .sort((a: any, b: any) => (b.application_count || 0) - (a.application_count || 0))
             .slice(0, 5)
+            .map((activity: any) => ({
+              id: activity.id,
+              name: activity.title,
+              description: activity.description,
+              participant_count: activity.participants?.length || 0,
+              application_count: activity.participants?.length || 0,
+              created_at: activity.created_at
+            })),
+          popular_affairs: activities
+            .sort((a: any, b: any) => (b.participants?.length || 0) - (a.participants?.length || 0))
+            .slice(0, 5)
+            .map((activity: any) => ({
+              id: activity.id,
+              name: activity.title,
+              application_count: activity.participants?.length || 0,
+              participant_count: activity.participants?.length || 0
+            }))
         });
       } catch (error) {
-        console.error('Failed to fetch affairs:', error);
+        console.error('Failed to fetch activities:', error);
         setAffairStats({
           total_affairs: 15,
           active_affairs: 12,
@@ -443,6 +382,66 @@ export default function Dashboard() {
         });
       }
 
+      // Fetch applications to calculate stats
+      try {
+        const endpoint = user?.userType === 'student' 
+          ? '/applications'  // 学生只能看到自己的申请
+          : '/applications/all';  // 教师和管理员可以看到所有申请
+        const appResponse = await apiClient.get(endpoint);
+        const applications = appResponse.data.data?.applications || appResponse.data.applications || [];
+        
+        const total = applications.length;
+        const pending = applications.filter((app: any) => app.status === 'pending').length;
+        const approved = applications.filter((app: any) => app.status === 'approved').length;
+        const rejected = applications.filter((app: any) => app.status === 'rejected').length;
+        const unsubmitted = applications.filter((app: any) => app.status === 'unsubmitted').length;
+        const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+        
+        // Calculate credit stats
+        const approvedApps = applications.filter((app: any) => app.status === 'approved');
+        const totalCredits = approvedApps.reduce((sum: number, app: any) => sum + (app.awarded_credits || 0), 0);
+        const avgCredits = approvedApps.length > 0 ? Math.round((totalCredits / approvedApps.length) * 10) / 10 : 0;
+        
+        // Calculate this month's credits
+        const thisMonthCredits = approvedApps.filter((app: any) => {
+          const appDate = new Date(app.submitted_at || app.created_at);
+          const now = new Date();
+          return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
+        }).reduce((sum: number, app: any) => sum + (app.awarded_credits || 0), 0);
+        
+        setAppStats({
+          total_applications: total,
+          pending_applications: pending,
+          approved_applications: approved,
+          rejected_applications: rejected,
+          unsubmitted_applications: unsubmitted,
+          applications_this_month: applications.filter((app: any) => {
+            const appDate = new Date(app.submitted_at || app.created_at);
+            const now = new Date();
+            return appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
+          }).length,
+          approval_rate: approvalRate,
+          total_credits_awarded: totalCredits,
+          average_credits_per_application: avgCredits,
+          credits_this_month: thisMonthCredits
+        });
+      } catch (error) {
+        console.error('Failed to fetch applications:', error);
+        // Use fallback data for application stats
+        setAppStats({
+          total_applications: 152,
+          pending_applications: 25,
+          approved_applications: 127,
+          rejected_applications: 8,
+          unsubmitted_applications: 20,
+          applications_this_month: 45,
+          approval_rate: 83.5,
+          total_credits_awarded: 456.5,
+          average_credits_per_application: 2.3,
+          credits_this_month: 89.5
+        });
+      }
+
       // Mock credit type stats (would need API endpoint)
       setCreditTypeStats({
         innovation_practice: 45,
@@ -465,34 +464,34 @@ export default function Dashboard() {
         },
         {
           id: "2",
-          type: 'review',
-          action: '申请审核完成',
-          timestamp: new Date(Date.now() - 1800000).toISOString(),
-          user: '王老师',
-          details: '学科竞赛申请已通过',
-          status: 'approved'
+          type: 'affair',
+          action: '活动创建',
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          user: '李老师',
+          details: '学科竞赛活动'
         },
         {
           id: "3",
-          type: 'affair',
-          action: '新事务创建',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          user: '李老师',
-          details: '2024年志愿服务项目'
+          type: 'review',
+          action: '申请审核',
+          timestamp: new Date(Date.now() - 7200000).toISOString(),
+          user: '王老师',
+          details: '志愿服务申请审核通过',
+          status: 'approved'
         },
         {
           id: "4",
           type: 'user',
-          action: '新用户注册',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
+          action: '用户注册',
+          timestamp: new Date(Date.now() - 10800000).toISOString(),
           user: '赵同学',
-          details: '学生用户'
+          details: '新学生用户注册'
         }
       ]);
 
-    } catch (err) {
-      toast.error('获取仪表板数据失败');
-      console.error(err);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      toast.error('获取数据失败，请稍后重试');
     } finally {
       setLoading(false);
       setRefreshing(false);

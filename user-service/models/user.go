@@ -14,7 +14,7 @@ type User struct {
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex;not null"`
-	Phone        string         `json:"phone"`
+	Phone        string         `json:"phone" gorm:"uniqueIndex"`
 	RealName     string         `json:"real_name" gorm:"not null"`
 	UserType     string         `json:"user_type" gorm:"not null"` // student, teacher, admin
 	Status       string         `json:"status" gorm:"not null;default:active"`

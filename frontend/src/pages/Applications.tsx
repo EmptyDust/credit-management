@@ -40,11 +40,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import apiClient, { apiHelpers } from "@/lib/api";
+import apiClient from "@/lib/api";
 import { 
     PlusCircle, 
     Search, 
-    Edit, 
     Eye, 
     FileText, 
     Upload, 
@@ -113,10 +112,6 @@ interface ReviewApplicationForm {
     approved_credits: number;
 }
 
-interface AttachmentUploadForm {
-    file: File;
-    description: string;
-}
 
 const createApplicationSchema = z.object({
     affair_id: z.string().min(1, "请选择事务类型"),
@@ -164,7 +159,7 @@ const formatFileSize = (bytes: number) => {
 };
 
 export default function ApplicationsPage() {
-    const { user, hasPermission } = useAuth();
+    const { user } = useAuth();
     const [applications, setApplications] = useState<Application[]>([]);
     const [affairs, setAffairs] = useState<Affair[]>([]);
     const [loading, setLoading] = useState(true);
@@ -201,11 +196,31 @@ export default function ApplicationsPage() {
     const fetchApplications = async () => {
         try {
             setLoading(true);
-            const endpoint = user?.userType === 'student'
-                ? `/applications/user/${user.id}`
-                : '/applications';
+            // 根据用户类型选择不同的API端点
+            const endpoint = user?.userType === 'student' 
+                ? '/applications'  // 学生只能看到自己的申请
+                : '/applications/all';  // 教师和管理员可以看到所有申请
+            
             const response = await apiClient.get(endpoint);
-            setApplications(response.data.applications || []);
+            const applicationsData = response.data.data?.applications || response.data.applications || response.data || [];
+            
+            setApplications(applicationsData.map((app: any) => ({
+                id: app.id,
+                affair_id: app.activity_id,
+                affair_name: app.activity?.title || app.affair_name,
+                student_number: app.user_info?.student_id || app.student_number,
+                student_name: app.user_info?.name || app.student_name,
+                submission_time: app.submitted_at || app.submission_time,
+                status: app.status,
+                reviewer_id: app.reviewer_id,
+                reviewer_name: app.reviewer_name,
+                review_comment: app.review_comment,
+                review_time: app.reviewed_at || app.review_time,
+                applied_credits: app.applied_credits,
+                approved_credits: app.awarded_credits || app.approved_credits,
+                details: app.details || '',
+                attachments: app.attachments
+            })));
         } catch (err) {
             console.error("Failed to fetch applications:", err);
             toast.error("获取申请列表失败");
@@ -213,14 +228,20 @@ export default function ApplicationsPage() {
             setLoading(false);
         }
     };
-    
+
     const fetchAffairs = async () => {
         try {
-            const response = await apiClient.get('/affairs');
-            setAffairs(response.data.affairs || []);
+            const response = await apiClient.get('/activities');
+            const activities = response.data.data?.activities || response.data.activities || response.data || [];
+            setAffairs(activities.map((activity: any) => ({
+                id: activity.id,
+                name: activity.title,
+                description: activity.description,
+                max_credits: activity.max_credits || 1
+            })));
         } catch (err) {
-            console.error("Failed to fetch affairs:", err);
-            toast.error("获取事务列表失败");
+            console.error("Failed to fetch activities:", err);
+            toast.error("获取活动列表失败");
         }
     };
 
@@ -322,7 +343,7 @@ export default function ApplicationsPage() {
         setUploadingFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleFileDownload = async (attachmentId: string, fileName: string) => {
+    const handleFileDownload = async (_attachmentId: string, fileName: string) => {
         try {
             const response = await apiClient.get(`/applications/${selectedApp?.id}/attachments/${fileName}/download`, {
                 responseType: 'blob'
@@ -373,7 +394,6 @@ export default function ApplicationsPage() {
     });
 
     const canCreateApplication = user?.userType === 'student';
-    const canReviewApplication = hasPermission('review_applications');
 
     return (
         <div className="space-y-8 p-4 md:p-8">

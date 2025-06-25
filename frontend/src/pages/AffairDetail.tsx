@@ -72,11 +72,11 @@ export default function AffairDetailPage() {
       apiClient.get(`/affairs/${id}/participants`),
       apiClient.get(`/affairs/${id}/applications`)
     ]).then(([affairRes, partRes, appRes]) => {
-      setAffair(affairRes.data.affair);
-      setParticipants(partRes.data || []);
-      setApplications(appRes.data.applications || []);
+      setAffair(affairRes.data.data || affairRes.data.affair || affairRes.data || null);
+      setParticipants(partRes.data.data || partRes.data.participants || partRes.data || []);
+      setApplications(appRes.data.data?.applications || appRes.data.applications || appRes.data || []);
       try {
-        setAttachments(affairRes.data.affair.attachments ? JSON.parse(affairRes.data.affair.attachments) : []);
+        setAttachments((affairRes.data.data?.attachments || affairRes.data.affair?.attachments) ? JSON.parse(affairRes.data.data?.attachments || affairRes.data.affair?.attachments) : []);
       } catch {
         setAttachments([]);
       }

@@ -63,9 +63,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
           // Validate token and get user info
           const response = await apiClient.get("/users/profile");
-          const userData = response.data;
-          
-          // 兼容 user_type 字段
+          // 兼容后端返回格式
+          const userData = response.data.data || response.data;
           const normalizedUser = {
             ...userData,
             userType: userData.userType || userData.user_type,
@@ -119,7 +118,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       const response = await apiClient.get("/users/profile");
-      const userData = response.data;
+      const userData = response.data.data || response.data;
       setUser({
         ...userData,
         userType: userData.userType || userData.user_type,

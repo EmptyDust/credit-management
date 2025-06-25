@@ -30,23 +30,45 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否已存在
+	// 检查用户名是否已存在（包括软删除的用户）
 	var existingUser models.User
-	if err := h.db.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+		}
 		return
 	}
 
-	// 检查邮箱是否已存在
-	if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+	// 检查邮箱是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+		}
 		return
 	}
 
-	// 检查学号是否已存在（如果提供了学号）
+	// 检查手机号是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
+		}
+		return
+	}
+
+	// 检查学号是否已存在（如果提供了学号，包括软删除的用户）
 	if req.StudentID != "" {
-		if err := h.db.Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
+		if err := h.db.Unscoped().Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
+			if existingUser.DeletedAt.Valid {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被删除的用户使用，请使用其他学号", "data": nil})
+			} else {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
+			}
 			return
 		}
 	}
@@ -134,17 +156,47 @@ func (h *UserHandler) CreateTeacher(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否已存在
+	// 检查用户名是否已存在（包括软删除的用户）
 	var existingUser models.User
-	if err := h.db.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+		}
 		return
 	}
 
-	// 检查邮箱是否已存在
-	if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+	// 检查邮箱是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+		}
 		return
+	}
+
+	// 检查手机号是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
+		}
+		return
+	}
+
+	// 检查学号是否已存在（如果提供了学号，包括软删除的用户）
+	if req.StudentID != "" {
+		if err := h.db.Unscoped().Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
+			if existingUser.DeletedAt.Valid {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被删除的用户使用，请使用其他学号", "data": nil})
+			} else {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
+			}
+			return
+		}
 	}
 
 	// 加密密码
@@ -236,23 +288,45 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	// 检查用户名是否已存在
+	// 检查用户名是否已存在（包括软删除的用户）
 	var existingUser models.User
-	if err := h.db.Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
+		}
 		return
 	}
 
-	// 检查邮箱是否已存在
-	if err := h.db.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+	// 检查邮箱是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+		}
 		return
 	}
 
-	// 检查学号是否已存在（如果提供了学号）
+	// 检查手机号是否已存在（包括软删除的用户）
+	if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
+		} else {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
+		}
+		return
+	}
+
+	// 检查学号是否已存在（如果提供了学号，包括软删除的用户）
 	if req.StudentID != "" {
-		if err := h.db.Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
+		if err := h.db.Unscoped().Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
+			if existingUser.DeletedAt.Valid {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被删除的用户使用，请使用其他学号", "data": nil})
+			} else {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
+			}
 			return
 		}
 	}

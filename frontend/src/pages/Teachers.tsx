@@ -48,22 +48,20 @@ import {
     RefreshCw,
     Users,
     Building,
-    Award,
-    AlertCircle,
-    BookOpen
-} from "lucide-react";
+    AlertCircle} from "lucide-react";
 import toast from "react-hot-toast";
 
 // Teacher type based on teacher.go
 export type Teacher = {
+    user_id?: string;
     username: string;
-    name: string;
-    contact: string;
-    email: string;
-    department: string;
-    title: string;
-    specialty: string;
+    real_name: string;
+    email?: string;
+    phone?: string;
+    department?: string;
     status: 'active' | 'inactive';
+    avatar?: string;
+    register_time?: string;
     created_at?: string;
     updated_at?: string;
 };
@@ -71,14 +69,50 @@ export type Teacher = {
 // Form schema for validation
 const formSchema = z.object({
   username: z.string().min(1, "用户名不能为空").max(20, "用户名最多20个字符"),
-  name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
-  contact: z.string().optional(),
-  email: z.string().email({ message: "请输入有效的邮箱地址" }).optional().or(z.literal('')),
+  password: z.string().min(8, "密码至少8个字符")
+    .regex(/[A-Z]/, "密码必须包含至少一个大写字母")
+    .regex(/[a-z]/, "密码必须包含至少一个小写字母")
+    .regex(/[0-9]/, "密码必须包含至少一个数字")
+    .optional(),
+  real_name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
+  email: z.string().email({ message: "请输入有效的邮箱地址" }),
+  phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号").optional().or(z.literal('')),
   department: z.string().min(1, "院系不能为空"),
-  title: z.string().min(1, "职称不能为空"),
-  specialty: z.string().optional(),
   status: z.enum(['active', 'inactive']),
+  user_type: z.literal('teacher'),
 });
+
+// 统计卡片样式与仪表盘一致
+const StatCard = ({ title, value, icon: Icon, color = "default", subtitle }: { title: string, value: string | number, icon: React.ElementType, color?: "default" | "success" | "warning" | "danger" | "info" | "purple", subtitle?: string }) => {
+  const colorClasses = {
+    default: "text-muted-foreground",
+    success: "text-green-600",
+    warning: "text-yellow-600",
+    danger: "text-red-600",
+    info: "text-blue-600",
+    purple: "text-purple-600"
+  };
+  const bgClasses = {
+    default: "bg-muted/20",
+    success: "bg-green-100 dark:bg-green-900/20",
+    warning: "bg-yellow-100 dark:bg-yellow-900/20",
+    danger: "bg-red-100 dark:bg-red-900/20",
+    info: "bg-blue-100 dark:bg-blue-900/20",
+    purple: "bg-purple-100 dark:bg-purple-900/20"
+  };
+  return (
+    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <div className={`p-3 rounded-xl ${bgClasses[color]}`}><Icon className={`h-6 w-6 ${colorClasses[color]}`} /></div>
+        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">{value}</div>
+        {subtitle && <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function TeachersPage() {
     const { hasPermission } = useAuth();
@@ -91,18 +125,20 @@ export default function TeachersPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: { 
             username: "", 
-            name: "", 
-            contact: "", 
+            password: "",
+            real_name: "", 
             email: "", 
+            phone: "", 
             department: "", 
-            title: "", 
-            specialty: "",
-            status: 'active'
+            status: 'active',
+            user_type: 'teacher'
         },
     });
 
@@ -133,15 +169,14 @@ export default function TeachersPage() {
             
             // 处理不同的响应格式
             let teachersData = [];
-            if (response.data && Array.isArray(response.data)) {
-                // 直接返回数组的情况
-                teachersData = response.data;
-            } else if (response.data && response.data.teachers) {
-                // 包装在teachers字段中的情况
-                teachersData = response.data.teachers;
+            if (response.data?.data?.users) {
+              teachersData = response.data.data.users;
+            } else if (response.data?.teachers) {
+              teachersData = response.data.teachers;
+            } else if (Array.isArray(response.data)) {
+              teachersData = response.data;
             } else {
-                console.warn('Unexpected response format:', response.data);
-                teachersData = [];
+              teachersData = [];
             }
             
             setTeachers(teachersData);
@@ -167,13 +202,13 @@ export default function TeachersPage() {
         } else {
             form.reset({ 
                 username: "", 
-                name: "", 
-                contact: "", 
+                password: "",
+                real_name: "", 
                 email: "", 
+                phone: "", 
                 department: "", 
-                title: "", 
-                specialty: "",
-                status: 'active'
+                status: 'active',
+                user_type: 'teacher'
             });
         }
         setIsDialogOpen(true);
@@ -182,7 +217,13 @@ export default function TeachersPage() {
     const handleDelete = async (username: string) => {
         if (!window.confirm("确定要删除这个教师吗？此操作不可撤销。")) return;
         try {
-            await apiClient.delete(`/teachers/${username}`);
+            // Find the teacher by username to get the user_id
+            const teacher = teachers.find(t => t.username === username);
+            if (!teacher || !teacher.user_id) {
+                toast.error("无法找到教师信息");
+                return;
+            }
+            await apiClient.delete(`/teachers/${teacher.user_id}`);
             fetchTeachers();
             toast.success("教师删除成功");
         } catch (err) {
@@ -195,16 +236,29 @@ export default function TeachersPage() {
         setIsSubmitting(true);
         try {
             if (editingTeacher) {
-                await apiClient.put(`/teachers/${editingTeacher.username}`, values);
+                if (!editingTeacher.user_id) {
+                    toast.error("无法找到教师ID");
+                    return;
+                }
+                await apiClient.put(`/teachers/${editingTeacher.user_id}`, values);
                 toast.success("教师信息更新成功");
             } else {
-                await apiClient.post("/teachers", values);
+                // For creating a new teacher, ensure required fields are included
+                const createData = {
+                    ...values,
+                    password: values.password || "Password123", // Default password that meets requirements
+                    user_type: "teacher"
+                };
+                await apiClient.post("/teachers", createData);
                 toast.success("教师创建成功");
             }
             setIsDialogOpen(false);
             fetchTeachers();
-        } catch (err) {
-            toast.error(`教师${editingTeacher ? '更新' : '创建'}失败`);
+        } catch (err: any) {
+            // 只保留兜底错误提示，手机号等冲突交给全局拦截器
+            if (!err.response || err.response.status !== 409) {
+                toast.error(`教师${editingTeacher ? '更新' : '创建'}失败`);
+            }
             console.error(err);
         } finally {
             setIsSubmitting(false);
@@ -221,22 +275,10 @@ export default function TeachersPage() {
         return <Badge className={config.color}>{config.label}</Badge>;
     };
 
-    const getTitleBadge = (title: string) => {
-        const titleColors = {
-            '教授': 'bg-purple-100 text-purple-800',
-            '副教授': 'bg-blue-100 text-blue-800',
-            '讲师': 'bg-green-100 text-green-800',
-            '助教': 'bg-yellow-100 text-yellow-800'
-        };
-        
-        const color = titleColors[title as keyof typeof titleColors] || 'bg-gray-100 text-gray-800';
-        return <Badge className={color}>{title}</Badge>;
-    };
 
     const filteredTeachers = teachers.filter(teacher => {
-        const matchesSearch = teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            teacher.department.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            teacher.specialty?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (teacher.real_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (teacher.department || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesDepartment = departmentFilter === "all" || teacher.department === departmentFilter;
         const matchesStatus = statusFilter === "all" || teacher.status === statusFilter;
         return matchesSearch && matchesDepartment && matchesStatus;
@@ -246,7 +288,7 @@ export default function TeachersPage() {
     const canManageTeachers = hasPermission('manage_teachers');
 
     return (
-        <div className="space-y-8 p-4 md:p-8">
+        <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold">教师管理</h1>
@@ -262,62 +304,13 @@ export default function TeachersPage() {
 
             {/* Statistics Cards */}
             <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">总教师数</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{teachers.length}</div>
-                        <p className="text-xs text-muted-foreground">
-                            活跃教师: {teachers.filter(t => t.status === 'active').length}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">院系数量</CardTitle>
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{departments.length}</div>
-                        <p className="text-xs text-muted-foreground">
-                            不同院系
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">职称分布</CardTitle>
-                        <Award className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {Array.from(new Set(teachers.map(t => t.title).filter(Boolean))).length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            不同职称
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">专业领域</CardTitle>
-                        <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {Array.from(new Set(teachers.map(t => t.specialty).filter(Boolean))).length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            不同专业
-                        </p>
-                    </CardContent>
-                </Card>
+                <StatCard title="总教师数" value={teachers.length} icon={Users} color="info" subtitle={`活跃教师: ${teachers.filter(t => t.status === 'active').length}`}/>
+                <StatCard title="院系数量" value={departments.length} icon={Building} color="purple" subtitle="不同院系"/>
+                <StatCard title="活跃教师数" value={teachers.filter(t => t.status === 'active').length} icon={Users} color="success" subtitle="当前活跃"/>
             </div>
 
             {/* Filters */}
-            <Card>
+            <Card className="bg-white/80 backdrop-blur border-0 shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Filter className="h-5 w-5" />
@@ -344,8 +337,8 @@ export default function TeachersPage() {
                             <SelectContent>
                                 <SelectItem value="all">全部院系</SelectItem>
                                 {departments.map(department => (
-                                    <SelectItem key={department} value={department}>
-                                        {department}
+                                    <SelectItem key={department ?? 'unknown'} value={department ?? ''}>
+                                        {department ?? '未知院系'}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -368,20 +361,18 @@ export default function TeachersPage() {
             </Card>
 
             {/* Teachers Table */}
-            <Card>
+            <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
                 <CardHeader>
                     <CardTitle>教师列表</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="border rounded-md">
+                    <div className="border rounded-md bg-white dark:bg-gray-900/60">
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>用户名</TableHead>
                                     <TableHead>姓名</TableHead>
                                     <TableHead>院系</TableHead>
-                                    <TableHead>职称</TableHead>
-                                    <TableHead>专业</TableHead>
                                     <TableHead>状态</TableHead>
                                     <TableHead className="text-right">操作</TableHead>
                                 </TableRow>
@@ -417,13 +408,11 @@ export default function TeachersPage() {
                                             <TableCell className="font-medium">{teacher.username}</TableCell>
                                             <TableCell>
                                                 <div>
-                                                    <div className="font-medium">{teacher.name}</div>
+                                                    <div className="font-medium">{teacher.real_name}</div>
                                                     <div className="text-sm text-muted-foreground">{teacher.email}</div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>{teacher.department}</TableCell>
-                                            <TableCell>{getTitleBadge(teacher.title)}</TableCell>
-                                            <TableCell>{teacher.specialty || '-'}</TableCell>
                                             <TableCell>{getStatusBadge(teacher.status)}</TableCell>
                                             <TableCell className="text-right space-x-2">
                                                 {canManageTeachers && (
@@ -438,7 +427,10 @@ export default function TeachersPage() {
                                                         <Button 
                                                             variant="destructive" 
                                                             size="icon" 
-                                                            onClick={() => handleDelete(teacher.username)}
+                                                            onClick={() => {
+                                                                setTeacherToDelete(teacher);
+                                                                setDeleteDialogOpen(true);
+                                                            }}
                                                         >
                                                             <Trash className="h-4 w-4" />
                                                         </Button>
@@ -471,12 +463,23 @@ export default function TeachersPage() {
                                 <FormItem>
                                     <FormLabel>用户名</FormLabel>
                                     <FormControl>
-                                        <Input {...field} disabled={!!editingTeacher} />
+                                        <Input {...field} disabled={!!editingTeacher} placeholder="请输入用户名" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )} />
-                            <FormField control={form.control} name="name" render={({ field }) => (
+                            {!editingTeacher && (
+                                <FormField control={form.control} name="password" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>密码</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} type="password" placeholder="至少8位，包含大小写字母和数字" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            )}
+                            <FormField control={form.control} name="real_name" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>姓名</FormLabel>
                                     <FormControl>
@@ -497,45 +500,26 @@ export default function TeachersPage() {
                             <FormField control={form.control} name="department" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>院系</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="title" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>职称</FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="选择职称" />
+                                                <SelectValue placeholder="选择院系" />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            <SelectItem value="教授">教授</SelectItem>
-                                            <SelectItem value="副教授">副教授</SelectItem>
-                                            <SelectItem value="讲师">讲师</SelectItem>
-                                            <SelectItem value="助教">助教</SelectItem>
+                                            {departments.map(dep => (
+                                                <SelectItem key={dep} value={dep ?? ''}>{dep ?? '未知院系'}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />
                                 </FormItem>
                             )} />
-                            <FormField control={form.control} name="specialty" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>专业领域</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="contact" render={({ field }) => (
+                            <FormField control={form.control} name="phone" render={({ field }) => (
                                <FormItem className="col-span-2">
                                    <FormLabel>联系方式</FormLabel>
                                    <FormControl>
-                                       <Input {...field} />
+                                       <Input {...field} placeholder="请输入11位手机号，如：13812345678" />
                                    </FormControl>
                                    <FormMessage />
                                </FormItem>
@@ -564,6 +548,31 @@ export default function TeachersPage() {
                             </DialogFooter>
                         </form>
                     </Form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>确认删除教师</DialogTitle>
+                        <DialogDescription>
+                            您确定要删除这个教师吗？此操作不可撤销。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                            取消
+                        </Button>
+                        <Button variant="destructive" onClick={() => {
+                            if (teacherToDelete) {
+                                handleDelete(teacherToDelete.username);
+                            }
+                            setDeleteDialogOpen(false);
+                        }}>
+                            删除
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

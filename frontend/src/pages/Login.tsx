@@ -52,12 +52,36 @@ export default function Login() {
     setLoginError("");
     try {
       const response = await apiClient.post("/auth/login", values);
-      if (response.data && response.data.token) {
-        const token = response.data.token;
-        const refreshToken = response.data.refresh_token || response.data.refreshToken || '';
-        const user = response.data.user || response.data;
-        login(token, refreshToken, user);
-        navigate("/dashboard");
+      
+      // 检查响应格式
+      if (response.data && response.data.code === 0 && response.data.data) {
+        const { token, refresh_token, user } = response.data.data;
+        
+        if (token && user) {
+          // 转换用户数据格式以匹配前端接口
+          const normalizedUser = {
+            id: user.user_id,
+            username: user.username,
+            userType: user.user_type,
+            email: user.email,
+            fullName: user.real_name,
+            studentNumber: user.student_id,
+            department: user.department,
+            college: user.college,
+            major: user.major,
+            class: user.class,
+            status: user.status,
+            createdAt: user.created_at,
+            updatedAt: user.updated_at,
+          };
+          
+          login(token, refresh_token || '', normalizedUser);
+          navigate("/dashboard");
+        } else {
+          setLoginError("登录响应格式错误");
+        }
+      } else {
+        setLoginError(response.data?.message || "登录失败");
       }
     } catch (err: any) {
       console.error("Login error:", err);
@@ -69,6 +93,9 @@ export default function Login() {
         switch (status) {
           case 401:
             setLoginError("用户名或密码错误");
+            break;
+          case 403:
+            setLoginError("账户未激活或已被禁用");
             break;
           case 422:
             // 验证错误

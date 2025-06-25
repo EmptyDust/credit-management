@@ -11,9 +11,7 @@ import {
     User as UserIcon, 
     Settings,
     Menu,
-    Award,
-    Bell
-} from 'lucide-react';
+    Award} from 'lucide-react';
 import { 
     DropdownMenu, 
     DropdownMenuContent, 
@@ -23,16 +21,29 @@ import {
     DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 
-const menuItems = [
-    { label: "仪表板", icon: Home, path: "/dashboard" },
-    { label: "事务管理", icon: Award, path: "/affairs" },
-    { label: "申请管理", icon: FileText, path: "/applications" },
-    { label: "学生管理", icon: Users, path: "/students" },
-    { label: "教师管理", icon: BookUser, path: "/teachers" },
-];
+// 定义菜单项配置
+const getMenuItems = (userType: string) => {
+    const baseItems = [
+        { label: "仪表板", icon: Home, path: "/dashboard" },
+        { label: "活动管理", icon: Award, path: "/affairs" },
+        { label: "申请管理", icon: FileText, path: "/applications" },
+    ];
+
+    // 只有教师和管理员可以看到学生管理
+    if (userType === 'teacher' || userType === 'admin') {
+        baseItems.push({ label: "学生管理", icon: Users, path: "/students" });
+    }
+
+    // 只有管理员可以看到教师管理
+    if (userType === 'admin') {
+        baseItems.push({ label: "教师管理", icon: BookUser, path: "/teachers" });
+    }
+
+    return baseItems;
+};
 
 export default function Layout() {
-    const { logout, user, hasPermission } = useAuth();
+    const { logout, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -49,6 +60,9 @@ export default function Layout() {
         };
         return labels[userType as keyof typeof labels] || userType;
     };
+
+    // 根据用户类型获取菜单项
+    const menuItems = getMenuItems(user?.userType || '');
 
     return (
         <div className="flex h-screen w-screen overflow-hidden">
@@ -98,16 +112,6 @@ export default function Layout() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Notifications */}
-                        <div className="relative">
-                            <button className="relative p-2 rounded-full hover:bg-muted transition-colors">
-                                <Bell className="h-6 w-6" />
-                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 flex items-center justify-center min-w-[18px] min-h-[18px] leading-none" style={{transform: 'translate(50%,-50%)'}}>
-                                    3
-                                </span>
-                            </button>
-                        </div>
-
                         {/* Theme toggle */}
                         <ThemeToggle />
 
