@@ -8,7 +8,6 @@ ENV POSTGRES_PASSWORD=password
 
 # 复制初始化脚本
 COPY init.sql /docker-entrypoint-initdb.d/01-init.sql
-COPY views.sql /docker-entrypoint-initdb.d/02-views.sql
 
 # 设置时区
 ENV TZ=Asia/Shanghai

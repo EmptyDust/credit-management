@@ -224,13 +224,6 @@ BEGIN
         RAISE EXCEPTION '邮箱已存在';
     END IF;
     
-    -- 检查手机号唯一性（如果提供了手机号）
-    IF NEW.phone IS NOT NULL AND LENGTH(TRIM(NEW.phone)) > 0 THEN
-        IF EXISTS (SELECT 1 FROM users WHERE phone = NEW.phone AND user_id != NEW.user_id) THEN
-            RAISE EXCEPTION '手机号已存在';
-        END IF;
-    END IF;
-    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -644,30 +637,30 @@ INSERT INTO permission_groups (name, description) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- 插入角色权限关联
-INSERT INTO role_permissions (role_id, permission_id)
+INSERT INTO role_permissions (role_id, permission_id) 
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.name = 'admin' AND p.name IN ('user_manage', 'user_view', 'activity_manage', 'activity_view', 'application_manage', 'application_view', 'permission_manage', 'statistics_view')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO role_permissions (role_id, permission_id)
+INSERT INTO role_permissions (role_id, permission_id) 
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.name = 'teacher' AND p.name IN ('user_view', 'activity_manage', 'activity_view', 'application_manage', 'application_view', 'statistics_view')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO role_permissions (role_id, permission_id)
+INSERT INTO role_permissions (role_id, permission_id) 
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.name = 'student' AND p.name IN ('activity_view', 'application_view')
 ON CONFLICT DO NOTHING;
 
 -- 插入用户角色关联
-INSERT INTO user_roles (user_id, role_id)
+INSERT INTO user_roles (user_id, role_id) 
 SELECT u.user_id, r.id
 FROM users u, roles r
 WHERE u.username = 'admin' AND r.name = 'admin'
-ON CONFLICT DO NOTHING;
+ON CONFLICT DO NOTHING; 
 
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.user_id, r.id

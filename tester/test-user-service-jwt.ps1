@@ -6,7 +6,7 @@ Write-Host "`n1. 管理员登录获取token..." -ForegroundColor Yellow
 $loginResponse = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method POST -ContentType "application/json" -Body @"
 {
     "username": "admin",
-    "password": "adminpassword"
+    "password": "password"
 }
 "@
 

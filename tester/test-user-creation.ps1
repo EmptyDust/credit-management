@@ -1,17 +1,19 @@
 # 测试用户创建API（管理员功能）
 Write-Host "=== 测试用户创建API（管理员功能）===" -ForegroundColor Green
 
-# 生成随机用户名（限制长度）
+# 生成随机用户名和手机号（限制长度）
 $timestamp = Get-Date -Format "MMddHHmm"
 $randomTeacher = "t$timestamp"
 $randomStudent = "s$timestamp"
+$randomPhone1 = "13800$timestamp"
+$randomPhone2 = "13801$timestamp"
 
 # 1. 管理员登录获取token
 Write-Host "`n1. 管理员登录获取token..." -ForegroundColor Yellow
 $loginResponse = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method POST -ContentType "application/json" -Body @"
 {
     "username": "admin",
-    "password": "adminpassword"
+    "password": "password"
 }
 "@
 
@@ -26,6 +28,7 @@ if ($loginResponse.code -eq 0) {
     # 2. 测试创建教师
     Write-Host "`n2. 测试创建教师..." -ForegroundColor Yellow
     Write-Host "用户名: $randomTeacher" -ForegroundColor Cyan
+    Write-Host "手机号: $randomPhone1" -ForegroundColor Cyan
     Write-Host "部门: 计算机学院" -ForegroundColor Cyan
     Write-Host "职称: 副教授" -ForegroundColor Cyan
 
@@ -34,7 +37,7 @@ if ($loginResponse.code -eq 0) {
     "username": "$randomTeacher",
     "password": "Password123",
     "email": "$randomTeacher@example.com",
-    "phone": "13800138001",
+    "phone": "$randomPhone1",
     "real_name": "王老师",
     "user_type": "teacher",
     "department": "计算机学院",
@@ -57,6 +60,7 @@ if ($loginResponse.code -eq 0) {
     # 3. 测试创建学生
     Write-Host "`n3. 测试创建学生..." -ForegroundColor Yellow
     Write-Host "用户名: $randomStudent" -ForegroundColor Cyan
+    Write-Host "手机号: $randomPhone2" -ForegroundColor Cyan
     Write-Host "学号: 2023$timestamp" -ForegroundColor Cyan
     Write-Host "学院: 计算机学院" -ForegroundColor Cyan
     Write-Host "专业: 软件工程" -ForegroundColor Cyan
@@ -66,7 +70,7 @@ if ($loginResponse.code -eq 0) {
     "username": "$randomStudent",
     "password": "Password123",
     "email": "$randomStudent@example.com",
-    "phone": "13800138002",
+    "phone": "$randomPhone2",
     "real_name": "李同学",
     "user_type": "student",
     "student_id": "2023$timestamp",
