@@ -12,28 +12,23 @@
    - 认证管理：用户登录、token验证、token刷新
    - 权限管理：角色管理、权限分配、权限验证
 
-2. **user-management-service** (端口: 8084)
-   - 用户基础信息管理：用户注册、用户信息维护
-   - 通知管理：系统通知、用户通知
+2. **user-service** (端口: 8084)
+   - 统一用户管理：用户注册、用户信息维护
+   - 学生信息管理：学生基础信息维护
+   - 教师信息管理：教师基础信息维护
 
 3. **credit-activity-service** (端口: 8083)
    - 学分活动管理：活动创建、状态管理、参与者管理
    - 申请管理：自动申请生成、申请审核、学分分配
    - 数据统计：活动统计、申请统计、学分统计
 
-4. **student-info-service** (端口: 8085)
-   - 学生信息管理：学生基础信息维护
-
-5. **teacher-info-service** (端口: 8086)
-   - 教师信息管理：教师基础信息维护
-
-6. **api-gateway** (端口: 8080)
+4. **api-gateway** (端口: 8080)
    - API网关：统一入口、路由转发、负载均衡
 
-7. **frontend** (端口: 3000)
+5. **frontend** (端口: 3000)
    - 前端应用：React + TypeScript + Tailwind CSS
 
-8. **postgres** (端口: 5432)
+6. **postgres** (端口: 5432)
    - 数据库：PostgreSQL
 
 ## 技术栈
@@ -84,9 +79,7 @@ docker-compose up -d
 | API网关 | 8080 | 统一API入口 |
 | 认证服务 | 8081 | 认证和权限 |
 | 学分活动服务 | 8083 | 活动和申请管理 |
-| 用户管理 | 8084 | 用户基础信息 |
-| 学生信息 | 8085 | 学生信息 |
-| 教师信息 | 8086 | 教师信息 |
+| 统一用户服务 | 8084 | 用户、学生、教师信息管理 |
 | 数据库 | 5432 | PostgreSQL |
 | 前端 | 3000 | React应用 |
 
@@ -109,6 +102,27 @@ docker-compose up -d
 - `GET /api/users/profile` - 获取用户信息
 - `PUT /api/users/profile` - 更新用户信息
 - `GET /api/users/stats` - 获取用户统计
+- `POST /api/users/teachers` - 创建教师
+- `POST /api/users/students` - 创建学生
+
+### 学生管理
+- `GET /api/students` - 获取学生列表
+- `GET /api/students/search` - 搜索学生
+- `GET /api/students/stats` - 获取学生统计
+- `GET /api/students/college/{college}` - 按学院获取学生
+- `GET /api/students/major/{major}` - 按专业获取学生
+- `GET /api/students/class/{class}` - 按班级获取学生
+
+### 教师管理
+- `GET /api/teachers` - 获取教师列表
+- `GET /api/teachers/search` - 搜索教师
+- `GET /api/teachers/stats` - 获取教师统计
+- `GET /api/teachers/department/{department}` - 按部门获取教师
+- `GET /api/teachers/title/{title}` - 按职称获取教师
+- `GET /api/teachers/active` - 获取活跃教师
+
+### 搜索功能
+- `GET /api/search/users` - 通用用户搜索
 
 ### 学分活动管理
 - `GET /api/activities/categories` - 获取活动类别
@@ -135,17 +149,12 @@ docker-compose up -d
 - `GET /api/applications/stats` - 获取申请统计
 - `GET /api/applications/export` - 导出申请数据
 
-### 通知管理
-- `GET /api/notifications` - 获取用户通知
-- `PUT /api/notifications/{id}/read` - 标记已读
-- `GET /api/notifications/unread-count` - 获取未读数量
-
 ## 数据库设计
 
 ### 核心表结构
 
 #### 用户相关
-- `users` - 用户基础信息
+- `users` - 统一用户表（包含学生和教师信息）
 - `roles` - 角色定义
 - `permissions` - 权限定义
 - `user_roles` - 用户角色关联
@@ -157,14 +166,11 @@ docker-compose up -d
 - `participants` - 活动参与者
 - `applications` - 申请记录（自动生成）
 
-#### 通知相关
-- `notifications` - 通知记录
-
 ## 开发指南
 
 ### 本地开发
 
-1. 安装Go 1.21+
+1. 安装Go 1.24+
 2. 安装PostgreSQL
 3. 配置环境变量
 4. 运行服务
@@ -175,8 +181,8 @@ docker-compose up postgres -d
 
 # 运行服务
 cd auth-service && go run main.go
-cd user-management-service && go run main.go
-# ... 其他服务
+cd user-service && go run main.go
+cd credit-activity-service && go run main.go
 ```
 
 ### 代码结构
@@ -198,38 +204,68 @@ service-name/
 |--------|------|--------|
 | DB_HOST | 数据库主机 | localhost |
 | DB_PORT | 数据库端口 | 5432 |
-| DB_USER | 数据库用户 | postgres |
+| DB_USER | 数据库用户名 | postgres |
 | DB_PASSWORD | 数据库密码 | password |
 | DB_NAME | 数据库名称 | credit_management |
 | JWT_SECRET | JWT密钥 | your-secret-key |
-| PORT | 服务端口 | 服务默认端口 |
+| PORT | 服务端口 | 8080-8084 |
+
+## 测试
+
+### 自动化测试
+项目包含完整的自动化测试脚本：
+
+```bash
+# 测试认证服务
+cd tester && .\test-auth-service.ps1
+
+# 测试统一用户服务
+cd tester && .\test-user-service.ps1
+
+# 测试学分活动服务
+cd tester && .\test-credit-activity-service.ps1
+
+# 综合测试
+cd tester && .\test-all-services.ps1
+```
 
 ## 部署
 
-### 生产环境部署
-
-1. 修改环境变量
-2. 配置数据库连接
-3. 设置JWT密钥
-4. 启动服务
-
+### Docker部署
 ```bash
-# 生产环境启动
-docker-compose -f docker-compose.prod.yml up -d
+# 构建并启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
 ```
 
-### 监控和日志
+### 生产环境
+- 使用环境变量配置敏感信息
+- 配置HTTPS
+- 设置数据库备份
+- 配置监控和日志
 
-- 健康检查: `/health`
-- 日志收集: 使用Docker日志
-- 监控: 可集成Prometheus + Grafana
+## 服务合并说明
+
+### v2.0.0 更新
+- 合并用户管理、学生信息、教师信息服务为统一用户服务
+- 简化系统架构，减少服务间通信
+- 优化API接口，提供更好的数据一致性
+- 更新Docker配置和测试脚本
+
+详细迁移说明请参考：[USER_SERVICE_MERGE_SUMMARY.md](USER_SERVICE_MERGE_SUMMARY.md)
 
 ## 贡献指南
 
-1. Fork项目
+1. Fork 项目
 2. 创建功能分支
 3. 提交更改
-4. 创建Pull Request
+4. 推送到分支
+5. 创建 Pull Request
 
 ## 许可证
 

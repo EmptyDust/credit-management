@@ -20,11 +20,11 @@ import (
 func connectDatabase(dsn string) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
-	
+
 	// 重试配置
 	maxRetries := 30
 	retryInterval := 2 * time.Second
-	
+
 	for i := 0; i < maxRetries; i++ {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Info),
@@ -33,14 +33,14 @@ func connectDatabase(dsn string) (*gorm.DB, error) {
 			log.Printf("Successfully connected to database on attempt %d", i+1)
 			return db, nil
 		}
-		
+
 		log.Printf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
 		if i < maxRetries-1 {
 			log.Printf("Retrying in %v...", retryInterval)
 			time.Sleep(retryInterval)
 		}
 	}
-	
+
 	return nil, fmt.Errorf("failed to connect to database after %d attempts: %v", maxRetries, err)
 }
 
@@ -63,20 +63,29 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// 自动迁移数据库表
-	log.Println("Running database migrations...")
-	err = db.AutoMigrate(
-		&models.User{},
-		&models.Role{},
-		&models.Permission{},
-		&models.UserRole{},
-		&models.UserPermission{},
-		&models.RolePermission{},
-		&models.PermissionGroup{},
-		&models.PermissionGroupPermission{},
-	)
-	if err != nil {
-		log.Fatal("Failed to migrate database:", err)
+	// 检查数据库表是否已存在（通过初始化脚本创建）
+	log.Println("Checking database tables...")
+	var tableExists bool
+	db.Raw("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')").Scan(&tableExists)
+
+	if !tableExists {
+		log.Println("Tables not found, creating database tables...")
+		// 自动迁移数据库表
+		err = db.AutoMigrate(
+			&models.User{},
+			&models.Role{},
+			&models.Permission{},
+			&models.UserRole{},
+			&models.UserPermission{},
+			&models.RolePermission{},
+			&models.PermissionGroup{},
+			&models.PermissionGroupPermission{},
+		)
+		if err != nil {
+			log.Fatal("Failed to migrate database:", err)
+		}
+	} else {
+		log.Println("Database tables already exist, skipping AutoMigrate")
 	}
 
 	// 在一个事务中完成所有初始化
@@ -128,10 +137,10 @@ func main() {
 		// 认证相关路由
 		auth := api.Group("/auth")
 		{
-			auth.POST("/login", authHandler.Login)                  // 用户登录
-			auth.POST("/validate-token", authHandler.ValidateToken) // 验证JWT token
-			auth.POST("/refresh-token", authHandler.RefreshToken)   // 刷新token
-			auth.POST("/logout", authHandler.Logout)                // 用户登出
+			auth.POST("/login", authHandler.Login)                           // 用户登录
+			auth.POST("/validate-token", authHandler.ValidateToken)          // 验证JWT token
+			auth.POST("/refresh-token", authHandler.RefreshToken)            // 刷新token
+			auth.POST("/logout", authHandler.Logout)                         // 用户登出
 			auth.GET("/validate-permission", authHandler.ValidatePermission) // 验证用户权限
 		}
 
@@ -140,7 +149,7 @@ func main() {
 		{
 			// 初始化权限（不需要权限验证）
 			permissions.POST("/init", permissionHandler.InitializePermissions)
-			
+
 			// 需要权限验证的路由
 			permissions.Use(authMiddleware.AuthRequired(), permissionMiddleware.RequirePermission("permission", "manage"))
 			{
