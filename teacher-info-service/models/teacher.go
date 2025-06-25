@@ -10,6 +10,7 @@ import (
 // Teacher 教师模型
 type Teacher struct {
 	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	UserID     string         `json:"user_id" gorm:"uniqueIndex;not null"` // 关联用户表的 user_id
 	Username   string         `json:"username" gorm:"uniqueIndex;not null"`
 	Name       string         `json:"name" gorm:"column:name;not null"`
 	Contact    string         `json:"contact" gorm:"column:contact"`
@@ -38,6 +39,7 @@ func (Teacher) TableName() string {
 
 // TeacherRequest 教师创建请求
 type TeacherRequest struct {
+	UserID     string `json:"user_id" binding:"required"` // 关联用户表的 user_id
 	Username   string `json:"username" binding:"required"`
 	Name       string `json:"name" binding:"required"`
 	Contact    string `json:"contact"`

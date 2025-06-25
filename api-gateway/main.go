@@ -10,23 +10,21 @@ import (
 )
 
 type ProxyConfig struct {
-	UserServiceURL        string
-	AuthServiceURL        string
-	StudentServiceURL     string
-	TeacherServiceURL     string
-	AffairServiceURL      string
-	ApplicationServiceURL string
+	UserServiceURL           string
+	AuthServiceURL           string
+	StudentServiceURL        string
+	TeacherServiceURL        string
+	CreditActivityServiceURL string
 }
 
 func main() {
 	// 获取服务URL配置
 	config := ProxyConfig{
-		UserServiceURL:        getEnv("USER_SERVICE_URL", "http://user-management-service:8080"),
-		AuthServiceURL:        getEnv("AUTH_SERVICE_URL", "http://auth-service:8081"),
-		StudentServiceURL:     getEnv("STUDENT_SERVICE_URL", "http://student-info-service:8084"),
-		TeacherServiceURL:     getEnv("TEACHER_SERVICE_URL", "http://teacher-info-service:8085"),
-		AffairServiceURL:      getEnv("AFFAIR_SERVICE_URL", "http://affair-management-service:8087"),
-		ApplicationServiceURL: getEnv("APPLICATION_SERVICE_URL", "http://application-management-service:8082"),
+		UserServiceURL:           getEnv("USER_SERVICE_URL", "http://user-service:8084"),
+		AuthServiceURL:           getEnv("AUTH_SERVICE_URL", "http://auth-service:8081"),
+		StudentServiceURL:        getEnv("STUDENT_SERVICE_URL", "http://student-service:8085"),
+		TeacherServiceURL:        getEnv("TEACHER_SERVICE_URL", "http://teacher-service:8086"),
+		CreditActivityServiceURL: getEnv("CREDIT_ACTIVITY_SERVICE_URL", "http://credit-activity-service:8083"),
 	}
 
 	// 设置Gin路由
@@ -64,10 +62,9 @@ func main() {
 	{
 		// 认证服务路由
 		api.Any("/auth/*path", createProxyHandler(config.AuthServiceURL))
+		api.GET("/auth/validate-permission", createProxyHandler(config.AuthServiceURL))
 
 		// 权限管理服务路由
-		// api.Any("/permissions/*path", createProxyHandler(config.AuthServiceURL))
-		// 明确列出权限相关路由，代理到权限服务
 		api.POST("/permissions/init", createProxyHandler(config.AuthServiceURL))
 		api.POST("/permissions/roles", createProxyHandler(config.AuthServiceURL))
 		api.GET("/permissions/roles", createProxyHandler(config.AuthServiceURL))
@@ -89,6 +86,7 @@ func main() {
 
 		// 用户管理服务路由
 		api.POST("/users/register", createProxyHandler(config.UserServiceURL))
+		api.POST("/users/teachers", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/stats", createProxyHandler(config.UserServiceURL))
 		api.GET("/users/profile", createProxyHandler(config.UserServiceURL))
 		api.PUT("/users/profile", createProxyHandler(config.UserServiceURL))
@@ -99,19 +97,11 @@ func main() {
 		api.DELETE("/users/:id", createProxyHandler(config.UserServiceURL))
 		api.Any("/notifications/*path", createProxyHandler(config.UserServiceURL))
 
-		// 事项管理服务路由
-		api.GET("/affairs", createProxyHandler(config.AffairServiceURL))
-		api.POST("/affairs", createProxyHandler(config.AffairServiceURL))
-		api.GET("/affairs/:id/participants", createProxyHandler(config.AffairServiceURL))
-		api.GET("/affairs/:id/applications", createProxyHandler(config.AffairServiceURL))
-		api.GET("/affairs/:id", createProxyHandler(config.AffairServiceURL))
-		api.PUT("/affairs/:id", createProxyHandler(config.AffairServiceURL))
-		api.DELETE("/affairs/:id", createProxyHandler(config.AffairServiceURL))
-
 		// 学生信息服务路由
 		api.POST("/students", createProxyHandler(config.StudentServiceURL))
 		api.GET("/students", createProxyHandler(config.StudentServiceURL))
 		api.GET("/students/search", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/search/username", createProxyHandler(config.StudentServiceURL))
 		api.GET("/students/college/:college", createProxyHandler(config.StudentServiceURL))
 		api.GET("/students/major/:major", createProxyHandler(config.StudentServiceURL))
 		api.GET("/students/class/:class", createProxyHandler(config.StudentServiceURL))
@@ -119,6 +109,8 @@ func main() {
 		api.GET("/students/:id", createProxyHandler(config.StudentServiceURL))
 		api.PUT("/students/:id", createProxyHandler(config.StudentServiceURL))
 		api.DELETE("/students/:id", createProxyHandler(config.StudentServiceURL))
+		api.GET("/students/user/:userID", createProxyHandler(config.StudentServiceURL))
+		api.DELETE("/students/user/:user_id", createProxyHandler(config.StudentServiceURL))
 
 		// 教师信息服务路由
 		api.POST("/teachers", createProxyHandler(config.TeacherServiceURL))
@@ -130,18 +122,37 @@ func main() {
 		api.GET("/teachers/title/:title", createProxyHandler(config.TeacherServiceURL))
 		api.GET("/teachers/status/:status", createProxyHandler(config.TeacherServiceURL))
 		api.GET("/teachers/search", createProxyHandler(config.TeacherServiceURL))
+		api.GET("/teachers/search/username", createProxyHandler(config.TeacherServiceURL))
 		api.GET("/teachers/active", createProxyHandler(config.TeacherServiceURL))
+		api.DELETE("/teachers/user/:user_id", createProxyHandler(config.TeacherServiceURL))
 
-		// 申请管理服务路由
-		api.POST("/applications", createProxyHandler(config.ApplicationServiceURL))
-		api.POST("/applications/batch", createProxyHandler(config.ApplicationServiceURL))
-		api.GET("/applications/:id/detail", createProxyHandler(config.ApplicationServiceURL))
-		api.PUT("/applications/:id/details", createProxyHandler(config.ApplicationServiceURL))
-		api.POST("/applications/:id/submit", createProxyHandler(config.ApplicationServiceURL))
-		api.PUT("/applications/:id/status", createProxyHandler(config.ApplicationServiceURL))
-		api.GET("/applications/:id", createProxyHandler(config.ApplicationServiceURL))
-		api.GET("/applications/user/:studentNumber", createProxyHandler(config.ApplicationServiceURL))
-		api.GET("/applications", createProxyHandler(config.ApplicationServiceURL))
+		// 学分活动服务路由
+		api.GET("/activities/categories", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/stats", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id", createProxyHandler(config.CreditActivityServiceURL))
+		api.PUT("/activities/:id", createProxyHandler(config.CreditActivityServiceURL))
+		api.DELETE("/activities/:id", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/submit", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/withdraw", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/review", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/pending", createProxyHandler(config.CreditActivityServiceURL))
+
+		// 学分活动参与者管理
+		api.POST("/activities/:id/participants", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/participants", createProxyHandler(config.CreditActivityServiceURL))
+		api.PUT("/activities/:id/participants/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
+		api.PUT("/activities/:id/participants/:user_id/credits", createProxyHandler(config.CreditActivityServiceURL))
+		api.DELETE("/activities/:id/participants/:user_id", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/leave", createProxyHandler(config.CreditActivityServiceURL))
+
+		// 学分活动申请管理
+		api.GET("/activities/applications", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/applications/:id", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/applications/all", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/applications/export", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/applications/stats", createProxyHandler(config.CreditActivityServiceURL))
 	}
 
 	// 默认路由 - 返回API信息
@@ -150,12 +161,11 @@ func main() {
 			"message": "Credit Management API Gateway",
 			"version": "1.0.0",
 			"services": gin.H{
-				"auth_service":        config.AuthServiceURL,
-				"user_service":        config.UserServiceURL,
-				"student_service":     config.StudentServiceURL,
-				"teacher_service":     config.TeacherServiceURL,
-				"affair_service":      config.AffairServiceURL,
-				"application_service": config.ApplicationServiceURL,
+				"auth_service":            config.AuthServiceURL,
+				"user_service":            config.UserServiceURL,
+				"student_service":         config.StudentServiceURL,
+				"teacher_service":         config.TeacherServiceURL,
+				"credit_activity_service": config.CreditActivityServiceURL,
 			},
 			"endpoints": gin.H{
 				"auth":          "/api/auth",
@@ -164,8 +174,7 @@ func main() {
 				"notifications": "/api/notifications",
 				"students":      "/api/students",
 				"teachers":      "/api/teachers",
-				"affairs":       "/api/affairs",
-				"applications":  "/api/applications",
+				"activities":    "/api/activities",
 				"health":        "/health",
 			},
 		})
@@ -181,41 +190,42 @@ func main() {
 	})
 
 	// 启动服务器
-	port := getEnv("PORT", "8000")
+	port := getEnv("PORT", "8080")
 	log.Printf("API Gateway starting on port %s", port)
 	log.Printf("Auth Service: %s", config.AuthServiceURL)
 	log.Printf("User Service: %s", config.UserServiceURL)
 	log.Printf("Student Service: %s", config.StudentServiceURL)
 	log.Printf("Teacher Service: %s", config.TeacherServiceURL)
-	log.Printf("Affair Service: %s", config.AffairServiceURL)
-	log.Printf("Application Service: %s", config.ApplicationServiceURL)
+	log.Printf("Credit Activity Service: %s", config.CreditActivityServiceURL)
 
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
 
-// createProxyHandler 创建代理处理器
 func createProxyHandler(targetURL string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Printf("Proxying request for %s to %s", c.Request.URL.Path, targetURL)
+		// 解析目标URL
 		target, err := url.Parse(targetURL)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Invalid target URL"})
 			return
 		}
 
+		// 创建反向代理
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
-		c.Request.Header.Set("X-Forwarded-Host", c.Request.Host)
-		c.Request.Header.Set("X-Forwarded-Proto", "http")
-		c.Request.Header.Set("X-Real-IP", c.ClientIP())
+		// 修改请求路径
+		originalPath := c.Request.URL.Path
+		c.Request.URL.Path = originalPath
+		c.Request.URL.Host = target.Host
+		c.Request.URL.Scheme = target.Scheme
 
+		// 执行代理请求
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }
 
-// getEnv 获取环境变量
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

@@ -1,126 +1,334 @@
-# Student Info Service API Test Script
-$ErrorActionPreference = "Stop"
-$baseUrl = "http://localhost:8000"
+# 学生信息服务测试脚本
+# 测试学生信息服务的所有API接口
 
-Write-Host "=== Student Info Service API Tests ===" -ForegroundColor Cyan
+param(
+    [string]$BaseUrl = "http://localhost:8080"
+)
 
-# --- Create Student ---
-$studentId = "STU_$(Get-Random)"
-$createBody = @{ username = $studentId; student_id = $studentId; name = "Test Student"; college = "Engineering"; major = "CS"; class = "2025"; contact = "1234567890"; email = "$studentId@test.com"; grade = "2021" } | ConvertTo-Json
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/students" -Method Post -Headers @{"Content-Type" = "application/json" } -Body $createBody
-    $studentUuid = $response.student.id
-    Write-Host "PASS: Student created successfully. UUID: $studentUuid" -ForegroundColor Green
+function Fail($msg) {
+    Write-Host "[FAIL] $msg" -ForegroundColor Red
+    return $false
+}
+
+function Pass($msg) {
+    Write-Host "[PASS] $msg" -ForegroundColor Green
+    return $true
+}
+
+function Info($msg) {
+    Write-Host "[INFO] $msg" -ForegroundColor Cyan
+}
+
+function Test-StudentInfoService {
+    Write-Host "=== 学生信息服务测试 ===" -ForegroundColor Yellow
     
-    # 验证返回的ID是UUID格式
-    if ($studentUuid -match "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") {
-        Write-Host "PASS: Student ID is valid UUID format" -ForegroundColor Green
+    $global:testResults = @()
+    $global:authToken = $null
+    $global:testStudentId = $null
+    
+    # 生成唯一测试用户名
+    $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+    $testUsername = "teststudent_$timestamp"
+    $testPassword = "password123"
+    $testEmail = "$testUsername@example.com"
+    
+    Info "测试学生用户名: $testUsername"
+    
+    # 1. 测试用户注册
+    Info "1. 测试用户注册"
+    $registerBody = @{
+        username = $testUsername
+        password = $testPassword
+        email = $testEmail
+        real_name = "测试学生"
+        user_type = "student"
+    } | ConvertTo-Json
+    
+    try {
+        $regResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/register" -Method POST -Body $registerBody -ContentType "application/json"
+        if ($regResp.code -eq 0) {
+            $global:testUserId = $regResp.data.id
+            $global:testResults += Pass "用户注册成功，用户ID: $($regResp.data.id)"
+        } else {
+            $global:testResults += Fail "用户注册失败: $($regResp.message)"
+        }
+    } catch {
+        $global:testResults += Fail "用户注册异常: $($_.Exception.Message)"
     }
-    else {
-        Write-Host "FAIL: Student ID is not valid UUID format: $studentUuid" -ForegroundColor Red
+    
+    # 2. 测试用户登录获取令牌
+    Info "2. 测试用户登录获取令牌"
+    $loginBody = @{
+        username = $testUsername
+        password = $testPassword
+    } | ConvertTo-Json
+    
+    try {
+        $loginResp = Invoke-RestMethod -Uri "$BaseUrl/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
+        if ($loginResp.code -eq 0) {
+            $global:authToken = $loginResp.data.token
+            $global:testResults += Pass "用户登录成功，获取到访问令牌"
+        } else {
+            $global:testResults += Fail "用户登录失败: $($loginResp.message)"
+        }
+    } catch {
+        $global:testResults += Fail "用户登录异常: $($_.Exception.Message)"
     }
-}
-catch {
-    Write-Host "FAIL: Create student failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-# --- Get Student by UUID ---
-try {
-    $student = Invoke-RestMethod -Uri "$baseUrl/api/students/$studentUuid" -Method Get -Headers @{"Content-Type" = "application/json" }
-    if ($student.id -eq $studentUuid) {
-        Write-Host "PASS: Get student by UUID successful." -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: Student ID does not match." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get student failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Update Student by UUID ---
-$updateBody = @{ college = "Science" } | ConvertTo-Json
-try {
-    Invoke-RestMethod -Uri "$baseUrl/api/students/$studentUuid" -Method Put -Headers @{"Content-Type" = "application/json" } -Body $updateBody
-    Write-Host "PASS: Update student by UUID successful." -ForegroundColor Green
-}
-catch {
-    Write-Host "FAIL: Update student failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Get All Students ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/students" -Method Get -Headers @{"Content-Type" = "application/json" }
-    if ($response -and $response.students -and $response.students.Count -gt 0) {
-        Write-Host "PASS: Successfully fetched all students. Count: $($response.students.Count)" -ForegroundColor Green
+    
+    # 3. 测试创建学生信息
+    Info "3. 测试创建学生信息"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        $studentBody = @{
+            user_id = $global:testUserId
+            student_id = "2024$timestamp"
+            name = "测试学生"
+            college = "计算机学院"
+            major = "软件工程"
+            class = "软工2024-1班"
+            grade = "2024"
+            status = "active"
+            phone = "13800138000"
+            email = $testEmail
+        } | ConvertTo-Json
         
-        # 验证返回的学生都有UUID格式的ID
-        $validUuids = $response.students | Where-Object { $_.id -match "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }
-        if ($validUuids.Count -eq $response.students.Count) {
-            Write-Host "PASS: All students have valid UUID format IDs" -ForegroundColor Green
+        try {
+            $createStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students" -Method POST -Body $studentBody -Headers $headers -ContentType "application/json"
+            if ($createStudentResp.code -eq 0) {
+                $global:testStudentId = $createStudentResp.data.id
+                $global:testResults += Pass "创建学生信息成功，学生ID: $($createStudentResp.data.id)"
+            } else {
+                $global:testResults += Fail "创建学生信息失败: $($createStudentResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "创建学生信息异常: $($_.Exception.Message)"
         }
-        else {
-            Write-Host "FAIL: Some students do not have valid UUID format IDs" -ForegroundColor Red
+    } else {
+        $global:testResults += Fail "跳过创建学生信息测试 - 无有效令牌"
+    }
+    
+    # 4. 测试获取所有学生列表
+    Info "4. 测试获取所有学生列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $studentsResp = Invoke-RestMethod -Uri "$BaseUrl/api/students" -Method GET -Headers $headers
+            if ($studentsResp.code -eq 0) {
+                $global:testResults += Pass "获取所有学生列表成功"
+            } else {
+                $global:testResults += Fail "获取所有学生列表失败: $($studentsResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取所有学生列表异常: $($_.Exception.Message)"
         }
+    } else {
+        $global:testResults += Fail "跳过获取所有学生列表测试 - 无有效令牌"
     }
-    else {
-        Write-Host "FAIL: No students returned or invalid response format." -ForegroundColor Red
+    
+    # 5. 测试搜索学生
+    Info "5. 测试搜索学生"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $searchResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/search?q=测试学生" -Method GET -Headers $headers
+            if ($searchResp.code -eq 0) {
+                $global:testResults += Pass "搜索学生成功"
+            } else {
+                $global:testResults += Fail "搜索学生失败: $($searchResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "搜索学生异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过搜索学生测试 - 无有效令牌"
     }
-}
-catch {
-    Write-Host "FAIL: Get all students failed: $($_.Exception.Message)" -ForegroundColor Red
+    
+    # 6. 测试按用户名搜索学生
+    Info "6. 测试按用户名搜索学生"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $searchByUsernameResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/search/username?username=$testUsername" -Method GET -Headers $headers
+            if ($searchByUsernameResp.code -eq 0) {
+                $global:testResults += Pass "按用户名搜索学生成功"
+            } else {
+                $global:testResults += Fail "按用户名搜索学生失败: $($searchByUsernameResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按用户名搜索学生异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按用户名搜索学生测试 - 无有效令牌"
+    }
+    
+    # 7. 测试按学院获取学生列表
+    Info "7. 测试按学院获取学生列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $collegeResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/college/计算机学院" -Method GET -Headers $headers
+            if ($collegeResp.code -eq 0) {
+                $global:testResults += Pass "按学院获取学生列表成功"
+            } else {
+                $global:testResults += Fail "按学院获取学生列表失败: $($collegeResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按学院获取学生列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按学院获取学生列表测试 - 无有效令牌"
+    }
+    
+    # 8. 测试按专业获取学生列表
+    Info "8. 测试按专业获取学生列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $majorResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/major/软件工程" -Method GET -Headers $headers
+            if ($majorResp.code -eq 0) {
+                $global:testResults += Pass "按专业获取学生列表成功"
+            } else {
+                $global:testResults += Fail "按专业获取学生列表失败: $($majorResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按专业获取学生列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按专业获取学生列表测试 - 无有效令牌"
+    }
+    
+    # 9. 测试按班级获取学生列表
+    Info "9. 测试按班级获取学生列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $classResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/class/软工2024-1班" -Method GET -Headers $headers
+            if ($classResp.code -eq 0) {
+                $global:testResults += Pass "按班级获取学生列表成功"
+            } else {
+                $global:testResults += Fail "按班级获取学生列表失败: $($classResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按班级获取学生列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按班级获取学生列表测试 - 无有效令牌"
+    }
+    
+    # 10. 测试按状态获取学生列表
+    Info "10. 测试按状态获取学生列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $statusResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/status/active" -Method GET -Headers $headers
+            if ($statusResp.code -eq 0) {
+                $global:testResults += Pass "按状态获取学生列表成功"
+            } else {
+                $global:testResults += Fail "按状态获取学生列表失败: $($statusResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按状态获取学生列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按状态获取学生列表测试 - 无有效令牌"
+    }
+    
+    # 11. 测试获取特定学生信息
+    Info "11. 测试获取特定学生信息"
+    if ($global:authToken -and $global:testStudentId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $studentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/$global:testStudentId" -Method GET -Headers $headers
+            if ($studentResp.code -eq 0) {
+                $global:testResults += Pass "获取特定学生信息成功"
+            } else {
+                $global:testResults += Fail "获取特定学生信息失败: $($studentResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取特定学生信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取特定学生信息测试 - 无有效令牌或学生ID"
+    }
+    
+    # 12. 测试更新学生信息
+    Info "12. 测试更新学生信息"
+    if ($global:authToken -and $global:testStudentId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        $updateStudentBody = @{
+            name = "更新后的测试学生"
+            phone = "13900139000"
+            email = "updated_$testEmail"
+        } | ConvertTo-Json
+        
+        try {
+            $updateStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/$global:testStudentId" -Method PUT -Body $updateStudentBody -Headers $headers -ContentType "application/json"
+            if ($updateStudentResp.code -eq 0) {
+                $global:testResults += Pass "更新学生信息成功"
+            } else {
+                $global:testResults += Fail "更新学生信息失败: $($updateStudentResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "更新学生信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过更新学生信息测试 - 无有效令牌或学生ID"
+    }
+    
+    # 13. 测试删除学生信息
+    Info "13. 测试删除学生信息"
+    if ($global:authToken -and $global:testStudentId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $deleteStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/$global:testStudentId" -Method DELETE -Headers $headers
+            if ($deleteStudentResp.code -eq 0) {
+                $global:testResults += Pass "删除学生信息成功"
+            } else {
+                $global:testResults += Fail "删除学生信息失败: $($deleteStudentResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "删除学生信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过删除学生信息测试 - 无有效令牌或学生ID"
+    }
+    
+    # 14. 测试删除后获取学生信息（应该失败）
+    Info "14. 测试删除后获取学生信息（应该失败）"
+    if ($global:authToken -and $global:testStudentId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $deletedStudentResp = Invoke-RestMethod -Uri "$BaseUrl/api/students/$global:testStudentId" -Method GET -Headers $headers
+            if ($deletedStudentResp.code -ne 0) {
+                $global:testResults += Pass "删除后获取学生信息被正确拒绝"
+            } else {
+                $global:testResults += Fail "删除后获取学生信息应该被拒绝"
+            }
+        } catch {
+            $global:testResults += Pass "删除后获取学生信息被正确拒绝"
+        }
+    } else {
+        $global:testResults += Fail "跳过删除后获取学生信息测试 - 无有效令牌或学生ID"
+    }
+    
+    # 输出测试结果统计
+    Write-Host "`n=== 测试结果统计 ===" -ForegroundColor Yellow
+    $passCount = ($global:testResults | Where-Object { $_ -eq $true }).Count
+    $failCount = ($global:testResults | Where-Object { $_ -eq $false }).Count
+    $totalCount = $global:testResults.Count
+    
+    Write-Host "总测试数: $totalCount" -ForegroundColor White
+    Write-Host "通过: $passCount" -ForegroundColor Green
+    Write-Host "失败: $failCount" -ForegroundColor Red
+    
+    if ($failCount -eq 0) {
+        Write-Host "`n🎉 所有测试通过！" -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "`n❌ 有 $failCount 个测试失败" -ForegroundColor Red
+        return $false
+    }
 }
 
-# --- Get Students by College ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/students/college/Engineering" -Method Get -Headers @{"Content-Type" = "application/json" }
-    if ($response -and $response.students -and $response.students.Count -ge 0) {
-        Write-Host "PASS: Successfully fetched students by college. Count: $($response.students.Count)" -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: Invalid response for students by college." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get students by college failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Get Students by Major ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/students/major/CS" -Method Get -Headers @{"Content-Type" = "application/json" }
-    if ($response -and $response.students -and $response.students.Count -ge 0) {
-        Write-Host "PASS: Successfully fetched students by major. Count: $($response.students.Count)" -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: Invalid response for students by major." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get students by major failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Search Students ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/students/search?q=Test" -Method Get -Headers @{"Content-Type" = "application/json" }
-    if ($response -and $response.students -and $response.students.Count -ge 0) {
-        Write-Host "PASS: Successfully searched students. Count: $($response.students.Count)" -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: Invalid response for student search." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Search students failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Delete Student by UUID ---
-try {
-    Invoke-RestMethod -Uri "$baseUrl/api/students/$studentUuid" -Method Delete -Headers @{"Content-Type" = "application/json" }
-    Write-Host "PASS: Delete student by UUID successful." -ForegroundColor Green
-}
-catch {
-    Write-Host "FAIL: Delete student failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-Write-Host "=== Student Info Service API Tests Completed ===" -ForegroundColor Cyan 
+# 执行测试
+Test-StudentInfoService 

@@ -1,133 +1,48 @@
-version: "3.8"
-
 services:
   # PostgreSQL数据库
   postgres:
-    image: postgres:15-alpine
-    container_name: cm_postgres
+    image: postgres:15
+    container_name: credit_management_postgres
     environment:
       POSTGRES_DB: credit_management
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - cm_network
-    restart: unless-stopped
+      - credit_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: "4.0"
-        reservations:
-          memory: 2G
-          cpus: "2.0"
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credit_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # API网关
   api-gateway:
-    build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
-    container_name: cm_api_gateway
+    build: ./api-gateway
+    container_name: credit_management_gateway
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8080:8080"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
+      - CREDIT_ACTIVITY_SERVICE_URL=http://credit-activity-service:8083
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - USER_SERVICE_URL=http://user-service:8084
+      - STUDENT_SERVICE_URL=http://student-service:8085
+      - TEACHER_SERVICE_URL=http://teacher-service:8086
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8000/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
-
-  # 用户管理服务
-  user-management-service:
-    build:
-      context: ./user-management-service
-      dockerfile: Dockerfile
-    container_name: cm_user_management
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
-      - STUDENT_SERVICE_URL=http://student-info-service:8084
-      - TEACHER_SERVICE_URL=http://teacher-info-service:8085
-    depends_on:
-      postgres:
-        condition: service_healthy
-      student-info-service:
-        condition: service_healthy
-      teacher-info-service:
-        condition: service_healthy
-    networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
+      - credit_network
 
   # 认证服务
   auth-service:
-    build:
-      context: ./auth-service
-      dockerfile: Dockerfile
-    container_name: cm_auth_service
+    build: ./auth-service
+    container_name: credit_management_auth
+    ports:
+      - "8081:8081"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -139,234 +54,96 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8081/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
+      - credit_network
 
-  # 申请管理服务
-  application-management-service:
-    build:
-      context: ./application-management-service
-      dockerfile: Dockerfile
-    container_name: cm_application_management
+  # 学分活动服务（合并了事务和申请管理功能）
+  credit-activity-service:
+    build: ./credit-activity-service
+    container_name: credit_management_credit_activity
+    ports:
+      - "8083:8083"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
-    volumes:
-      - ./application-management-service/uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8082/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: "3.0"
-        reservations:
-          memory: 2G
-          cpus: "1.5"
+      - credit_network
 
-  # 事务管理服务
-  affair-management-service:
-    build:
-      context: ./affair-management-service
-      dockerfile: Dockerfile
-    container_name: cm_affair_management
+  # 用户管理服务
+  user-service:
+    build: ./user-management-service
+    container_name: credit_management_user
+    ports:
+      - "8084:8084"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8087/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
+      - credit_network
 
   # 学生信息服务
-  student-info-service:
-    build:
-      context: ./student-info-service
-      dockerfile: Dockerfile
-    container_name: cm_student_info
+  student-service:
+    build: ./student-info-service
+    container_name: credit_management_student
+    ports:
+      - "8085:8085"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8084/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
+      - credit_network
 
   # 教师信息服务
-  teacher-info-service:
-    build:
-      context: ./teacher-info-service
-      dockerfile: Dockerfile
-    container_name: cm_teacher_info
+  teacher-service:
+    build: ./teacher-info-service
+    container_name: credit_management_teacher
+    ports:
+      - "8086:8086"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
-      - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8085/health",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 1G
-          cpus: "1.0"
+      - credit_network
 
   # 前端应用
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: cm_frontend
+    build: ./frontend
+    container_name: credit_management_frontend
     ports:
-      - "127.0.0.1:3000:80"
+      - "3000:80"
     depends_on:
       api-gateway:
-        condition: service_healthy
+        condition: service_started
     networks:
-      - cm_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "1.0"
-        reservations:
-          memory: 512M
-          cpus: "0.5"
+      - credit_network
 
 volumes:
   postgres_data:
-    driver: local
+  affair_uploads:
 
 networks:
-  cm_network:
+  credit_network:
     driver: bridge

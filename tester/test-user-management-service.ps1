@@ -1,145 +1,270 @@
-# User Management Service API Test Script
-$ErrorActionPreference = "Stop"
-$baseUrl = "http://localhost:8000"
+# 用户管理服务测试脚本
+# 测试用户管理服务的所有API接口
 
-Write-Host "=== User Management Service API Tests ===" -ForegroundColor Cyan
+param(
+    [string]$BaseUrl = "http://localhost:8080"
+)
 
-# --- Register User ---
-$guid = [guid]::NewGuid().ToString().Substring(0, 8)
-$username = "user_$guid"
-$password = "password123"
-$registerBody = @{ username = $username; password = $password; user_type = "student"; email = "$($username)@test.com"; real_name = "Test User" } | ConvertTo-Json
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/register" -Method Post -Body $registerBody -Headers @{"Content-Type" = "application/json" }
-    $userId = $response.user.id
-    Write-Host "PASS: User '$username' registered successfully. ID: $userId" -ForegroundColor Green
+function Fail($msg) {
+    Write-Host "[FAIL] $msg" -ForegroundColor Red
+    return $false
+}
+
+function Pass($msg) {
+    Write-Host "[PASS] $msg" -ForegroundColor Green
+    return $true
+}
+
+function Info($msg) {
+    Write-Host "[INFO] $msg" -ForegroundColor Cyan
+}
+
+function Test-UserManagementService {
+    Write-Host "=== 用户管理服务测试 ===" -ForegroundColor Yellow
     
-    # 验证返回的ID是UUID格式
-    if ($userId -match "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$") {
-        Write-Host "PASS: User ID is valid UUID format" -ForegroundColor Green
+    $global:testResults = @()
+    $global:authToken = $null
+    $global:testUserId = $null
+    
+    # 生成唯一测试用户名
+    $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+    $testUsername = "testuser_$timestamp"
+    $testPassword = "password123"
+    $testEmail = "$testUsername@example.com"
+    
+    Info "测试用户名: $testUsername"
+    
+    # 1. 测试用户注册
+    Info "1. 测试用户注册"
+    $registerBody = @{
+        username = $testUsername
+        password = $testPassword
+        email = $testEmail
+        real_name = "测试用户"
+        user_type = "student"
+    } | ConvertTo-Json
+    
+    try {
+        $regResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/register" -Method POST -Body $registerBody -ContentType "application/json"
+        if ($regResp.code -eq 0) {
+            $global:testUserId = $regResp.data.id
+            $global:testResults += Pass "用户注册成功，用户ID: $($regResp.data.id)"
+        } else {
+            $global:testResults += Fail "用户注册失败: $($regResp.message)"
+        }
+    } catch {
+        $global:testResults += Fail "用户注册异常: $($_.Exception.Message)"
     }
-    else {
-        Write-Host "FAIL: User ID is not valid UUID format: $userId" -ForegroundColor Red
+    
+    # 2. 测试用户登录获取令牌
+    Info "2. 测试用户登录获取令牌"
+    $loginBody = @{
+        username = $testUsername
+        password = $testPassword
+    } | ConvertTo-Json
+    
+    try {
+        $loginResp = Invoke-RestMethod -Uri "$BaseUrl/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
+        if ($loginResp.code -eq 0) {
+            $global:authToken = $loginResp.data.token
+            $global:testResults += Pass "用户登录成功，获取到访问令牌"
+        } else {
+            $global:testResults += Fail "用户登录失败: $($loginResp.message)"
+        }
+    } catch {
+        $global:testResults += Fail "用户登录异常: $($_.Exception.Message)"
     }
-}
-catch {
-    Write-Host "FAIL: User registration failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-# --- Login ---
-$loginBody = @{ username = $username; password = $password } | ConvertTo-Json
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/auth/login" -Method Post -Body $loginBody -Headers @{"Content-Type" = "application/json" }
-    $jwtToken = $response.token
-    $authHeaders = @{ "Authorization" = "Bearer $jwtToken"; "Content-Type" = "application/json" }
-    Write-Host "PASS: Login successful." -ForegroundColor Green
-}
-catch {
-    Write-Host "FAIL: Login failed: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
-}
-
-# --- Get Profile ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/profile" -Method Get -Headers $authHeaders
-    if ($response.username -eq $username) {
-        Write-Host "PASS: Successfully fetched user profile." -ForegroundColor Green
+    
+    # 3. 测试获取用户统计信息
+    Info "3. 测试获取用户统计信息"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $statsResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/stats" -Method GET -Headers $headers
+            if ($statsResp.code -eq 0) {
+                $global:testResults += Pass "获取用户统计信息成功"
+            } else {
+                $global:testResults += Fail "获取用户统计信息失败: $($statsResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取用户统计信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取用户统计信息测试 - 无有效令牌"
     }
-    else {
-        Write-Host "FAIL: Profile username does not match." -ForegroundColor Red
+    
+    # 4. 测试获取用户个人资料
+    Info "4. 测试获取用户个人资料"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $profileResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/profile" -Method GET -Headers $headers
+            if ($profileResp.code -eq 0) {
+                $global:testResults += Pass "获取用户个人资料成功"
+            } else {
+                $global:testResults += Fail "获取用户个人资料失败: $($profileResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取用户个人资料异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取用户个人资料测试 - 无有效令牌"
     }
-}
-catch {
-    Write-Host "FAIL: Get user profile failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Update Profile ---
-$updateBody = @{ real_name = "Updated User" } | ConvertTo-Json
-try {
-    Invoke-RestMethod -Uri "$baseUrl/api/users/profile" -Method Put -Headers $authHeaders -Body $updateBody
-    Write-Host "PASS: Successfully updated user profile." -ForegroundColor Green
-}
-catch {
-    Write-Host "FAIL: Update user profile failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Test Get User by UUID ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/$userId" -Method Get -Headers $authHeaders
-    if ($response.id -eq $userId) {
-        Write-Host "PASS: Successfully fetched user by UUID." -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: User ID does not match." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get user by UUID failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Test Update User by UUID ---
-$updateUserBody = @{ real_name = "Updated User by UUID" } | ConvertTo-Json
-try {
-    Invoke-RestMethod -Uri "$baseUrl/api/users/$userId" -Method Put -Headers $authHeaders -Body $updateUserBody
-    Write-Host "PASS: Successfully updated user by UUID." -ForegroundColor Green
-}
-catch {
-    Write-Host "FAIL: Update user by UUID failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Test Get All Users ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users" -Method Get -Headers $authHeaders
-    if ($response.users -and $response.users.Count -gt 0) {
-        Write-Host "PASS: Successfully fetched all users. Count: $($response.users.Count)" -ForegroundColor Green
+    
+    # 5. 测试更新用户个人资料
+    Info "5. 测试更新用户个人资料"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        $updateProfileBody = @{
+            real_name = "更新后的测试用户"
+            email = "updated_$testEmail"
+        } | ConvertTo-Json
         
-        # 验证返回的用户都有UUID格式的ID
-        $validUuids = $response.users | Where-Object { $_.id -match "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }
-        if ($validUuids.Count -eq $response.users.Count) {
-            Write-Host "PASS: All users have valid UUID format IDs" -ForegroundColor Green
+        try {
+            $updateProfileResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/profile" -Method PUT -Body $updateProfileBody -Headers $headers -ContentType "application/json"
+            if ($updateProfileResp.code -eq 0) {
+                $global:testResults += Pass "更新用户个人资料成功"
+            } else {
+                $global:testResults += Fail "更新用户个人资料失败: $($updateProfileResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "更新用户个人资料异常: $($_.Exception.Message)"
         }
-        else {
-            Write-Host "FAIL: Some users do not have valid UUID format IDs" -ForegroundColor Red
+    } else {
+        $global:testResults += Fail "跳过更新用户个人资料测试 - 无有效令牌"
+    }
+    
+    # 6. 测试获取所有用户列表
+    Info "6. 测试获取所有用户列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $usersResp = Invoke-RestMethod -Uri "$BaseUrl/api/users" -Method GET -Headers $headers
+            if ($usersResp.code -eq 0) {
+                $global:testResults += Pass "获取所有用户列表成功"
+            } else {
+                $global:testResults += Fail "获取所有用户列表失败: $($usersResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取所有用户列表异常: $($_.Exception.Message)"
         }
+    } else {
+        $global:testResults += Fail "跳过获取所有用户列表测试 - 无有效令牌"
     }
-    else {
-        Write-Host "FAIL: No users returned or invalid response format." -ForegroundColor Red
+    
+    # 7. 测试按用户类型获取用户列表
+    Info "7. 测试按用户类型获取用户列表"
+    if ($global:authToken) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $studentUsersResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/type/student" -Method GET -Headers $headers
+            if ($studentUsersResp.code -eq 0) {
+                $global:testResults += Pass "按用户类型获取用户列表成功"
+            } else {
+                $global:testResults += Fail "按用户类型获取用户列表失败: $($studentUsersResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "按用户类型获取用户列表异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过按用户类型获取用户列表测试 - 无有效令牌"
     }
-}
-catch {
-    Write-Host "FAIL: Get all users failed: $($_.Exception.Message)" -ForegroundColor Red
+    
+    # 8. 测试获取特定用户信息
+    Info "8. 测试获取特定用户信息"
+    if ($global:authToken -and $global:testUserId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $userResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method GET -Headers $headers
+            if ($userResp.code -eq 0) {
+                $global:testResults += Pass "获取特定用户信息成功"
+            } else {
+                $global:testResults += Fail "获取特定用户信息失败: $($userResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "获取特定用户信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过获取特定用户信息测试 - 无有效令牌或用户ID"
+    }
+    
+    # 9. 测试更新特定用户信息
+    Info "9. 测试更新特定用户信息"
+    if ($global:authToken -and $global:testUserId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        $updateUserBody = @{
+            real_name = "管理员更新的测试用户"
+            email = "admin_updated_$testEmail"
+        } | ConvertTo-Json
+        
+        try {
+            $updateUserResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method PUT -Body $updateUserBody -Headers $headers -ContentType "application/json"
+            if ($updateUserResp.code -eq 0) {
+                $global:testResults += Pass "更新特定用户信息成功"
+            } else {
+                $global:testResults += Fail "更新特定用户信息失败: $($updateUserResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "更新特定用户信息异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过更新特定用户信息测试 - 无有效令牌或用户ID"
+    }
+    
+    # 10. 测试删除用户
+    Info "10. 测试删除用户"
+    if ($global:authToken -and $global:testUserId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $deleteUserResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method DELETE -Headers $headers
+            if ($deleteUserResp.code -eq 0) {
+                $global:testResults += Pass "删除用户成功"
+            } else {
+                $global:testResults += Fail "删除用户失败: $($deleteUserResp.message)"
+            }
+        } catch {
+            $global:testResults += Fail "删除用户异常: $($_.Exception.Message)"
+        }
+    } else {
+        $global:testResults += Fail "跳过删除用户测试 - 无有效令牌或用户ID"
+    }
+    
+    # 11. 测试删除后获取用户信息（应该失败）
+    Info "11. 测试删除后获取用户信息（应该失败）"
+    if ($global:authToken -and $global:testUserId) {
+        $headers = @{ "Authorization" = "Bearer $global:authToken" }
+        try {
+            $deletedUserResp = Invoke-RestMethod -Uri "$BaseUrl/api/users/$global:testUserId" -Method GET -Headers $headers
+            if ($deletedUserResp.code -ne 0) {
+                $global:testResults += Pass "删除后获取用户信息被正确拒绝"
+            } else {
+                $global:testResults += Fail "删除后获取用户信息应该被拒绝"
+            }
+        } catch {
+            $global:testResults += Pass "删除后获取用户信息被正确拒绝"
+        }
+    } else {
+        $global:testResults += Fail "跳过删除后获取用户信息测试 - 无有效令牌或用户ID"
+    }
+    
+    # 输出测试结果统计
+    Write-Host "`n=== 测试结果统计 ===" -ForegroundColor Yellow
+    $passCount = ($global:testResults | Where-Object { $_ -eq $true }).Count
+    $failCount = ($global:testResults | Where-Object { $_ -eq $false }).Count
+    $totalCount = $global:testResults.Count
+    
+    Write-Host "总测试数: $totalCount" -ForegroundColor White
+    Write-Host "通过: $passCount" -ForegroundColor Green
+    Write-Host "失败: $failCount" -ForegroundColor Red
+    
+    if ($failCount -eq 0) {
+        Write-Host "`n🎉 所有测试通过！" -ForegroundColor Green
+        return $true
+    } else {
+        Write-Host "`n❌ 有 $failCount 个测试失败" -ForegroundColor Red
+        return $false
+    }
 }
 
-# --- Test Get Users by Type ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/type/student" -Method Get -Headers $authHeaders
-    if ($response -and $response.Count -gt 0) {
-        Write-Host "PASS: Successfully fetched students. Count: $($response.Count)" -ForegroundColor Green
-    }
-    else {
-        Write-Host "FAIL: No students returned or invalid response format." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get users by type failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-# --- Test Get User Stats ---
-try {
-    $response = Invoke-RestMethod -Uri "$baseUrl/api/users/stats" -Method Get -Headers $authHeaders
-    if ($response.total_users -ge 0) {
-        Write-Host "PASS: Successfully fetched user stats." -ForegroundColor Green
-        Write-Host "  Total Users: $($response.total_users)" -ForegroundColor Yellow
-        Write-Host "  Active Users: $($response.active_users)" -ForegroundColor Yellow
-        Write-Host "  Student Users: $($response.student_users)" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "FAIL: Invalid user stats response." -ForegroundColor Red
-    }
-}
-catch {
-    Write-Host "FAIL: Get user stats failed: $($_.Exception.Message)" -ForegroundColor Red
-}
-
-Write-Host "=== User Management Service API Tests Completed ===" -ForegroundColor Cyan 
+# 执行测试
+Test-UserManagementService 

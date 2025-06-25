@@ -131,14 +131,21 @@ func (pm *PermissionMiddlewareHandler) RequirePermission(resource, action string
 // RequireRole 需要特定角色的中间件（简化版本）
 func (pm *PermissionMiddlewareHandler) RequireRole(roleName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		role, exists := c.Get("role")
+		userType, exists := c.Get("user_type")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "用户未认证"})
 			c.Abort()
 			return
 		}
 
-		if role != roleName && role != "admin" {
+		// 管理员拥有所有角色权限
+		if userType == "admin" {
+			c.Next()
+			return
+		}
+
+		// 检查用户类型是否匹配角色
+		if userType != roleName {
 			c.JSON(http.StatusForbidden, gin.H{"error": "角色权限不足"})
 			c.Abort()
 			return
