@@ -56,16 +56,19 @@ import toast from "react-hot-toast";
 
 // Updated Student type based on student.go
 export type Student = {
+    user_id?: string;
     username: string;
-    student_id: string;
-    name: string;
-    college: string;
-    major: string;
-    class: string;
-    contact: string;
-    email: string;
-    grade: string;
+    real_name: string;
+    student_id?: string;
+    college?: string;
+    major?: string;
+    class?: string;
+    grade?: string;
+    email?: string;
+    phone?: string;
     status: 'active' | 'inactive';
+    avatar?: string;
+    register_time?: string;
     created_at?: string;
     updated_at?: string;
 };
@@ -73,16 +76,54 @@ export type Student = {
 // Form schema for validation
 const formSchema = z.object({
   username: z.string().min(1, "用户名不能为空").max(20, "用户名最多20个字符"),
+  password: z.string().min(8, "密码至少8个字符")
+    .regex(/[A-Z]/, "密码必须包含至少一个大写字母")
+    .regex(/[a-z]/, "密码必须包含至少一个小写字母")
+    .regex(/[0-9]/, "密码必须包含至少一个数字")
+    .optional(),
   student_id: z.string().optional(),
-  name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
+  real_name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
   college: z.string().min(1, "学院不能为空"),
   major: z.string().min(1, "专业不能为空"),
   class: z.string().min(1, "班级不能为空"),
-  contact: z.string().optional(),
+  phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号").optional().or(z.literal('')),
   email: z.string().email({ message: "请输入有效的邮箱地址" }).optional().or(z.literal('')),
   grade: z.string().min(1, "年级不能为空"),
   status: z.enum(['active', 'inactive']),
+  user_type: z.literal('student'),
 });
+
+// 统计卡片样式与仪表盘一致
+const StatCard = ({ title, value, icon: Icon, color = "default", subtitle }: { title: string, value: string | number, icon: React.ElementType, color?: "default" | "success" | "warning" | "danger" | "info" | "purple", subtitle?: string }) => {
+  const colorClasses = {
+    default: "text-muted-foreground",
+    success: "text-green-600",
+    warning: "text-yellow-600",
+    danger: "text-red-600",
+    info: "text-blue-600",
+    purple: "text-purple-600"
+  };
+  const bgClasses = {
+    default: "bg-muted/20",
+    success: "bg-green-100 dark:bg-green-900/20",
+    warning: "bg-yellow-100 dark:bg-yellow-900/20",
+    danger: "bg-red-100 dark:bg-red-900/20",
+    info: "bg-blue-100 dark:bg-blue-900/20",
+    purple: "bg-purple-100 dark:bg-purple-900/20"
+  };
+  return (
+    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <div className={`p-3 rounded-xl ${bgClasses[color]}`}><Icon className={`h-6 w-6 ${colorClasses[color]}`} /></div>
+        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">{value}</div>
+        {subtitle && <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default function StudentsPage() {
     const { hasPermission } = useAuth();
@@ -95,20 +136,24 @@ export default function StudentsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             username: "",
+            password: "",
             student_id: "",
-            name: "",
+            real_name: "",
             college: "",
             major: "",
             class: "",
-            contact: "",
+            phone: "",
             email: "",
             grade: "",
             status: 'active',
+            user_type: 'student',
         },
     });
 
@@ -139,15 +184,14 @@ export default function StudentsPage() {
             
             // 处理不同的响应格式
             let studentsData = [];
-            if (response.data && Array.isArray(response.data)) {
-                // 直接返回数组的情况
-                studentsData = response.data;
-            } else if (response.data && response.data.students) {
-                // 包装在students字段中的情况
-                studentsData = response.data.students;
+            if (response.data?.data?.users) {
+              studentsData = response.data.data.users;
+            } else if (response.data?.students) {
+              studentsData = response.data.students;
+            } else if (Array.isArray(response.data)) {
+              studentsData = response.data;
             } else {
-                console.warn('Unexpected response format:', response.data);
-                studentsData = [];
+              studentsData = [];
             }
             
             setStudents(studentsData);
@@ -173,24 +217,31 @@ export default function StudentsPage() {
         } else {
             form.reset({
                 username: "", 
+                password: "",
                 student_id: "", 
-                name: "", 
+                real_name: "", 
                 college: "",
                 major: "", 
                 class: "", 
-                contact: "", 
+                phone: "", 
                 email: "", 
                 grade: "",
                 status: 'active',
+                user_type: 'student',
             });
         }
         setIsDialogOpen(true);
     };
 
     const handleDelete = async (studentId: string) => {
-        if (!window.confirm("确定要删除这个学生吗？此操作不可撤销。")) return;
         try {
-            await apiClient.delete(`/students/${studentId}`);
+            // Find the student by student_id to get the user_id
+            const student = students.find(s => s.student_id === studentId);
+            if (!student || !student.user_id) {
+                toast.error("无法找到学生信息");
+                return;
+            }
+            await apiClient.delete(`/students/${student.user_id}`);
             fetchStudents();
             toast.success("学生删除成功");
         } catch (err) {
@@ -203,16 +254,29 @@ export default function StudentsPage() {
         setIsSubmitting(true);
         try {
             if (editingStudent) {
-                await apiClient.put(`/students/${editingStudent.student_id}`, values);
+                if (!editingStudent.user_id) {
+                    toast.error("无法找到学生ID");
+                    return;
+                }
+                await apiClient.put(`/students/${editingStudent.user_id}`, values);
                 toast.success("学生信息更新成功");
             } else {
-                await apiClient.post("/students", values);
+                // For creating a new student, ensure required fields are included
+                const createData = {
+                    ...values,
+                    password: values.password || "Password123", // Default password that meets requirements
+                    user_type: "student"
+                };
+                await apiClient.post("/students", createData);
                 toast.success("学生创建成功");
             }
             setIsDialogOpen(false);
             fetchStudents();
-        } catch (err) {
-            toast.error(`学生${editingStudent ? '更新' : '创建'}失败`);
+        } catch (err: any) {
+            // 只保留兜底错误提示，手机号等冲突交给全局拦截器
+            if (!err.response || err.response.status !== 409) {
+                toast.error(`学生${editingStudent ? '更新' : '创建'}失败`);
+            }
             console.error(err);
         } finally {
             setIsSubmitting(false);
@@ -230,9 +294,9 @@ export default function StudentsPage() {
     };
 
     const filteredStudents = students.filter(student => {
-        const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            student.student_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            student.major.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (student.real_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (student.student_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (student.major || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCollege = collegeFilter === "all" || student.college === collegeFilter;
         const matchesStatus = statusFilter === "all" || student.status === statusFilter;
         return matchesSearch && matchesCollege && matchesStatus;
@@ -242,7 +306,7 @@ export default function StudentsPage() {
     const canManageStudents = hasPermission('manage_students');
 
     return (
-        <div className="space-y-8 p-4 md:p-8">
+        <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold">学生管理</h1>
@@ -258,62 +322,14 @@ export default function StudentsPage() {
 
             {/* Statistics Cards */}
             <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">总学生数</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{students.length}</div>
-                        <p className="text-xs text-muted-foreground">
-                            活跃学生: {students.filter(s => s.status === 'active').length}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">学院数量</CardTitle>
-                        <School className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{colleges.length}</div>
-                        <p className="text-xs text-muted-foreground">
-                            不同学院
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">专业数量</CardTitle>
-                        <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {Array.from(new Set(students.map(s => s.major).filter(Boolean))).length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            不同专业
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">年级分布</CardTitle>
-                        <UserCheck className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {Array.from(new Set(students.map(s => s.grade).filter(Boolean))).length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                            不同年级
-                        </p>
-                    </CardContent>
-                </Card>
+                <StatCard title="总学生数" value={students.length} icon={Users} color="info" subtitle={`活跃学生: ${students.filter(s => s.status === 'active').length}`}/>
+                <StatCard title="学院数量" value={colleges.length} icon={School} color="purple" subtitle="不同学院"/>
+                <StatCard title="专业数量" value={Array.from(new Set(students.map(s => s.major).filter(Boolean))).length} icon={GraduationCap} color="success" subtitle="不同专业"/>
+                <StatCard title="年级分布" value={Array.from(new Set(students.map(s => s.grade).filter(Boolean))).length} icon={UserCheck} color="warning" subtitle="不同年级"/>
             </div>
 
             {/* Filters */}
-            <Card>
+            <Card className="bg-white/80 backdrop-blur border-0 shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Filter className="h-5 w-5" />
@@ -340,8 +356,8 @@ export default function StudentsPage() {
                             <SelectContent>
                                 <SelectItem value="all">全部学院</SelectItem>
                                 {colleges.map(college => (
-                                    <SelectItem key={college} value={college}>
-                                        {college}
+                                    <SelectItem key={college || 'unknown'} value={college || ''}>
+                                        {college || '未知学院'}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -364,12 +380,12 @@ export default function StudentsPage() {
             </Card>
 
             {/* Students Table */}
-            <Card>
+            <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
                 <CardHeader>
                     <CardTitle>学生列表</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="border rounded-md">
+                    <div className="border rounded-md bg-white dark:bg-gray-900/60">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -385,7 +401,7 @@ export default function StudentsPage() {
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow key="loading">
+                                    <TableRow>
                                         <TableCell colSpan={8} className="text-center py-8">
                                             <div className="flex items-center justify-center gap-2">
                                                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -394,13 +410,13 @@ export default function StudentsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : error ? (
-                                    <TableRow key="error">
+                                    <TableRow>
                                         <TableCell colSpan={8} className="text-center py-8 text-red-500">
                                             {error}
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredStudents.length === 0 ? (
-                                    <TableRow key="empty">
+                                    <TableRow>
                                         <TableCell colSpan={8} className="text-center py-8">
                                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                                 <AlertCircle className="h-8 w-8" />
@@ -411,17 +427,17 @@ export default function StudentsPage() {
                                 ) : (
                                     filteredStudents.map((student, index) => (
                                         <TableRow key={student.student_id || `student-${index}`}>
-                                            <TableCell className="font-medium">{student.student_id}</TableCell>
+                                            <TableCell className="font-medium">{student.student_id || '-'}</TableCell>
                                             <TableCell>
                                                 <div>
-                                                    <div className="font-medium">{student.name}</div>
+                                                    <div className="font-medium">{student.real_name}</div>
                                                     <div className="text-sm text-muted-foreground">{student.username}</div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{student.college}</TableCell>
-                                            <TableCell>{student.major}</TableCell>
-                                            <TableCell>{student.class}</TableCell>
-                                            <TableCell>{student.grade}</TableCell>
+                                            <TableCell>{student.college || '-'}</TableCell>
+                                            <TableCell>{student.major || '-'}</TableCell>
+                                            <TableCell>{student.class || '-'}</TableCell>
+                                            <TableCell>{student.grade || '-'}</TableCell>
                                             <TableCell>{getStatusBadge(student.status)}</TableCell>
                                             <TableCell className="text-right space-x-2">
                                                 {canManageStudents && (
@@ -436,7 +452,10 @@ export default function StudentsPage() {
                                                         <Button 
                                                             variant="destructive" 
                                                             size="icon" 
-                                                            onClick={() => handleDelete(student.student_id)}
+                                                            onClick={() => {
+                                                                setStudentToDelete(student);
+                                                                setDeleteDialogOpen(true);
+                                                            }}
                                                         >
                                                             <Trash className="h-4 w-4" />
                                                         </Button>
@@ -469,11 +488,22 @@ export default function StudentsPage() {
                                 <FormItem>
                                     <FormLabel>用户名</FormLabel>
                                     <FormControl>
-                                        <Input {...field} disabled={!!editingStudent} />
+                                        <Input {...field} disabled={!!editingStudent} placeholder="请输入用户名" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )} />
+                            {!editingStudent && (
+                                <FormField control={form.control} name="password" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>密码</FormLabel>
+                                        <FormControl>
+                                            <Input {...field} type="password" placeholder="至少8位，包含大小写字母和数字" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            )}
                             <FormField control={form.control} name="student_id" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>学号</FormLabel>
@@ -483,7 +513,7 @@ export default function StudentsPage() {
                                     <FormMessage />
                                 </FormItem>
                             )} />
-                            <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormField control={form.control} name="real_name" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>姓名</FormLabel>
                                     <FormControl>
@@ -504,9 +534,18 @@ export default function StudentsPage() {
                             <FormField control={form.control} name="college" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>学院</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} />
-                                    </FormControl>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="选择学院" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {colleges.map(college => (
+                                                <SelectItem key={college} value={college ?? ''}>{college ?? '未知学院'}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                     <FormMessage />
                                 </FormItem>
                             )} />
@@ -537,11 +576,11 @@ export default function StudentsPage() {
                                     <FormMessage />
                                 </FormItem>
                             )} />
-                            <FormField control={form.control} name="contact" render={({ field }) => (
+                            <FormField control={form.control} name="phone" render={({ field }) => (
                                <FormItem className="col-span-2">
                                    <FormLabel>联系方式</FormLabel>
                                    <FormControl>
-                                       <Input {...field} />
+                                       <Input {...field} placeholder="请输入11位手机号，如：13812345678" />
                                    </FormControl>
                                    <FormMessage />
                                </FormItem>
@@ -570,6 +609,31 @@ export default function StudentsPage() {
                             </DialogFooter>
                         </form>
                     </Form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>确认删除学生</DialogTitle>
+                        <DialogDescription>
+                            您确定要删除这个学生吗？此操作不可撤销。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+                            取消
+                        </Button>
+                        <Button variant="destructive" onClick={() => {
+                            if (studentToDelete) {
+                                handleDelete(studentToDelete.student_id || '');
+                            }
+                            setDeleteDialogOpen(false);
+                        }}>
+                            删除
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

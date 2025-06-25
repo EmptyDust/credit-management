@@ -33,18 +33,90 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import toast from "react-hot-toast";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
+const colleges = [
+    { value: "计算机学院", label: "计算机学院" },
+    { value: "信息工程学院", label: "信息工程学院" },
+    { value: "数学学院", label: "数学学院" },
+    { value: "物理学院", label: "物理学院" },
+    { value: "化学学院", label: "化学学院" },
+    { value: "生命科学学院", label: "生命科学学院" },
+    { value: "经济管理学院", label: "经济管理学院" },
+    { value: "外国语学院", label: "外国语学院" },
+    { value: "文学院", label: "文学院" },
+    { value: "法学院", label: "法学院" },
+];
+const majors: Record<string, { value: string; label: string }[]> = {
+    "计算机学院": [
+        { value: "软件工程", label: "软件工程" },
+        { value: "计算机科学与技术", label: "计算机科学与技术" },
+        { value: "人工智能", label: "人工智能" },
+        { value: "数据科学与大数据技术", label: "数据科学与大数据技术" },
+    ],
+    "信息工程学院": [
+        { value: "通信工程", label: "通信工程" },
+        { value: "电子信息工程", label: "电子信息工程" },
+        { value: "自动化", label: "自动化" },
+        { value: "物联网工程", label: "物联网工程" },
+    ],
+    "数学学院": [
+        { value: "数学与应用数学", label: "数学与应用数学" },
+        { value: "信息与计算科学", label: "信息与计算科学" },
+        { value: "统计学", label: "统计学" },
+    ],
+    "物理学院": [
+        { value: "物理学", label: "物理学" },
+        { value: "应用物理学", label: "应用物理学" },
+    ],
+    "化学学院": [
+        { value: "化学", label: "化学" },
+        { value: "应用化学", label: "应用化学" },
+    ],
+    "生命科学学院": [
+        { value: "生物科学", label: "生物科学" },
+        { value: "生物技术", label: "生物技术" },
+    ],
+    "经济管理学院": [
+        { value: "工商管理", label: "工商管理" },
+        { value: "会计学", label: "会计学" },
+        { value: "金融学", label: "金融学" },
+    ],
+    "外国语学院": [
+        { value: "英语", label: "英语" },
+        { value: "日语", label: "日语" },
+        { value: "德语", label: "德语" },
+    ],
+    "文学院": [
+        { value: "汉语言文学", label: "汉语言文学" },
+        { value: "新闻学", label: "新闻学" },
+    ],
+    "法学院": [
+        { value: "法学", label: "法学" },
+        { value: "知识产权", label: "知识产权" },
+    ],
+};
 
 const profileSchema = z.object({
     username: z.string().min(1, "用户名不能为空").max(50, "用户名最多50个字符"),
     email: z.string().email("请输入有效的邮箱地址"),
     phone: z.string().optional(),
     real_name: z.string().min(1, "真实姓名不能为空").max(50, "真实姓名最多50个字符"),
-    // 学生特定字段
+    student_id: z.string()
+      .min(8, "学号必须是8位数字")
+      .max(8, "学号必须是8位数字")
+      .regex(/^\d{8}$/, "学号必须是8位数字")
+      .optional(),
     college: z.string().optional(),
     major: z.string().optional(),
     class: z.string().optional(),
     grade: z.string().optional(),
-    // 教师特定字段
     department: z.string().optional(),
     title: z.string().optional(),
     specialty: z.string().optional(),
@@ -103,7 +175,7 @@ export default function ProfilePage() {
             try {
                 setLoading(true);
                 const response = await apiClient.get(`/users/profile`);
-                const profileData = response.data;
+                const profileData = response.data.data || response.data;
                 setProfile(profileData);
                 form.reset({
                     username: profileData.username || "",
@@ -117,6 +189,7 @@ export default function ProfilePage() {
                     department: profileData.department || "",
                     title: profileData.title || "",
                     specialty: profileData.specialty || "",
+                    student_id: profileData.student_id || "",
                 });
             } catch (err) {
                 setError("获取个人资料失败");
@@ -136,37 +209,8 @@ export default function ProfilePage() {
         try {
             const updatedProfile = { ...profile, ...values };
             const { status, ...profileWithoutStatus } = updatedProfile;
-            // 根据用户类型调用不同的API
-            if (profile.user_type === 'student') {
-                // 确保有有效的student_id
-                if (!profile.student_id) {
-                    toast.error("学号未设置，无法更新学生信息");
-                    setSaving(false);
-                    return;
-                }
-                await apiClient.put(`/students/${profile.student_id}`, {
-                    username: values.username,
-                    name: values.real_name,
-                    college: values.college,
-                    major: values.major,
-                    class: values.class,
-                    grade: values.grade,
-                    contact: values.phone,
-                    email: values.email,
-                });
-            } else if (profile.user_type === 'teacher') {
-                await apiClient.put(`/teachers/${profile.username}`, {
-                    username: values.username,
-                    name: values.real_name,
-                    department: values.department,
-                    title: values.title,
-                    specialty: values.specialty,
-                    contact: values.phone,
-                    email: values.email,
-                });
-            } else {
-                await apiClient.put(`/users/profile`, profileWithoutStatus);
-            }
+            // 统一用 /api/users/profile 修改自己
+            await apiClient.put("/users/profile", profileWithoutStatus);
             setProfile(updatedProfile);
             updateUser({
                 ...user,
@@ -197,6 +241,7 @@ export default function ProfilePage() {
                 department: profile.department || "",
                 title: profile.title || "",
                 specialty: profile.specialty || "",
+                student_id: profile.student_id || "",
             });
         }
         setIsEditing(false);
@@ -283,7 +328,7 @@ export default function ProfilePage() {
                                             <div className="flex-1">
                                                 <FormLabel>用户名</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} disabled={!isEditing} className="mt-1" />
+                                                    <Input {...field} disabled className="mt-1" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </div>
@@ -389,13 +434,20 @@ export default function ProfilePage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="flex items-center gap-4">
-                                        <GraduationCap className="h-5 w-5 text-muted-foreground" />
-                                        <div className="flex-1">
-                                            <label className="text-sm font-medium">学号</label>
-                                            <Input value={profile.student_id || '未设置'} disabled className="mt-1" />
-                                        </div>
-                                    </div>
+                                    <FormField control={form.control} name="student_id" render={({ field }) => (
+                                        <FormItem>
+                                            <div className="flex items-center gap-4">
+                                                <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                                                <div className="flex-1">
+                                                    <FormLabel>学号</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} disabled={!isEditing} className="mt-1" />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </div>
+                                            </div>
+                                        </FormItem>
+                                    )} />
                                     <FormField control={form.control} name="college" render={({ field }) => (
                                         <FormItem>
                                             <div className="flex items-center gap-4">
@@ -403,27 +455,41 @@ export default function ProfilePage() {
                                                 <div className="flex-1">
                                                     <FormLabel>学院</FormLabel>
                                                     <FormControl>
-                                                        <Input {...field} disabled={!isEditing} className="mt-1" />
+                                                        <Select disabled={!isEditing} value={field.value || ""} onValueChange={field.onChange}>
+                                                            <SelectTrigger><SelectValue placeholder="请选择学院" /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {colleges.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </FormControl>
                                                     <FormMessage />
                                                 </div>
                                             </div>
                                         </FormItem>
                                     )} />
-                                    <FormField control={form.control} name="major" render={({ field }) => (
-                                        <FormItem>
-                                            <div className="flex items-center gap-4">
-                                                <GraduationCap className="h-5 w-5 text-muted-foreground" />
-                                                <div className="flex-1">
-                                                    <FormLabel>专业</FormLabel>
-                                                    <FormControl>
-                                                        <Input {...field} disabled={!isEditing} className="mt-1" />
-                                                    </FormControl>
-                                                    <FormMessage />
+                                    <FormField control={form.control} name="major" render={({ field }) => {
+                                        const selectedCollege = form.watch("college");
+                                        const availableMajors = selectedCollege ? majors[selectedCollege] || [] : [];
+                                        return (
+                                            <FormItem>
+                                                <div className="flex items-center gap-4">
+                                                    <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                                                    <div className="flex-1">
+                                                        <FormLabel>专业</FormLabel>
+                                                        <FormControl>
+                                                            <Select disabled={!isEditing} value={field.value || ""} onValueChange={field.onChange}>
+                                                                <SelectTrigger><SelectValue placeholder="请选择专业" /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    {availableMajors.map((m: { value: string; label: string }) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </FormItem>
-                                    )} />
+                                            </FormItem>
+                                        );
+                                    }} />
                                     <FormField control={form.control} name="class" render={({ field }) => (
                                         <FormItem>
                                             <div className="flex items-center gap-4">

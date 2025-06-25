@@ -12,6 +12,7 @@ import ProfilePage from "./pages/Profile";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import RoleBasedRoute from "./components/RoleBasedRoute";
 import Layout from "./components/Layout";
 
 function App() {
@@ -25,8 +26,16 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/students" element={<Students />} />
-                <Route path="/teachers" element={<Teachers />} />
+                <Route path="/students" element={
+                  <RoleBasedRoute allowedRoles={['teacher', 'admin']}>
+                    <Students />
+                  </RoleBasedRoute>
+                } />
+                <Route path="/teachers" element={
+                  <RoleBasedRoute allowedRoles={['admin']}>
+                    <Teachers />
+                  </RoleBasedRoute>
+                } />
                 <Route path="/affairs" element={<Affairs />} />
                 <Route path="/affairs/:id" element={<AffairDetail />} />
                 <Route path="/applications" element={<Applications />} />
