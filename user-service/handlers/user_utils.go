@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"credit-management/user-service/models"
+	"credit-management/user-service/utils"
 )
 
 // convertToUserResponse 将User模型转换为UserResponse
@@ -10,11 +11,11 @@ func (h *UserHandler) convertToUserResponse(user models.User) models.UserRespons
 		UserID:       user.UserID,
 		Username:     user.Username,
 		Email:        user.Email,
-		Phone:        user.Phone,
+		Phone:        utils.DerefString(user.Phone),
 		RealName:     user.RealName,
 		UserType:     user.UserType,
 		Status:       user.Status,
-		Avatar:       user.Avatar,
+		Avatar:       utils.DerefString(user.Avatar),
 		LastLoginAt:  user.LastLoginAt,
 		RegisterTime: user.RegisterTime,
 		CreatedAt:    user.CreatedAt,

@@ -326,9 +326,9 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 	var applications []models.Application
 	if err := query.Order("submitted_at DESC").Find(&applications).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
+			"code":    500,
 			"message": "获取申请数据失败",
-			"error":   err.Error(),
+			"data":    err.Error(),
 		})
 		return
 	}
@@ -341,9 +341,9 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 		h.exportToExcel(c, applications)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "不支持的导出格式",
-			"error":   "支持的格式：csv, excel",
+			"code":    400,
+			"message": "不支持的导出格式，支持的格式：csv, excel",
+			"data":    nil,
 		})
 	}
 }

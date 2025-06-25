@@ -101,13 +101,13 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		user.Email = req.Email
 	}
 	if req.Phone != "" {
-		user.Phone = req.Phone
+		user.Phone = &req.Phone
 	}
 	if req.RealName != "" {
 		user.RealName = req.RealName
 	}
 	if req.Avatar != "" {
-		user.Avatar = req.Avatar
+		user.Avatar = &req.Avatar
 	}
 	if req.Status != "" {
 		user.Status = req.Status

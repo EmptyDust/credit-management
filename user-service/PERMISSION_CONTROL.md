@@ -2,11 +2,11 @@
 
 ## 概述
 
-本系统实现了基于角色的访问控制（RBAC），确保不同角色的用户只能访问其权限范围内的数据。
+本系统实现了基于用户类型（user_type）的访问控制，确保不同用户类型的用户只能访问其权限范围内的数据。
 
 ## 权限矩阵
 
-| 用户角色 | 学生信息 | 教师信息 | 管理员信息 | 备注 |
+| 用户类型 | 学生信息 | 教师信息 | 管理员信息 | 备注 |
 |---------|---------|---------|-----------|------|
 | 学生 | 基本信息 | 基本信息 | 无权限 | 只能查看基本信息 |
 | 教师 | 详细信息 | 基本信息 | 无权限 | 可查看学生详细信息 |
@@ -48,7 +48,7 @@
 
 ### 3. 权限控制工具函数
 
-#### 角色获取函数
+#### 用户类型获取函数
 
 ```go
 func getCurrentUserRole(c *gin.Context) string
@@ -105,17 +105,17 @@ func canViewUserDetails(currentUserRole, targetUserType string) bool
 
 **权限控制**:
 - 查看自己的信息: 所有认证用户都可以查看自己的完整信息
-- 查看他人信息: 根据角色权限过滤显示内容
+- 查看他人信息: 根据用户类型权限过滤显示内容
 
 ## 路由配置
 
 ```go
-// 学生、教师和管理员可以访问的路由（基于角色的权限控制）
+// 学生、教师和管理员可以访问的路由（基于用户类型的权限控制）
 studentTeacherOrAdmin := auth.Group("")
 studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
 {
-    studentTeacherOrAdmin.GET("/:id", userHandler.GetUser)                   // 获取指定用户信息（基于角色过滤）
-    studentTeacherOrAdmin.GET("/type/:userType", userHandler.GetUsersByType) // 根据用户类型获取用户（基于角色过滤）
+    studentTeacherOrAdmin.GET("/:id", userHandler.GetUser)                   // 获取指定用户信息（基于用户类型过滤）
+    studentTeacherOrAdmin.GET("/type/:userType", userHandler.GetUsersByType) // 根据用户类型获取用户（基于用户类型过滤）
 }
 ```
 
@@ -161,7 +161,7 @@ studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
 
 系统设计支持以下扩展：
 
-1. **新增角色**: 可以轻松添加新的用户角色
+1. **新增用户类型**: 可以轻松添加新的用户类型
 2. **权限细化**: 可以进一步细化权限控制
 3. **动态权限**: 可以支持动态权限配置
 4. **审计日志**: 可以添加权限访问审计日志
