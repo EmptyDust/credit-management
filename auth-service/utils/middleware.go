@@ -66,12 +66,10 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 
 		username, _ := claims["username"].(string)
 		userType, _ := claims["user_type"].(string)
-		role, _ := claims["role"].(string)
 
 		c.Set("user_id", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
-		c.Set("role", role)
 
 		c.Next()
 	}
@@ -181,4 +179,4 @@ func (m *PermissionMiddleware) RequireUserType(userType string) gin.HandlerFunc 
 
 		c.Next()
 	}
-} 
+}

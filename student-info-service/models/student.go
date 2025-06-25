@@ -10,8 +10,9 @@ import (
 // Student 学生模型
 type Student struct {
 	ID        string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	UserID    string         `json:"user_id" gorm:"uniqueIndex;not null"` // 关联用户表的 user_id
 	Username  string         `json:"username" gorm:"uniqueIndex;not null"`
-	StudentID string         `json:"student_id" gorm:"column:student_id;unique;not null"`
+	StudentID *string        `json:"student_id" gorm:"column:student_id"`
 	Name      string         `json:"name" gorm:"column:name;not null"`
 	College   string         `json:"college" gorm:"column:college"`
 	Major     string         `json:"major" gorm:"column:major"`
@@ -40,8 +41,9 @@ func (Student) TableName() string {
 
 // StudentRequest 学生创建请求
 type StudentRequest struct {
+	UserID    string `json:"user_id" binding:"required"` // 关联用户表的 user_id
 	Username  string `json:"username" binding:"required"`
-	StudentID string `json:"student_id" binding:"required"`
+	StudentID string `json:"student_id"`
 	Name      string `json:"name" binding:"required"`
 	College   string `json:"college"`
 	Major     string `json:"major"`

@@ -319,7 +319,7 @@ export default function Dashboard() {
       // Fetch applications to calculate stats
       try {
         const endpoint = user?.userType === 'student' 
-          ? `/applications/user/${user.username}` 
+          ? `/applications/user/${user.id}`  // 使用用户UUID查询
           : '/applications';
         const appResponse = await apiClient.get(endpoint);
         const applications = appResponse.data.applications || appResponse.data || [];

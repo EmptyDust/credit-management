@@ -46,6 +46,7 @@ const registerSchema = z.object({
   user_type: z.enum(["student", "teacher"], {
     required_error: "请选择用户类型",
   }),
+  student_id: z.string().optional(),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -64,6 +65,7 @@ export default function Register() {
       phone: "",
       real_name: "",
       user_type: "student",
+      student_id: "",
     },
   });
 
@@ -240,6 +242,29 @@ export default function Register() {
                   </FormItem>
                 )}
               />
+              {form.watch("user_type") === "student" && (
+                <FormField
+                  control={form.control}
+                  name="student_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>学号（可选）</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <FileSignature className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            {...field}
+                            placeholder="请输入学号（可选）"
+                            className="pl-10"
+                            disabled={loading}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
               <Button

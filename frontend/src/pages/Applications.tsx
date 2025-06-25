@@ -65,34 +65,37 @@ import toast from "react-hot-toast";
 
 // Types
 interface Application {
-    id: number;
-    affair_id: number;
+    id: string;
+    affair_id: string;
     affair_name?: string;
     student_number: string;
     student_name?: string;
     submission_time: string;
     status: 'unsubmitted' | 'pending' | 'approved' | 'rejected';
-    reviewer_id?: number;
+    reviewer_id?: string;
     reviewer_name?: string;
     review_comment?: string;
     review_time?: string;
     applied_credits: number;
     approved_credits: number;
     details: string;
-    files?: ApplicationFile[];
+    attachments?: string; // JSON string of attachments
 }
 
-interface ApplicationFile {
-    id: number;
-    filename: string;
+interface ApplicationAttachment {
+    id: string;
+    file_name: string;
+    original_name: string;
     file_size: number;
+    file_type: string;
+    file_path: string;
     upload_time: string;
-    file_url?: string;
-    file_type?: string;
+    description: string;
+    download_url: string;
 }
 
 interface Affair {
-    id: number;
+    id: string;
     name: string;
     description?: string;
     max_credits?: number;
@@ -108,6 +111,11 @@ interface ReviewApplicationForm {
     status: 'approved' | 'rejected';
     review_comment: string;
     approved_credits: number;
+}
+
+interface AttachmentUploadForm {
+    file: File;
+    description: string;
 }
 
 const createApplicationSchema = z.object({
@@ -169,6 +177,7 @@ export default function ApplicationsPage() {
     const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState<number>(0);
     const [isUploading, setIsUploading] = useState(false);
+    const [selectedAppAttachments, setSelectedAppAttachments] = useState<ApplicationAttachment[]>([]);
 
     const createForm = useForm<CreateApplicationForm>({
         resolver: zodResolver(createApplicationSchema),
@@ -180,11 +189,20 @@ export default function ApplicationsPage() {
         defaultValues: { status: 'approved', review_comment: "", approved_credits: 0 },
     });
 
+    // 解析附件JSON字符串
+    const parseAttachments = (attachmentsJson: string): ApplicationAttachment[] => {
+        try {
+            return attachmentsJson ? JSON.parse(attachmentsJson) : [];
+        } catch {
+            return [];
+        }
+    };
+
     const fetchApplications = async () => {
         try {
             setLoading(true);
             const endpoint = user?.userType === 'student'
-                ? `/applications/user/${user.username}`
+                ? `/applications/user/${user.id}`
                 : '/applications';
             const response = await apiClient.get(endpoint);
             setApplications(response.data.applications || []);
@@ -223,7 +241,8 @@ export default function ApplicationsPage() {
 
             const formData = new FormData();
             formData.append('affair_id', values.affair_id);
-            formData.append('student_number', user?.username || '');
+            formData.append('student_id', user?.id || '');
+            formData.append('user_id', user?.id || '');
             formData.append('details', values.details);
             formData.append('applied_credits', values.applied_credits.toString());
             
@@ -303,13 +322,34 @@ export default function ApplicationsPage() {
         setUploadingFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleFileDownload = async (fileId: number, filename: string) => {
+    const handleFileDownload = async (attachmentId: string, fileName: string) => {
         try {
-            await apiHelpers.downloadFile(`/applications/files/download/${fileId}`, filename);
+            const response = await apiClient.get(`/applications/${selectedApp?.id}/attachments/${fileName}/download`, {
+                responseType: 'blob'
+            });
+            
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            
             toast.success("文件下载成功");
         } catch (err) {
+            console.error("Failed to download file:", err);
             toast.error("文件下载失败");
         }
+    };
+
+    const handleViewApplication = (application: Application) => {
+        setSelectedApp(application);
+        // 解析附件
+        const attachments = parseAttachments(application.attachments || '[]');
+        setSelectedAppAttachments(attachments);
+        setDetailDialogOpen(true);
     };
 
     const getStatusBadge = (status: string) => {
@@ -465,7 +505,7 @@ export default function ApplicationsPage() {
                                             <TableCell>{app.submission_time?.split('T')[0] || '-'}</TableCell>
                                             <TableCell>{app.reviewer_name || '-'}</TableCell>
                                             <TableCell>
-                                                <Button size="icon" variant="ghost" className="rounded-full hover:bg-primary/10" title="查看详情" onClick={() => { setSelectedApp(app); setDetailDialogOpen(true); }}>
+                                                <Button size="icon" variant="ghost" className="rounded-full hover:bg-primary/10" title="查看详情" onClick={() => { handleViewApplication(app); }}>
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>
@@ -667,23 +707,23 @@ export default function ApplicationsPage() {
                                     </p>
                                 </div>
                             )}
-                            {selectedApp.files && selectedApp.files.length > 0 && (
+                            {selectedAppAttachments.length > 0 && (
                                 <div>
                                     <label className="text-sm font-medium">附件</label>
                                     <div className="mt-2 space-y-2">
-                                        {selectedApp.files.map((file) => (
-                                            <div key={file.id} className="flex items-center justify-between p-2 border rounded">
+                                        {selectedAppAttachments.map((attachment: ApplicationAttachment) => (
+                                            <div key={attachment.id} className="flex items-center justify-between p-2 border rounded">
                                                 <div className="flex items-center gap-2">
-                                                    {getFileIcon(file.filename)}
-                                                    <span className="text-sm">{file.filename}</span>
+                                                    {getFileIcon(attachment.original_name)}
+                                                    <span className="text-sm">{attachment.original_name}</span>
                                                     <span className="text-xs text-muted-foreground">
-                                                        ({formatFileSize(file.file_size)})
+                                                        ({formatFileSize(attachment.file_size)})
                                                     </span>
                                                 </div>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => handleFileDownload(file.id, file.filename)}
+                                                    onClick={() => handleFileDownload(attachment.id, attachment.file_name)}
                                                 >
                                                     <Download className="h-4 w-4" />
                                                 </Button>

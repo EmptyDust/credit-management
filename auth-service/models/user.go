@@ -9,14 +9,13 @@ import (
 
 // User 用户模型（认证服务专用）
 type User struct {
-	ID           string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	UserID       string         `json:"user_id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex"`
 	Phone        string         `json:"phone"`
 	RealName     string         `json:"real_name"`
 	UserType     string         `json:"user_type" gorm:"not null"`      // student, teacher, admin
-	Role         string         `json:"role" gorm:"default:'user'"`     // user, moderator, admin
 	Status       string         `json:"status" gorm:"default:'active'"` // active, inactive, suspended
 	Avatar       string         `json:"avatar"`                         // 头像文件路径
 	LastLoginAt  *time.Time     `json:"last_login_at"`
@@ -31,8 +30,8 @@ type User struct {
 
 // BeforeCreate 在创建前自动生成UUID
 func (u *User) BeforeCreate(tx *gorm.DB) error {
-	if u.ID == "" {
-		u.ID = uuid.New().String()
+	if u.UserID == "" {
+		u.UserID = uuid.New().String()
 	}
 	return nil
 }
@@ -45,13 +44,12 @@ type UserLoginRequest struct {
 
 // UserResponse 用户响应
 type UserResponse struct {
-	ID           string     `json:"id"`
+	UserID       string     `json:"user_id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`
 	RealName     string     `json:"real_name"`
 	UserType     string     `json:"user_type"`
-	Role         string     `json:"role"`
 	Status       string     `json:"status"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
 	RegisterTime time.Time  `json:"register_time"`
@@ -88,4 +86,4 @@ type RefreshTokenResponse struct {
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
 	Message      string `json:"message"`
-} 
+}

@@ -228,4 +228,64 @@ coverage/
 !.yarn/versions
 
 # pnpm
-.pnpm-store/ 
+.pnpm-store/
+
+# ===========================================
+# Project specific ignores
+# ===========================================
+# Test files and temporary files
+test_*.pdf
+test_*.txt
+downloaded_*.pdf
+*.test.js
+*.test.ts
+
+# Temporary test files in tester directory
+tester/*.pdf
+tester/*.txt
+tester/go.mod
+tester/go.sum
+
+# Application uploads and attachments
+application-management-service/uploads/
+*/uploads/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+dist/
+build/
+out/
+*.local
+
+# Node modules (already covered but explicit)
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json 

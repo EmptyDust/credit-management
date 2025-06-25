@@ -21,7 +21,7 @@ func NewPermissionHandler(db *gorm.DB) *PermissionHandler {
 func (h *PermissionHandler) CreateRole(c *gin.Context) {
 	var req models.RoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
@@ -32,17 +32,21 @@ func (h *PermissionHandler) CreateRole(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&role).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建角色失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		CreatedAt:   role.CreatedAt,
-		UpdatedAt:   role.UpdatedAt,
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": models.RoleResponse{
+			ID:          role.ID,
+			Name:        role.Name,
+			Description: role.Description,
+			IsSystem:    role.IsSystem,
+			CreatedAt:   role.CreatedAt,
+			UpdatedAt:   role.UpdatedAt,
+		},
 	})
 }
 
@@ -50,7 +54,7 @@ func (h *PermissionHandler) CreateRole(c *gin.Context) {
 func (h *PermissionHandler) GetRoles(c *gin.Context) {
 	var roles []models.Role
 	if err := h.db.Find(&roles).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get roles"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取角色失败", "data": nil})
 		return
 	}
 
@@ -66,34 +70,38 @@ func (h *PermissionHandler) GetRoles(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": responses})
 }
 
 // GetRole 获取指定角色
 func (h *PermissionHandler) GetRole(c *gin.Context) {
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	var role models.Role
 	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "角色不存在", "data": nil})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "数据库错误: " + err.Error(), "data": nil})
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, models.RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		CreatedAt:   role.CreatedAt,
-		UpdatedAt:   role.UpdatedAt,
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": models.RoleResponse{
+			ID:          role.ID,
+			Name:        role.Name,
+			Description: role.Description,
+			IsSystem:    role.IsSystem,
+			CreatedAt:   role.CreatedAt,
+			UpdatedAt:   role.UpdatedAt,
+		},
 	})
 }
 
@@ -101,22 +109,22 @@ func (h *PermissionHandler) GetRole(c *gin.Context) {
 func (h *PermissionHandler) UpdateRole(c *gin.Context) {
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	var req models.RoleUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
 	var role models.Role
 	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "角色不存在", "data": nil})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "数据库错误: " + err.Error(), "data": nil})
 		}
 		return
 	}
@@ -131,17 +139,21 @@ func (h *PermissionHandler) UpdateRole(c *gin.Context) {
 	role.IsSystem = req.IsSystem
 
 	if err := h.db.Save(&role).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新角色失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, models.RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		CreatedAt:   role.CreatedAt,
-		UpdatedAt:   role.UpdatedAt,
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": models.RoleResponse{
+			ID:          role.ID,
+			Name:        role.Name,
+			Description: role.Description,
+			IsSystem:    role.IsSystem,
+			CreatedAt:   role.CreatedAt,
+			UpdatedAt:   role.UpdatedAt,
+		},
 	})
 }
 
@@ -149,38 +161,38 @@ func (h *PermissionHandler) UpdateRole(c *gin.Context) {
 func (h *PermissionHandler) DeleteRole(c *gin.Context) {
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	var role models.Role
 	if err := h.db.Where("id = ?", roleID).First(&role).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "角色不存在", "data": nil})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "数据库错误: " + err.Error(), "data": nil})
 		}
 		return
 	}
 
 	if role.IsSystem {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete system role"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "不能删除系统角色", "data": nil})
 		return
 	}
 
 	if err := h.db.Delete(&role).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除角色失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Role deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // CreatePermission 创建权限
 func (h *PermissionHandler) CreatePermission(c *gin.Context) {
 	var req models.PermissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
@@ -192,18 +204,22 @@ func (h *PermissionHandler) CreatePermission(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&permission).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create permission"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.PermissionResponse{
-		ID:          permission.ID,
-		Name:        permission.Name,
-		Description: permission.Description,
-		Resource:    permission.Resource,
-		Action:      permission.Action,
-		CreatedAt:   permission.CreatedAt,
-		UpdatedAt:   permission.UpdatedAt,
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": models.PermissionResponse{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+			Resource:    permission.Resource,
+			Action:      permission.Action,
+			CreatedAt:   permission.CreatedAt,
+			UpdatedAt:   permission.UpdatedAt,
+		},
 	})
 }
 
@@ -211,7 +227,7 @@ func (h *PermissionHandler) CreatePermission(c *gin.Context) {
 func (h *PermissionHandler) GetPermissions(c *gin.Context) {
 	var permissions []models.Permission
 	if err := h.db.Find(&permissions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get permissions"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取权限失败", "data": nil})
 		return
 	}
 
@@ -228,35 +244,39 @@ func (h *PermissionHandler) GetPermissions(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": responses})
 }
 
 // GetPermission 获取指定权限
 func (h *PermissionHandler) GetPermission(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "权限ID不能为空", "data": nil})	
 		return
 	}
 
 	var permission models.Permission
 	if err := h.db.Where("id = ?", id).First(&permission).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "权限不存在", "data": nil})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "数据库错误: " + err.Error(), "data": nil})
 		}
 		return
 	}
 
-	c.JSON(http.StatusOK, models.PermissionResponse{
-		ID:          permission.ID,
-		Name:        permission.Name,
-		Description: permission.Description,
-		Resource:    permission.Resource,
-		Action:      permission.Action,
-		CreatedAt:   permission.CreatedAt,
-		UpdatedAt:   permission.UpdatedAt,
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"message": "success",
+		"data": models.PermissionResponse{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+			Resource:    permission.Resource,
+			Action:      permission.Action,
+			CreatedAt:   permission.CreatedAt,
+			UpdatedAt:   permission.UpdatedAt,
+		},
 	})
 }
 
@@ -264,39 +284,39 @@ func (h *PermissionHandler) GetPermission(c *gin.Context) {
 func (h *PermissionHandler) DeletePermission(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "权限ID不能为空", "data": nil})
 		return
 	}
 
 	var permission models.Permission
 	if err := h.db.Where("id = ?", id).First(&permission).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "权限不存在", "data": nil})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "数据库错误: " + err.Error(), "data": nil})
 		}
 		return
 	}
 
 	if err := h.db.Delete(&permission).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete permission"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permission deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // AssignRole 分配角色给用户
 func (h *PermissionHandler) AssignRole(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	var req models.AssignRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
@@ -306,46 +326,46 @@ func (h *PermissionHandler) AssignRole(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&userRole).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "分配角色失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Role assigned successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // RemoveRole 移除用户角色
 func (h *PermissionHandler) RemoveRole(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	if err := h.db.Where("user_id = ? AND role_id = ?", userID, roleID).Delete(&models.UserRole{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "移除角色失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Role removed successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // AssignPermission 分配权限给用户
 func (h *PermissionHandler) AssignPermission(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	var req models.AssignPermissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
@@ -355,46 +375,46 @@ func (h *PermissionHandler) AssignPermission(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&userPermission).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign permission"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "分配权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permission assigned successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // RemovePermission 移除用户权限
 func (h *PermissionHandler) RemovePermission(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	permissionID := c.Param("permissionID")
 	if permissionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "权限ID不能为空", "data": nil})
 		return
 	}
 
 	if err := h.db.Where("user_id = ? AND permission_id = ?", userID, permissionID).Delete(&models.UserPermission{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove permission"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "移除权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permission removed successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // AssignPermissionToRole 分配权限给角色
 func (h *PermissionHandler) AssignPermissionToRole(c *gin.Context) {
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	var req models.AssignPermissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
 
@@ -404,46 +424,46 @@ func (h *PermissionHandler) AssignPermissionToRole(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&rolePermission).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign permission to role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "分配权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permission assigned to role successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // RemovePermissionFromRole 移除角色权限
 func (h *PermissionHandler) RemovePermissionFromRole(c *gin.Context) {
 	roleID := c.Param("roleID")
 	if roleID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Role ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "角色ID不能为空", "data": nil})
 		return
 	}
 
 	permissionID := c.Param("permissionID")
 	if permissionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Permission ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "权限ID不能为空", "data": nil})
 		return
 	}
 
 	if err := h.db.Where("role_id = ? AND permission_id = ?", roleID, permissionID).Delete(&models.RolePermission{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove permission from role"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "移除权限失败", "data": nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Permission removed from role successfully"})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 }
 
 // GetUserRoles 获取用户角色
 func (h *PermissionHandler) GetUserRoles(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	var userRoles []models.UserRole
 	if err := h.db.Where("user_id = ?", userID).Find(&userRoles).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user roles"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户角色失败", "data": nil})
 		return
 	}
 
@@ -467,20 +487,20 @@ func (h *PermissionHandler) GetUserRoles(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": responses})
 }
 
 // GetUserPermissions 获取用户权限
 func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
 	userID := c.Param("userID")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID cannot be empty"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
 		return
 	}
 
 	var userPermissions []models.UserPermission
 	if err := h.db.Where("user_id = ?", userID).Find(&userPermissions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user permissions"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户权限失败", "data": nil})
 		return
 	}
 
@@ -505,7 +525,7 @@ func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": responses})
 }
 
 // InitializePermissions 初始化权限
@@ -571,6 +591,6 @@ func (h *PermissionHandler) InitializePermissions(c *gin.Context) {
 
 	// 只有在HTTP请求上下文中才返回JSON响应
 	if c != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "Permissions initialized successfully"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
 	}
 }

@@ -1,423 +1,221 @@
-# API Documentation
+# 学分管理系统 API 文档
 
-This document provides a comprehensive and detailed overview of the API endpoints for the Credit Management System. All endpoints are proxied through the API Gateway and are prefixed with `/api`.
+## 概述
 
-**Important Note**: All user, student, and teacher IDs are now UUID strings instead of integers for better security and uniqueness.
+学分管理系统是一个基于微服务架构的学分申请和管理平台，包含多个独立的服务模块。
 
----
+## 系统架构
 
-## Table of Contents
+系统由以下微服务组成：
 
-- [API Documentation](#api-documentation)
-  - [Table of Contents](#table-of-contents)
-  - [1. Health Check](#1-health-check)
-    - [`GET /health`](#get-health)
-  - [2. Authentication Service (`/auth`)](#2-authentication-service-auth)
-  - [3. User Management Service (`/users`)](#3-user-management-service-users)
-  - [4. Permission Management Service (`/permissions`)](#4-permission-management-service-permissions)
-    - [Role Management](#role-management)
-    - [Permission Management](#permission-management)
-    - [Assignment Management](#assignment-management)
-    - [Query Endpoints](#query-endpoints)
-  - [5. Student Info Service (`/students`)](#5-student-info-service-students)
-  - [6. Teacher Info Service (`/teachers`)](#6-teacher-info-service-teachers)
-  - [7. Affair Management Service (`/affairs`)](#7-affair-management-service-affairs)
-    - [Affair Model](#affair-model)
-    - [AffairStudent Model](#affairstudent-model)
-    - [Endpoints](#endpoints)
-      - [Create Affair Example](#create-affair-example)
-      - [Get Affair with Participants Example](#get-affair-with-participants-example)
-      - [Get Affair Applications Example](#get-affair-applications-example)
-  - [8. Application Management Service (`/applications`)](#8-application-management-service-applications)
-    - [Application Model](#application-model)
-    - [Five Credit Types](#five-credit-types)
-      - [1. Innovation Practice Credit (创新创业实践活动学分)](#1-innovation-practice-credit-创新创业实践活动学分)
-      - [2. Discipline Competition Credit (学科竞赛学分)](#2-discipline-competition-credit-学科竞赛学分)
-      - [3. Student Entrepreneurship Project Credit (大学生创业项目学分)](#3-student-entrepreneurship-project-credit-大学生创业项目学分)
-      - [4. Entrepreneurship Practice Credit (创业实践项目学分)](#4-entrepreneurship-practice-credit-创业实践项目学分)
-      - [5. Paper Patent Credit (论文专利学分)](#5-paper-patent-credit-论文专利学分)
-    - [Endpoints](#endpoints-1)
-    - [Application Workflow](#application-workflow)
-    - [Permission Control](#permission-control)
-    - [Example Requests](#example-requests)
-      - [Batch Create Applications](#batch-create-applications)
-      - [Update Application Details](#update-application-details)
-      - [Submit Application](#submit-application)
-      - [Review Application](#review-application)
-  - [9. Permission Management Service (`/permissions`)](#9-permission-management-service-permissions)
-    - [Endpoints](#endpoints-2)
-      - [Initialize Permissions Example](#initialize-permissions-example)
+- **affair-management-service** (端口: 8082) - 事务管理服务
+- **application-management-service** (端口: 8083) - 申请管理服务
+- **student-info-service** (端口: 8085) - 学生信息服务
+- **user-management-service** (端口: 8084) - 用户管理服务
+- **auth-service** (端口: 8081) - 认证服务
+- **teacher-info-service** (端口: 8086) - 教师信息服务
+- **api-gateway** (端口: 8080) - API 网关
 
----
+## 统一返回格式
 
-## 1. Health Check
+所有服务的 API 接口都使用统一的返回格式：
 
-### `GET /health`
-
-Checks the operational status of the API Gateway.
-
--   **Response (200 OK):**
-    ```json
-    {
-      "status": "ok",
-      "service": "api-gateway",
-      "version": "1.0.0"
-    }
-    ```
-
----
-
-## 2. Authentication Service (`/auth`)
-
-Handles user authentication and token management. All endpoints are prefixed with `/api/auth`.
-
-| Method | Endpoint             | Description                      | Authentication |
-| :----- | :------------------- | :------------------------------- | :------------- |
-| `POST` | `/login`             | Logs in a user.                  | None           |
-| `POST` | `/validate-token`    | Validates a JWT.                 | None           |
-| `POST` | `/refresh-token`     | Refreshes an access token.       | Required       |
-| `POST` | `/logout`            | Logs out a user.                 | Required       |
-
----
-
-## 3. User Management Service (`/users`)
-
-Handles user profiles and administrative user management. All endpoints are prefixed with `/api/users`.
-
-| Method   | Endpoint             | Description                               | Authentication            |
-| :------- | :------------------- | :---------------------------------------- | :------------------------ |
-| `POST`   | `/register`          | Registers a new user.                     | None                      |
-| `GET`    | `/stats`             | Gets user statistics.                     | Admin Required            |
-| `GET`    | `/profile`           | Gets the current user's profile.          | Required                  |
-| `PUT`    | `/profile`           | Updates the current user's profile.       | Required                  |
-| `GET`    | `/:id`               | Gets a specific user's profile by UUID.   | Admin Required            |
-| `PUT`    | `/:id`               | Updates a specific user's profile by UUID.| Admin Required            |
-| `DELETE` | `/:id`               | Deletes a user by UUID.                   | Admin Required            |
-| `GET`    | ``                   | Gets a list of all users.                 | Admin Required            |
-| `GET`    | `/type/:userType`    | Gets users by their type (`student`/`teacher`). | Admin Required      |
-
----
-
-## 4. Permission Management Service (`/permissions`)
-
-Handles roles, permissions, and their assignments. All endpoints are prefixed with `/api/permissions` and require Admin privileges.
-
-### Role Management
-
-| Method   | Endpoint             | Description           |
-| :------- | :------------------- | :-------------------- |
-| `POST`   | `/roles`             | Creates a new role.   |
-| `GET`    | `/roles`             | Gets all roles.       |
-| `GET`    | `/roles/:roleID`     | Gets a specific role. |
-| `PUT`    | `/roles/:roleID`     | Updates a role.       |
-| `DELETE` | `/roles/:roleID`     | Deletes a role.       |
-
-### Permission Management
-
-| Method   | Endpoint        | Description              |
-| :------- | :-------------- | :----------------------- |
-| `POST`   | ``              | Creates a permission.    |
-| `GET`    | ``              | Gets all permissions.    |
-| `GET`    | `/:id`          | Gets a single permission.|
-| `DELETE` | `/:id`          | Deletes a permission.    |
-
-### Assignment Management
-
-| Method   | Endpoint                                   | Description                         |
-| :------- | :----------------------------------------- | :---------------------------------- |
-| `POST`   | `/users/:userID/roles`                     | Assigns a role to a user.           |
-| `DELETE` | `/users/:userID/roles/:roleID`             | Removes a role from a user.         |
-| `POST`   | `/users/:userID/permissions`               | Assigns a permission to a user.     |
-| `DELETE` | `/users/:userID/permissions/:permissionID` | Removes a permission from a user.   |
-| `POST`   | `/roles/:roleID/permissions`               | Assigns a permission to a role.     |
-| `DELETE` | `/roles/:roleID/permissions/:permissionID` | Removes a permission from a role.   |
-
-### Query Endpoints
-
-| Method | Endpoint                   | Description                      |
-| :----- | :------------------------- | :------------------------------- |
-| `GET`  | `/users/:userID/roles`       | Gets a user's roles.             |
-| `GET`  | `/users/:userID/permissions` | Gets a user's permissions.       |
-
----
-
-## 5. Student Info Service (`/students`)
-
-Manages detailed student information. All endpoints are prefixed with `/api/students`.
-
-| Method   | Endpoint          | Description                             | Authentication |
-| :------- | :---------------- | :-------------------------------------- | :------------- |
-| `POST`   | ``                | Creates a new student record.           | Admin Required |
-| `GET`    | `/:id`            | Gets a student by UUID.                 | Required       |
-| `PUT`    | `/:id`            | Updates a student's info by UUID.       | Required       |
-| `DELETE` | `/:id`            | Deletes a student by UUID.              | Admin Required |
-| `GET`    | ``                | Gets a list of all students.            | Required       |
-| `GET`    | `/college/:college`| Gets students by college.              | Required       |
-| `GET`    | `/major/:major`   | Gets students by major.                 | Required       |
-| `GET`    | `/class/:class`   | Gets students by class.                 | Required       |
-| `GET`    | `/status/:status` | Gets students by status.                | Required       |
-| `GET`    | `/search`         | Searches for students (`?q=...`).       | Required       |
-
----
-
-## 6. Teacher Info Service (`/teachers`)
-
-Manages detailed teacher information. All endpoints are prefixed with `/api/teachers`.
-
-| Method   | Endpoint              | Description                               | Authentication |
-| :------- | :-------------------- | :---------------------------------------- | :------------- |
-| `POST`   | ``                    | Creates a new teacher record.             | Admin Required |
-| `GET`    | `/:id`                | Gets a teacher by UUID.                   | Required       |
-| `PUT`    | `/:id`                | Updates a teacher's info by UUID.         | Required       |
-| `DELETE` | `/:id`                | Deletes a teacher by UUID.                | Admin Required |
-| `GET`    | ``                    | Gets a list of all teachers.              | Required       |
-| `GET`    | `/department/:department`| Gets teachers by department.           | Required       |
-| `GET`    | `/title/:title`       | Gets teachers by title.                   | Required       |
-| `GET`    | `/status/:status`     | Gets teachers by status.                  | Required       |
-| `GET`    | `/search`             | Searches for teachers (`?q=...`).         | Required       |
-| `GET`    | `/active`             | Gets all active teachers.                 | Required       |
-
----
-
-## 7. Affair Management Service (`/affairs`)
-
-Manages affairs (事务) for which credit can be applied. All endpoints are prefixed with `/api/affairs`.
-
-### Affair Model
-
-| Field        | Type    | Description                |
-| ------------| ------- | --------------------------|
-| id          | string  | Affair UUID                |
-| name        | string  | Affair name                |
-| description | string  | Affair description         |
-| creator_id  | string  | Creator's user UUID        |
-| attachments | string  | JSON string for attachments|
-
-### AffairStudent Model
-
-| Field      | Type   | Description                |
-| ----------| ------ | --------------------------|
-| affair_id | string | Affair UUID                |
-| student_id| string | Student UUID               |
-| is_primary| bool   | Is main responsible        |
-
-### Endpoints
-
-| Method   | Endpoint                        | Description                                 | Authentication |
-| :------- | :------------------------------ | :------------------------------------------ | :------------- |
-| `POST`   | ``                              | Create a new affair (with participants, etc, will auto-create applications) | Required       |
-| `GET`    | `/:id`                          | Get a single affair (with participants)     | Required       |
-| `PUT`    | `/:id`                          | Update an affair (creator only)             | Creator Only   |
-| `DELETE` | `/:id`                          | Delete an affair                            | Creator/Admin  |
-| `GET`    | ``                              | Get a list of all affairs                   | Required       |
-| `GET`    | `/:id/participants`             | Get all participants of an affair           | Required       |
-| `GET`    | `/:id/applications`             | Get all applications under an affair        | Required       |
-
-#### Create Affair Example
-
+### 成功响应格式
 ```json
-POST /api/affairs
 {
-  "name": "创新创业项目",
-  "description": "2024年创新创业大赛",
-  "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
-  "participants": ["50685abe-8f89-4149-a245-020b8b32ffcb", "9b4e548b-fe91-4769-8f72-8ae7e8954169"],
-  "attachments": "[{\"name\":\"附件1.pdf\",\"url\":\"/uploads/1.pdf\"}]"
-}
-```
-
-#### Get Affair with Participants Example
-
-```json
-GET /api/affairs/45dea375-7e7f-4ed4-90db-9d1385dedf7e
-{
-  "affair": {
-    "id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e",
-    "name": "创新创业项目",
-    "description": "2024年创新创业大赛",
-    "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
-    "attachments": "[...]"
-  },
-  "participants": [
-    { "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_id": "50685abe-8f89-4149-a245-020b8b32ffcb", "is_primary": true },
-    { "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_id": "9b4e548b-fe91-4769-8f72-8ae7e8954169", "is_primary": false }
-  ]
-}
-```
-
-#### Get Affair Applications Example
-
-```json
-GET /api/affairs/45dea375-7e7f-4ed4-90db-9d1385dedf7e/applications
-{
-  "applications": [
-    { "id": 1, "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_number": "50685abe-8f89-4149-a245-020b8b32ffcb", ... },
-    { "id": 2, "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e", "student_number": "9b4e548b-fe91-4769-8f72-8ae7e8954169", ... }
-  ],
-  "total": 2
-}
-```
-
----
-
-## 8. Application Management Service (`/applications`)
-
-Manages credit applications with support for five different credit types. All endpoints are prefixed with `/api/applications` and require authentication.
-
-### Application Model
-
-| Field            | Type      | Description                    |
-| ----------------| --------- | ------------------------------ |
-| id              | uint      | Application ID                 |
-| affair_id       | string    | Associated affair UUID         |
-| student_number  | string    | Student UUID                   |
-| submission_time | time.Time | Submission timestamp           |
-| status          | string    | Status: unsubmitted/pending/approved/rejected |
-| reviewer_id     | string    | Reviewer UUID                  |
-| review_comment  | string    | Review comments                |
-| applied_credits | float64   | Applied credits                |
-| approved_credits| float64   | Approved credits               |
-| review_time     | *time.Time| Review timestamp               |
-
-### Five Credit Types
-
-#### 1. Innovation Practice Credit (创新创业实践活动学分)
-| Field           | Type   | Description     |
-| ---------------| ------ | --------------- |
-| internship     | string | 实习单位        |
-| project_id     | string | 项目编号        |
-| certifying_body| string | 认证机构        |
-| date           | string | 实践日期        |
-| hours          | int    | 实践时长        |
-
-#### 2. Discipline Competition Credit (学科竞赛学分)
-| Field    | Type   | Description     |
-| -------- | ------ | --------------- |
-| level    | string | 竞赛级别        |
-| name     | string | 竞赛名称        |
-| award    | string | 获奖等级        |
-| ranking  | int    | 排名            |
-
-#### 3. Student Entrepreneurship Project Credit (大学生创业项目学分)
-| Field        | Type   | Description     |
-| ------------ | ------ | --------------- |
-| project_name | string | 项目名称        |
-| project_level| string | 项目级别        |
-| project_rank | int    | 项目排名        |
-
-#### 4. Entrepreneurship Practice Credit (创业实践项目学分)
-| Field      | Type    | Description     |
-| ---------- | ------- | --------------- |
-| company_name| string  | 公司名称        |
-| company_rep| string   | 公司代表        |
-| share_ratio| float64 | 持股比例        |
-
-#### 5. Paper Patent Credit (论文专利学分)
-| Field   | Type   | Description     |
-| ------- | ------ | --------------- |
-| name    | string | 论文/专利名称   |
-| category| string | 类别            |
-| ranking | int    | 排名/影响因子   |
-
-### Endpoints
-
-| Method | Endpoint                        | Description                           | User Role      |
-| :----- | :------------------------------ | :------------------------------------ | :------------- |
-| `POST` | ``                              | Create a single application           | Student        |
-| `POST` | `/batch`                        | Batch create applications for affair  | System         |
-| `GET`  | `/:id`                          | Get application detail                | Owner/Admin    |
-| `GET`  | `/:id/detail`                   | Get full application with credit details | Owner/Admin |
-| `PUT`  | `/:id/details`                  | Update application details            | Owner Only     |
-| `POST` | `/:id/submit`                   | Submit application for review         | Owner Only     |
-| `PUT`  | `/:id/status`                   | Update application status (review)    | Admin/Reviewer |
-| `GET`  | `/user/:studentNumber`          | Get user's applications               | Owner/Admin    |
-| `GET`  | ``                              | Get all applications                  | Admin/Reviewer |
-
-### Application Workflow
-
-1. **Create Affair** → Auto-generate applications (status: unsubmitted)
-2. **Edit Application** → Students fill in credit details
-3. **Submit Application** → Status changes to pending
-4. **Review Application** → Teacher reviews and approves/rejects
-
-### Permission Control
-
-- **Students**: Can only edit their own applications
-- **Teachers/Admins**: Can view and review all applications
-- **Affair Creator**: Can edit affair information
-
-### Example Requests
-
-#### Batch Create Applications
-```json
-POST /api/applications/batch
-{
-  "affair_id": "45dea375-7e7f-4ed4-90db-9d1385dedf7e",
-  "creator_id": "50685abe-8f89-4149-a245-020b8b32ffcb",
-  "participants": ["50685abe-8f89-4149-a245-020b8b32ffcb", "9b4e548b-fe91-4769-8f72-8ae7e8954169", "45dea375-7e7f-4ed4-90db-9d1385dedf7e"]
-}
-```
-
-#### Update Application Details
-```json
-PUT /api/applications/1/details
-{
-  "applied_credits": 2.0,
-  "details": {
-    "level": "国家级",
-    "name": "全国大学生数学竞赛",
-    "award": "一等奖",
-    "ranking": 1
+  "code": 0,
+  "message": "success",
+  "data": {
+    // 具体的数据内容
   }
 }
 ```
 
-#### Submit Application
+### 错误响应格式
 ```json
-POST /api/applications/1/submit
-```
-
-#### Review Application
-```json
-PUT /api/applications/1/status
 {
-  "status": "approved",
-  "review_comment": "Materials complete, requirements met",
-  "approved_credits": 2.0
+  "code": 400,  // 错误码
+  "message": "错误描述",
+  "data": null
 }
 ```
 
----
+### 错误码说明
+- `400` - 请求参数错误
+- `401` - 未认证
+- `403` - 权限不足
+- `404` - 资源不存在
+- `500` - 服务器内部错误
 
-## 9. Permission Management Service (`/permissions`)
+## 服务文档
 
-Handles roles, permissions, and their assignments. All endpoints are prefixed with `/api/permissions`.
+### 1. 事务管理服务
+- **服务名称**: affair-management-service
+- **端口**: 8082
+- **基础路径**: `/api/affairs`
+- **功能**: 管理学分申请相关的事务，包括事务的创建、查询、更新、删除等操作
+- **详细文档**: [affair-management-service-API.md](API_DOCS/affair-management-service-API.md)
 
-### Endpoints
+### 2. 申请管理服务
+- **服务名称**: application-management-service
+- **端口**: 8083
+- **基础路径**: `/api/applications`
+- **功能**: 处理学分申请的管理，包括申请的创建、查询、更新、删除等操作
+- **详细文档**: [application-management-service-API.md](API_DOCS/application-management-service-API.md)
 
-| Method   | Endpoint             | Description           |
-| :------- | :------------------- | :-------------------- |
-| `POST`   | `/init`              | Initialize permissions and roles (no auth required) |
-| `POST`   | `/roles`             | Creates a new role.   |
-| `GET`    | `/roles`             | Gets all roles.       |
-| `GET`    | `/roles/:roleID`     | Gets a specific role. |
-| `PUT`    | `/roles/:roleID`     | Updates a role.       |
-| `DELETE` | `/roles/:roleID`     | Deletes a role.       |
-| `POST`   | ``                   | Creates a permission. |
-| `GET`    | ``                   | Gets all permissions. |
-| `GET`    | `/:id`               | Gets a single permission.|
-| `DELETE` | `/:id`               | Deletes a permission. |
-| `POST`   | `/users/:userID/roles` | Assigns a role to a user. |
-| `DELETE` | `/users/:userID/roles/:roleID` | Removes a role from a user. |
-| `POST`   | `/users/:userID/permissions` | Assigns a permission to a user. |
-| `DELETE` | `/users/:userID/permissions/:permissionID` | Removes a permission from a user. |
-| `POST`   | `/roles/:roleID/permissions` | Assigns a permission to a role. |
-| `DELETE` | `/roles/:roleID/permissions/:permissionID` | Removes a permission from a role. |
-| `GET`    | `/users/:userID/roles` | Gets a user's roles. |
-| `GET`    | `/users/:userID/permissions` | Gets a user's permissions. |
+### 3. 学生信息服务
+- **服务名称**: student-info-service
+- **端口**: 8085
+- **基础路径**: `/api/students`
+- **功能**: 管理学生基本信息，包括学生信息的创建、查询、更新、删除等操作
+- **详细文档**: [student-info-service-API.md](API_DOCS/student-info-service-API.md)
 
-#### Initialize Permissions Example
-```json
-POST /api/permissions/init
-Response: { "message": "Permissions initialized successfully" }
+### 4. 用户管理服务
+- **服务名称**: user-management-service
+- **端口**: 8084
+- **基础路径**: `/api/users`
+- **功能**: 处理用户的基本信息管理，包括用户的创建、查询、更新、删除等操作
+- **详细文档**: [user-management-service-API.md](API_DOCS/user-management-service-API.md)
+
+### 5. 认证服务
+- **服务名称**: auth-service
+- **端口**: 8081
+- **基础路径**: `/api/auth`
+- **功能**: 处理用户认证和授权，包括用户登录、令牌管理、权限验证等操作
+- **详细文档**: [auth-service-API.md](API_DOCS/auth-service-API.md)
+
+### 6. 教师信息服务
+- **服务名称**: teacher-info-service
+- **端口**: 8086
+- **基础路径**: `/api/teachers`
+- **功能**: 管理教师基本信息，包括教师信息的创建、查询、更新、删除等操作
+- **详细文档**: [teacher-info-service-API.md](API_DOCS/teacher-info-service-API.md)
+
+## 数据模型关系
+
+### 核心实体关系
+
+1. **User** (用户)
+   - 基础用户信息
+   - 关联 Student 或 Teacher
+
+2. **Student** (学生)
+   - 学生详细信息
+   - 关联 User (user_id)
+
+3. **Teacher** (教师)
+   - 教师详细信息
+   - 关联 User (user_id)
+
+4. **Affair** (事务)
+   - 学分申请事务
+   - 关联多个 Student (通过 AffairStudent)
+   - 关联多个 Application
+
+5. **Application** (申请)
+   - 学分申请
+   - 关联 Affair (affair_id)
+   - 关联 Student (student_id)
+   - 关联 User (user_id)
+
+6. **Permission** (权限)
+   - 系统权限定义
+   - 关联 User (通过 UserPermission)
+
+### 关系图
+
 ```
+User (1) -----> (1) Student
+   |
+   +----> (1) Teacher
+
+Affair (1) -----> (N) AffairStudent (N) -----> (1) Student
+   |
+   +----> (N) Application (N) -----> (1) Student
+                              |
+                              +----> (1) User
+
+User (N) -----> (N) Permission (通过 UserPermission)
+```
+
+## 认证和授权
+
+### 认证流程
+
+1. 用户通过 `/api/auth/login` 登录
+2. 获取访问令牌 (JWT)
+3. 后续请求在 Authorization 头部携带令牌
+
+### 权限控制
+
+- 基于角色的访问控制 (RBAC)
+- 细粒度权限控制
+- 支持资源级别的权限管理
+
+### 令牌管理
+
+- 访问令牌有效期：24小时
+- 刷新令牌有效期：7天
+- 支持令牌自动刷新
+- 支持令牌撤销
+
+## 错误处理
+
+所有服务都遵循统一的错误处理机制：
+
+- 统一的错误码定义
+- 详细的错误描述
+- 一致的错误响应格式
+
+## 开发指南
+
+### 环境要求
+
+- Go 1.19+
+- PostgreSQL 13+
+- Redis (可选，用于缓存)
+
+### 启动服务
+
+1. 启动数据库
+2. 运行数据库迁移
+3. 启动各个微服务
+4. 启动 API 网关
+
+### 测试
+
+每个服务都提供了完整的测试脚本，位于 `tester/` 目录下。
+
+## 部署
+
+### Docker 部署
+
+所有服务都提供了 Dockerfile，支持容器化部署。
+
+### Kubernetes 部署
+
+提供了 Kubernetes 部署配置文件，位于 `k8s/` 目录下。
+
+## 监控和日志
+
+- 统一的日志格式
+- 结构化日志输出
+- 支持日志聚合和分析
+
+## 安全考虑
+
+- JWT 令牌认证
+- 密码加密存储
+- 输入验证和清理
+- CORS 配置
+- 请求频率限制
+
+## 版本控制
+
+- API 版本通过 URL 路径控制
+- 向后兼容性保证
+- 版本迁移指南
+
+## 联系信息
+
+如有问题或建议，请联系开发团队。

@@ -73,7 +73,7 @@ export type Student = {
 // Form schema for validation
 const formSchema = z.object({
   username: z.string().min(1, "用户名不能为空").max(20, "用户名最多20个字符"),
-  student_id: z.string().min(1, "学号不能为空").max(20, "学号最多20个字符"),
+  student_id: z.string().optional(),
   name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
   college: z.string().min(1, "学院不能为空"),
   major: z.string().min(1, "专业不能为空"),
@@ -385,7 +385,7 @@ export default function StudentsPage() {
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow>
+                                    <TableRow key="loading">
                                         <TableCell colSpan={8} className="text-center py-8">
                                             <div className="flex items-center justify-center gap-2">
                                                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -394,13 +394,13 @@ export default function StudentsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : error ? (
-                                    <TableRow>
+                                    <TableRow key="error">
                                         <TableCell colSpan={8} className="text-center py-8 text-red-500">
                                             {error}
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredStudents.length === 0 ? (
-                                    <TableRow>
+                                    <TableRow key="empty">
                                         <TableCell colSpan={8} className="text-center py-8">
                                             <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                                 <AlertCircle className="h-8 w-8" />
@@ -409,8 +409,8 @@ export default function StudentsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    filteredStudents.map((student) => (
-                                        <TableRow key={student.student_id}>
+                                    filteredStudents.map((student, index) => (
+                                        <TableRow key={student.student_id || `student-${index}`}>
                                             <TableCell className="font-medium">{student.student_id}</TableCell>
                                             <TableCell>
                                                 <div>

@@ -12,36 +12,34 @@
    - 认证管理：用户登录、token验证、token刷新
    - 权限管理：角色管理、权限分配、权限验证
 
-2. **user-management-service** (端口: 8080)
+2. **user-management-service** (端口: 8084)
    - 用户基础信息管理：用户注册、用户信息维护
    - 通知管理：系统通知、用户通知
 
-3. **application-management-service** (端口: 8082)
-   - 申请信息管理：五种申请类型的管理
-   - 文件管理：申请附件及配套文件管理
+3. **credit-activity-service** (端口: 8083)
+   - 学分活动管理：活动创建、状态管理、参与者管理
+   - 申请管理：自动申请生成、申请审核、学分分配
+   - 数据统计：活动统计、申请统计、学分统计
 
-4. **affair-management-service** (端口: 8083)
-   - 事务信息管理：学分事务的管理
-
-5. **student-info-service** (端口: 8084)
+4. **student-info-service** (端口: 8085)
    - 学生信息管理：学生基础信息维护
 
-6. **teacher-info-service** (端口: 8085)
+5. **teacher-info-service** (端口: 8086)
    - 教师信息管理：教师基础信息维护
 
-7. **api-gateway** (端口: 8000)
+6. **api-gateway** (端口: 8080)
    - API网关：统一入口、路由转发、负载均衡
 
-8. **frontend** (端口: 3000)
+7. **frontend** (端口: 3000)
    - 前端应用：React + TypeScript + Tailwind CSS
 
-9. **postgres** (端口: 5432)
+8. **postgres** (端口: 5432)
    - 数据库：PostgreSQL
 
 ## 技术栈
 
 ### 后端
-- **语言**: Go 1.21
+- **语言**: Go 1.24
 - **框架**: Gin
 - **ORM**: GORM
 - **数据库**: PostgreSQL
@@ -76,20 +74,19 @@ docker-compose up -d
 
 3. 访问应用
 - 前端: http://localhost:3000
-- API网关: http://localhost:8000
-- 健康检查: http://localhost:8000/health
+- API网关: http://localhost:8080
+- 健康检查: http://localhost:8080/health
 
 ### 服务端口映射
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| API网关 | 8000 | 统一API入口 |
-| 用户管理 | 8080 | 用户基础信息 |
+| API网关 | 8080 | 统一API入口 |
 | 认证服务 | 8081 | 认证和权限 |
-| 申请管理 | 8082 | 申请和文件 |
-| 事务管理 | 8083 | 事务信息 |
-| 学生信息 | 8084 | 学生信息 |
-| 教师信息 | 8085 | 教师信息 |
+| 学分活动服务 | 8083 | 活动和申请管理 |
+| 用户管理 | 8084 | 用户基础信息 |
+| 学生信息 | 8085 | 学生信息 |
+| 教师信息 | 8086 | 教师信息 |
 | 数据库 | 5432 | PostgreSQL |
 | 前端 | 3000 | React应用 |
 
@@ -113,16 +110,30 @@ docker-compose up -d
 - `PUT /api/users/profile` - 更新用户信息
 - `GET /api/users/stats` - 获取用户统计
 
-### 申请管理
-- `GET /api/application-types` - 获取申请类型
-- `POST /api/applications` - 创建申请
-- `GET /api/applications` - 获取申请列表
-- `PUT /api/applications/{id}/status` - 更新申请状态
+### 学分活动管理
+- `GET /api/activities/categories` - 获取活动类别
+- `POST /api/activities` - 创建活动
+- `GET /api/activities` - 获取活动列表
+- `GET /api/activities/{id}` - 获取活动详情
+- `PUT /api/activities/{id}` - 更新活动
+- `DELETE /api/activities/{id}` - 删除活动
+- `POST /api/activities/{id}/submit` - 提交活动审核
+- `POST /api/activities/{id}/withdraw` - 撤回活动
+- `POST /api/activities/{id}/review` - 审核活动
 
-### 文件管理
-- `POST /api/files/upload` - 上传文件
-- `GET /api/files/download/{fileID}` - 下载文件
-- `GET /api/files/application/{applicationID}` - 获取申请文件
+### 参与者管理
+- `POST /api/activities/{id}/participants` - 添加参与者
+- `GET /api/activities/{id}/participants` - 获取参与者列表
+- `PUT /api/activities/{id}/participants/batch-credits` - 批量设置学分
+- `PUT /api/activities/{id}/participants/{user_id}/credits` - 设置单个学分
+- `DELETE /api/activities/{id}/participants/{user_id}` - 删除参与者
+- `POST /api/activities/{id}/leave` - 退出活动
+
+### 申请管理
+- `GET /api/applications` - 获取申请列表
+- `GET /api/applications/{id}` - 获取申请详情
+- `GET /api/applications/stats` - 获取申请统计
+- `GET /api/applications/export` - 导出申请数据
 
 ### 通知管理
 - `GET /api/notifications` - 获取用户通知
@@ -141,10 +152,10 @@ docker-compose up -d
 - `user_permissions` - 用户权限关联
 - `role_permissions` - 角色权限关联
 
-#### 申请相关
-- `application_types` - 申请类型
-- `applications` - 申请记录
-- `application_files` - 申请文件
+#### 学分活动相关
+- `activities` - 学分活动
+- `participants` - 活动参与者
+- `applications` - 申请记录（自动生成）
 
 #### 通知相关
 - `notifications` - 通知记录

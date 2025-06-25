@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 // Define a comprehensive user interface
 interface User {
-  id: number;
+  id: string;
   username: string;
   userType: 'student' | 'teacher' | 'admin';
   email?: string;

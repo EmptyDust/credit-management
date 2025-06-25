@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
@@ -14,6 +15,34 @@ import (
 	"credit-management/auth-service/models"
 	"credit-management/auth-service/utils"
 )
+
+// 连接数据库，带重试机制
+func connectDatabase(dsn string) (*gorm.DB, error) {
+	var db *gorm.DB
+	var err error
+	
+	// 重试配置
+	maxRetries := 30
+	retryInterval := 2 * time.Second
+	
+	for i := 0; i < maxRetries; i++ {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
+		if err == nil {
+			log.Printf("Successfully connected to database on attempt %d", i+1)
+			return db, nil
+		}
+		
+		log.Printf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
+		if i < maxRetries-1 {
+			log.Printf("Retrying in %v...", retryInterval)
+			time.Sleep(retryInterval)
+		}
+	}
+	
+	return nil, fmt.Errorf("failed to connect to database after %d attempts: %v", maxRetries, err)
+}
 
 func main() {
 	// 数据库连接配置
@@ -27,15 +56,15 @@ func main() {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
 
-	// 连接数据库
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
+	// 连接数据库（带重试）
+	log.Println("Connecting to database...")
+	db, err := connectDatabase(dsn)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
 	// 自动迁移数据库表
+	log.Println("Running database migrations...")
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Role{},
@@ -51,6 +80,7 @@ func main() {
 	}
 
 	// 在一个事务中完成所有初始化
+	log.Println("Initializing data...")
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if err := handlers.InitializeAdminUser(tx); err != nil {
 			return err
@@ -102,6 +132,7 @@ func main() {
 			auth.POST("/validate-token", authHandler.ValidateToken) // 验证JWT token
 			auth.POST("/refresh-token", authHandler.RefreshToken)   // 刷新token
 			auth.POST("/logout", authHandler.Logout)                // 用户登出
+			auth.GET("/validate-permission", authHandler.ValidatePermission) // 验证用户权限
 		}
 
 		// 权限管理路由
