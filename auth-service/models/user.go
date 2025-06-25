@@ -12,20 +12,17 @@ type User struct {
 	UserID       string         `json:"user_id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
-	Email        string         `json:"email" gorm:"uniqueIndex"`
-	Phone        string         `json:"phone"`
-	RealName     string         `json:"real_name"`
+	Email        string         `json:"email" gorm:"uniqueIndex;not null"`
+	Phone        *string        `json:"phone" gorm:"uniqueIndex"` // 可为空
+	RealName     string         `json:"real_name" gorm:"not null"`
 	UserType     string         `json:"user_type" gorm:"not null"`      // student, teacher, admin
 	Status       string         `json:"status" gorm:"default:'active'"` // active, inactive, suspended
-	Avatar       string         `json:"avatar"`                         // 头像文件路径
+	Avatar       *string        `json:"avatar"`                         // 头像文件路径，可为空
 	LastLoginAt  *time.Time     `json:"last_login_at"`
 	RegisterTime time.Time      `json:"register_time" gorm:"autoCreateTime"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
-
-	// 关联关系
-	Permissions []Permission `json:"permissions,omitempty" gorm:"many2many:user_permissions;"`
 }
 
 // BeforeCreate 在创建前自动生成UUID

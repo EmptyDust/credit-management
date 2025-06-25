@@ -76,7 +76,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		UserID:       user.UserID,
 		Username:     user.Username,
 		Email:        user.Email,
-		Phone:        user.Phone,
+		Phone:        *user.Phone,
 		RealName:     user.RealName,
 		UserType:     user.UserType,
 		Status:       user.Status,
@@ -182,7 +182,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 		UserID:       user.UserID,
 		Username:     user.Username,
 		Email:        user.Email,
-		Phone:        user.Phone,
+		Phone:        *user.Phone,
 		RealName:     user.RealName,
 		UserType:     user.UserType,
 		Status:       user.Status,
@@ -391,33 +391,9 @@ func InitializeAdminUser(db *gorm.DB) error {
 		if err := db.Create(&adminUser).Error; err != nil {
 			return err
 		}
-	}
-
-	// Check if admin role exists
-	var adminRole models.Role
-	if err := db.Where("name = ?", "admin").First(&adminRole).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// Create admin role if it does not exist
-			adminRole = models.Role{Name: "admin", Description: "Administrator role", IsSystem: true}
-			if err := db.Create(&adminRole).Error; err != nil {
-				log.Printf("failed to create admin role: %v", err)
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-
-	// Assign admin role to admin user
-	var adminUser models.User
-	db.Where("username = ?", "admin").First(&adminUser)
-	var userRoleCount int64
-	db.Model(&models.UserRole{}).Where("user_id = ? AND role_id = ?", adminUser.UserID, adminRole.ID).Count(&userRoleCount)
-	if userRoleCount == 0 {
-		userRole := models.UserRole{UserID: adminUser.UserID, RoleID: adminRole.ID}
-		if err := db.Create(&userRole).Error; err != nil {
-			return err
-		}
+		log.Println("Admin user created successfully")
+	} else {
+		log.Println("Admin user already exists")
 	}
 
 	return nil

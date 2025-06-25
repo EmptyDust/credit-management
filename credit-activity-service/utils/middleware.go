@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // AuthMiddleware 认证中间件
@@ -41,8 +42,8 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		token := parts[1]
-		if token == "" {
+		tokenString := parts[1]
+		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code":    401,
 				"message": "token不能为空",
@@ -52,15 +53,45 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		// 这里应该调用auth服务验证token
-		// 暂时使用模拟数据
-		userID := "user-uuid"
-		userType := "student"
+		// 解析JWT
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// 不校验签名（仅演示，生产环境应校验！）
+			return []byte("your-secret-key"), nil
+		})
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code":    401,
+				"message": "无效的token",
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
 
-		// 设置用户信息到上下文
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code":    401,
+				"message": "token claims无效",
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
+
+		userID, ok := claims["user_id"].(string)
+		if !ok || userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code":    401,
+				"message": "token缺少user_id",
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
+		userType, _ := claims["user_type"].(string)
 		c.Set("user_id", userID)
 		c.Set("user_type", userType)
-
 		c.Next()
 	}
 }

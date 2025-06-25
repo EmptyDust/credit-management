@@ -13,7 +13,6 @@ import (
 
 	"credit-management/auth-service/handlers"
 	"credit-management/auth-service/models"
-	"credit-management/auth-service/utils"
 )
 
 // 连接数据库，带重试机制
@@ -70,16 +69,8 @@ func main() {
 
 	if !tableExists {
 		log.Println("Tables not found, creating database tables...")
-		// 自动迁移数据库表
 		err = db.AutoMigrate(
 			&models.User{},
-			&models.Role{},
-			&models.Permission{},
-			&models.UserRole{},
-			&models.UserPermission{},
-			&models.RolePermission{},
-			&models.PermissionGroup{},
-			&models.PermissionGroupPermission{},
 		)
 		if err != nil {
 			log.Fatal("Failed to migrate database:", err)
@@ -88,15 +79,11 @@ func main() {
 		log.Println("Database tables already exist, skipping AutoMigrate")
 	}
 
-	// 在一个事务中完成所有初始化
-	log.Println("Initializing data...")
+	// 初始化管理员用户
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if err := handlers.InitializeAdminUser(tx); err != nil {
 			return err
 		}
-		// 初始化权限和角色
-		permissionHandler := handlers.NewPermissionHandler(tx)
-		permissionHandler.InitializePermissions(nil) // 传入nil context，因为这是初始化调用
 		return nil
 	})
 	if err != nil {
@@ -108,11 +95,6 @@ func main() {
 
 	// 创建处理器
 	authHandler := handlers.NewAuthHandler(db, jwtSecret)
-	permissionHandler := handlers.NewPermissionHandler(db)
-
-	// 创建中间件
-	authMiddleware := utils.NewAuthMiddleware(jwtSecret)
-	permissionMiddleware := utils.NewPermissionMiddleware(db)
 
 	// 设置Gin路由
 	r := gin.Default()
@@ -137,49 +119,10 @@ func main() {
 		// 认证相关路由
 		auth := api.Group("/auth")
 		{
-			auth.POST("/login", authHandler.Login)                           // 用户登录
-			auth.POST("/validate-token", authHandler.ValidateToken)          // 验证JWT token
-			auth.POST("/refresh-token", authHandler.RefreshToken)            // 刷新token
-			auth.POST("/logout", authHandler.Logout)                         // 用户登出
-			auth.GET("/validate-permission", authHandler.ValidatePermission) // 验证用户权限
-		}
-
-		// 权限管理路由
-		permissions := api.Group("/permissions")
-		{
-			// 初始化权限（不需要权限验证）
-			permissions.POST("/init", permissionHandler.InitializePermissions)
-
-			// 需要权限验证的路由
-			permissions.Use(authMiddleware.AuthRequired(), permissionMiddleware.RequirePermission("permission", "manage"))
-			{
-				// 角色管理
-				permissions.POST("/roles", permissionHandler.CreateRole)           // 创建角色
-				permissions.GET("/roles", permissionHandler.GetRoles)              // 获取所有角色
-				permissions.GET("/roles/:roleID", permissionHandler.GetRole)       // 获取指定角色
-				permissions.PUT("/roles/:roleID", permissionHandler.UpdateRole)    // 更新角色
-				permissions.DELETE("/roles/:roleID", permissionHandler.DeleteRole) // 删除角色
-
-				// 权限管理
-				permissions.POST("", permissionHandler.CreatePermission)       // 创建权限
-				permissions.GET("", permissionHandler.GetPermissions)          // 获取所有权限
-				permissions.GET("/:id", permissionHandler.GetPermission)       // 获取指定权限
-				permissions.DELETE("/:id", permissionHandler.DeletePermission) // 删除权限
-
-				// 用户权限分配
-				permissions.POST("/users/:userID/roles", permissionHandler.AssignRole)                             // 分配角色给用户
-				permissions.DELETE("/users/:userID/roles/:roleID", permissionHandler.RemoveRole)                   // 移除用户角色
-				permissions.POST("/users/:userID/permissions", permissionHandler.AssignPermission)                 // 分配权限给用户
-				permissions.DELETE("/users/:userID/permissions/:permissionID", permissionHandler.RemovePermission) // 移除用户权限
-
-				// 角色权限管理
-				permissions.POST("/roles/:roleID/permissions", permissionHandler.AssignPermissionToRole)                   // 分配权限给角色
-				permissions.DELETE("/roles/:roleID/permissions/:permissionID", permissionHandler.RemovePermissionFromRole) // 移除角色权限
-
-				// 查询
-				permissions.GET("/users/:userID/roles", permissionHandler.GetUserRoles)             // 获取用户角色
-				permissions.GET("/users/:userID/permissions", permissionHandler.GetUserPermissions) // 获取用户权限
-			}
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/validate-token", authHandler.ValidateToken)
+			auth.POST("/refresh-token", authHandler.RefreshToken)
+			auth.POST("/logout", authHandler.Logout)
 		}
 	}
 

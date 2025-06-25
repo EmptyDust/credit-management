@@ -9,6 +9,7 @@ type StudentBasicResponse struct {
 	UserID       string    `json:"user_id"`
 	Username     string    `json:"username"`
 	RealName     string    `json:"real_name"`
+	UserType     string    `json:"user_type"`
 	StudentID    *string   `json:"student_id,omitempty"`
 	College      *string   `json:"college,omitempty"`
 	Major        *string   `json:"major,omitempty"`
@@ -26,6 +27,7 @@ type TeacherBasicResponse struct {
 	UserID       string    `json:"user_id"`
 	Username     string    `json:"username"`
 	RealName     string    `json:"real_name"`
+	UserType     string    `json:"user_type"`
 	Department   *string   `json:"department,omitempty"`
 	Title        *string   `json:"title,omitempty"`
 	Status       string    `json:"status"`
@@ -42,6 +44,7 @@ type StudentDetailResponse struct {
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`
 	RealName     string     `json:"real_name"`
+	UserType     string     `json:"user_type"`
 	StudentID    *string    `json:"student_id,omitempty"`
 	College      *string    `json:"college,omitempty"`
 	Major        *string    `json:"major,omitempty"`
@@ -62,6 +65,7 @@ type TeacherDetailResponse struct {
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`
 	RealName     string     `json:"real_name"`
+	UserType     string     `json:"user_type"`
 	Department   *string    `json:"department,omitempty"`
 	Title        *string    `json:"title,omitempty"`
 	Specialty    *string    `json:"specialty,omitempty"`

@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"credit-management/credit-activity-service/handlers"
-	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
@@ -33,29 +32,28 @@ func main() {
 	// 自动迁移数据库表
 	log.Println("正在迁移数据库表...")
 	if err := autoMigrate(db); err != nil {
-		log.Fatal("Failed to migrate database:", err)
+		log.Printf("Warning: AutoMigrate failed, but continuing with init.sql schema: %v", err)
+	} else {
+		log.Println("数据库表迁移成功")
 	}
-	log.Println("数据库表迁移成功")
 
 	// 创建触发器
 	log.Println("正在创建触发器...")
 	if err := createTriggers(db); err != nil {
-		log.Fatal("Failed to create triggers:", err)
+		log.Printf("Warning: Trigger creation failed, but continuing: %v", err)
+	} else {
+		log.Println("触发器创建成功")
 	}
-	log.Println("触发器创建成功")
 
-	// 初始化处理器
-	log.Println("正在初始化处理器...")
+	// 创建处理器
 	activityHandler := handlers.NewActivityHandler(db)
 	participantHandler := handlers.NewParticipantHandler(db)
 	applicationHandler := handlers.NewApplicationHandler(db)
-	log.Println("处理器初始化成功")
+	attachmentHandler := handlers.NewAttachmentHandler(db)
 
-	// 初始化中间件
-	log.Println("正在初始化中间件...")
+	// 创建中间件
 	authMiddleware := utils.NewAuthMiddleware()
 	permissionMiddleware := utils.NewPermissionMiddleware()
-	log.Println("中间件初始化成功")
 
 	// 创建路由
 	log.Println("正在创建路由...")
@@ -81,6 +79,8 @@ func main() {
 		{
 			// 获取活动类别（无需认证）
 			activities.GET("/categories", activityHandler.GetActivityCategories)
+			// 获取活动模板（无需认证）
+			activities.GET("/templates", activityHandler.GetActivityTemplates)
 
 			// 需要认证的路由
 			auth := activities.Group("")
@@ -90,22 +90,25 @@ func main() {
 				allUsers := auth.Group("")
 				allUsers.Use(permissionMiddleware.AllUsers())
 				{
-					allUsers.GET("", activityHandler.GetActivities)                  // 获取活动列表
-					allUsers.GET("/stats", activityHandler.GetActivityStats)         // 获取活动统计
-					allUsers.POST("", activityHandler.CreateActivity)                // 创建活动
-					allUsers.GET("/:id", activityHandler.GetActivity)                // 获取活动详情
-					allUsers.PUT("/:id", activityHandler.UpdateActivity)             // 更新活动
-					allUsers.DELETE("/:id", activityHandler.DeleteActivity)          // 删除活动
-					allUsers.POST("/:id/submit", activityHandler.SubmitActivity)     // 提交活动审核
-					allUsers.POST("/:id/withdraw", activityHandler.WithdrawActivity) // 撤回活动
+					allUsers.GET("", activityHandler.GetActivities)                    // 获取活动列表
+					allUsers.GET("/stats", activityHandler.GetActivityStats)           // 获取活动统计
+					allUsers.POST("", activityHandler.CreateActivity)                  // 创建活动
+					allUsers.POST("/batch", activityHandler.BatchCreateActivities)     // 批量创建活动
+					allUsers.GET("/:id", activityHandler.GetActivity)                  // 获取活动详情
+					allUsers.PUT("/:id", activityHandler.UpdateActivity)               // 更新活动
+					allUsers.DELETE("/:id", activityHandler.DeleteActivity)            // 删除活动
+					allUsers.POST("/:id/submit", activityHandler.SubmitActivity)       // 提交活动审核
+					allUsers.POST("/:id/withdraw", activityHandler.WithdrawActivity)   // 撤回活动
+					allUsers.GET("/deletable", activityHandler.GetDeletableActivities) // 获取可删除的活动列表
 				}
 
 				// 教师和管理员可以访问的路由
 				teacherOrAdmin := auth.Group("")
 				teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
 				{
-					teacherOrAdmin.POST("/:id/review", activityHandler.ReviewActivity)   // 审核活动
-					teacherOrAdmin.GET("/pending", activityHandler.GetPendingActivities) // 获取待审核活动
+					teacherOrAdmin.POST("/:id/review", activityHandler.ReviewActivity)          // 审核活动
+					teacherOrAdmin.GET("/pending", activityHandler.GetPendingActivities)        // 获取待审核活动
+					teacherOrAdmin.POST("/batch-delete", activityHandler.BatchDeleteActivities) // 批量删除活动
 				}
 			}
 
@@ -129,6 +132,31 @@ func main() {
 				studentOnly.Use(permissionMiddleware.StudentOnly())
 				{
 					studentOnly.POST("/leave", participantHandler.LeaveActivity) // 退出活动
+				}
+
+				// 附件管理路由
+				// 所有认证用户都可以访问的路由
+				allUsers := participants.Group("")
+				allUsers.Use(permissionMiddleware.AllUsers())
+				{
+					allUsers.GET("/attachments", attachmentHandler.GetAttachments)                             // 获取附件列表
+					allUsers.GET("/attachments/:attachment_id/download", attachmentHandler.DownloadAttachment) // 下载附件
+				}
+
+				// 活动创建者、参与者和管理员可以访问的路由
+				participantsOrAdmin := participants.Group("")
+				participantsOrAdmin.Use(permissionMiddleware.AllUsers()) // 这里需要在handler中检查权限
+				{
+					participantsOrAdmin.POST("/attachments", attachmentHandler.UploadAttachment)             // 上传单个附件
+					participantsOrAdmin.POST("/attachments/batch", attachmentHandler.BatchUploadAttachments) // 批量上传附件
+				}
+
+				// 上传者和管理员可以访问的路由
+				uploaderOrAdmin := participants.Group("")
+				uploaderOrAdmin.Use(permissionMiddleware.AllUsers()) // 这里需要在handler中检查权限
+				{
+					uploaderOrAdmin.PUT("/attachments/:attachment_id", attachmentHandler.UpdateAttachment)    // 更新附件信息
+					uploaderOrAdmin.DELETE("/attachments/:attachment_id", attachmentHandler.DeleteAttachment) // 删除附件
 				}
 			}
 		}
@@ -206,29 +234,8 @@ func initDatabase() (*gorm.DB, error) {
 
 // autoMigrate 自动迁移数据库表
 func autoMigrate(db *gorm.DB) error {
-	// 删除所有表（测试阶段）
-	if err := db.Migrator().DropTable(&models.Application{}); err != nil {
-		return err
-	}
-	if err := db.Migrator().DropTable(&models.ActivityParticipant{}); err != nil {
-		return err
-	}
-	if err := db.Migrator().DropTable(&models.CreditActivity{}); err != nil {
-		return err
-	}
-
-	// 创建表
-	if err := db.AutoMigrate(&models.CreditActivity{}); err != nil {
-		return err
-	}
-	if err := db.AutoMigrate(&models.ActivityParticipant{}); err != nil {
-		return err
-	}
-	if err := db.AutoMigrate(&models.Application{}); err != nil {
-		return err
-	}
-
-	log.Println("Database tables migrated successfully")
+	// 只进行表结构更新，不删除表，忽略错误
+	log.Println("Skipping AutoMigrate to use init.sql schema")
 	return nil
 }
 

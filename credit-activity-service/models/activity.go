@@ -46,7 +46,7 @@ type CreditActivity struct {
 	Category       string         `json:"category"`
 	Requirements   string         `json:"requirements"`
 	OwnerID        string         `json:"owner_id" gorm:"type:uuid;not null;index"`
-	ReviewerID     string         `json:"reviewer_id" gorm:"type:uuid"`
+	ReviewerID     *string        `json:"reviewer_id" gorm:"type:uuid"`
 	ReviewComments string         `json:"review_comments"`
 	ReviewedAt     *time.Time     `json:"reviewed_at"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -73,12 +73,26 @@ func (CreditActivity) TableName() string {
 
 // ActivityParticipant 活动参与者模型
 type ActivityParticipant struct {
-	ActivityID string    `json:"activity_id" gorm:"primaryKey;type:uuid"`
-	UserID     string    `json:"user_id" gorm:"primaryKey;type:uuid"`
-	Credits    float64   `json:"credits" gorm:"not null;default:0"`
-	JoinedAt   time.Time `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID string         `json:"activity_id" gorm:"type:uuid;not null;index"`
+	UserID     string         `json:"user_id" gorm:"type:uuid;not null;index"`
+	Credits    float64        `json:"credits" gorm:"type:decimal(5,2);not null;default:0"`
+	JoinedAt   time.Time      `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+
+	// 关联关系
+	Activity CreditActivity `json:"activity" gorm:"foreignKey:ActivityID"`
+	User     UserInfo       `json:"user" gorm:"foreignKey:UserID"`
+}
+
+// BeforeCreate 在创建前自动生成UUID
+func (ap *ActivityParticipant) BeforeCreate(tx *gorm.DB) error {
+	if ap.ID == "" {
+		ap.ID = uuid.New().String()
+	}
+	return nil
 }
 
 // TableName 指定表名
@@ -92,8 +106,8 @@ type Application struct {
 	ActivityID     string         `json:"activity_id" gorm:"type:uuid;not null;index"`
 	UserID         string         `json:"user_id" gorm:"type:uuid;not null;index"`
 	Status         string         `json:"status" gorm:"default:'approved';index"`
-	AppliedCredits float64        `json:"applied_credits" gorm:"not null"`
-	AwardedCredits float64        `json:"awarded_credits" gorm:"not null"`
+	AppliedCredits float64        `json:"applied_credits" gorm:"type:decimal(5,2);not null"`
+	AwardedCredits float64        `json:"awarded_credits" gorm:"type:decimal(5,2);not null"`
 	SubmittedAt    time.Time      `json:"submitted_at" gorm:"default:CURRENT_TIMESTAMP"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
@@ -126,14 +140,34 @@ type ActivityRequest struct {
 	Requirements string `json:"requirements"`
 }
 
-// ActivityUpdateRequest 活动更新请求
-type ActivityUpdateRequest struct {
+// BatchActivityRequest 批量创建活动请求
+type BatchActivityRequest struct {
+	Activities []ActivityRequest `json:"activities" binding:"required,min=1,max=10"`
+}
+
+// ActivityCreateResponse 活动创建响应
+type ActivityCreateResponse struct {
+	ID           string    `json:"id"`
 	Title        string    `json:"title"`
 	Description  string    `json:"description"`
 	StartDate    time.Time `json:"start_date"`
 	EndDate      time.Time `json:"end_date"`
+	Status       string    `json:"status"`
 	Category     string    `json:"category"`
 	Requirements string    `json:"requirements"`
+	OwnerID      string    `json:"owner_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// ActivityUpdateRequest 活动更新请求
+type ActivityUpdateRequest struct {
+	Title        *string `json:"title"`        // 使用指针支持清空字段
+	Description  *string `json:"description"`  // 使用指针支持清空字段
+	StartDate    *string `json:"start_date"`   // 使用字符串格式，与创建活动一致
+	EndDate      *string `json:"end_date"`     // 使用字符串格式，与创建活动一致
+	Category     *string `json:"category"`     // 使用指针支持清空字段
+	Requirements *string `json:"requirements"` // 使用指针支持清空字段
 }
 
 // ActivityReviewRequest 审核活动请求
@@ -153,7 +187,7 @@ type ActivityResponse struct {
 	Category       string                `json:"category"`
 	Requirements   string                `json:"requirements"`
 	OwnerID        string                `json:"owner_id"`
-	ReviewerID     string                `json:"reviewer_id"`
+	ReviewerID     *string               `json:"reviewer_id"`
 	ReviewComments string                `json:"review_comments"`
 	ReviewedAt     *time.Time            `json:"reviewed_at"`
 	CreatedAt      time.Time             `json:"created_at"`
