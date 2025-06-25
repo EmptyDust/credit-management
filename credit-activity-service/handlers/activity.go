@@ -3,6 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -584,36 +586,65 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 	userType, _ := c.Get("user_type")
 
 	// 使用存储过程删除活动（包含权限检查和级联删除）
-	var result bool
+	var result string
 	err := h.db.Raw("SELECT delete_activity_with_permission_check(?, ?, ?)", id, userID, userType).Scan(&result).Error
 
 	if err != nil {
-		// 检查是否是权限错误
-		if err.Error() == "权限不足：只有活动创建者和管理员可以删除活动" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "无权限删除此活动",
-				"data":    nil,
-			})
-			return
-		}
-
-		// 检查是否是活动不存在错误
-		if err.Error() == "活动不存在或已被删除" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在或已被删除",
-				"data":    nil,
-			})
-			return
-		}
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "删除活动失败: " + err.Error(),
 			"data":    nil,
 		})
 		return
+	}
+
+	// 检查存储过程的返回结果
+	if result != "活动删除成功" {
+		// 根据返回的错误信息设置相应的HTTP状态码
+		switch result {
+		case "活动不存在或已删除":
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": result,
+				"data":    nil,
+			})
+		case "无权限删除该活动":
+			c.JSON(http.StatusForbidden, gin.H{
+				"code":    403,
+				"message": result,
+				"data":    nil,
+			})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": result,
+				"data":    nil,
+			})
+		}
+		return
+	}
+
+	// 删除活动相关的物理文件（如果有的话）
+	// 注意：存储过程已经处理了附件的逻辑删除，这里只需要处理物理文件
+	var attachments []models.Attachment
+	if err := h.db.Where("activity_id = ? AND deleted_at IS NOT NULL", id).Find(&attachments).Error; err == nil {
+		for _, attachment := range attachments {
+			// 检查是否有其他活动使用相同的文件
+			var otherAttachmentsCount int64
+			h.db.Model(&models.Attachment{}).
+				Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, id).
+				Count(&otherAttachmentsCount)
+
+			// 如果没有其他活动使用该文件，则删除物理文件
+			if otherAttachmentsCount == 0 {
+				filePath := filepath.Join("uploads/attachments", attachment.FileName)
+				if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+					fmt.Printf("删除物理文件失败: %v\n", err)
+				} else {
+					fmt.Printf("彻底删除物理文件: %s\n", filePath)
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1068,6 +1099,30 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 			"data":    nil,
 		})
 		return
+	}
+
+	// 删除活动相关的物理文件
+	for _, activityID := range req.ActivityIDs {
+		var attachments []models.Attachment
+		if err := h.db.Where("activity_id = ? AND deleted_at IS NOT NULL", activityID).Find(&attachments).Error; err == nil {
+			for _, attachment := range attachments {
+				// 检查是否有其他活动使用相同的文件
+				var otherAttachmentsCount int64
+				h.db.Model(&models.Attachment{}).
+					Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).
+					Count(&otherAttachmentsCount)
+
+				// 如果没有其他活动使用该文件，则删除物理文件
+				if otherAttachmentsCount == 0 {
+					filePath := filepath.Join("uploads/attachments", attachment.FileName)
+					if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+						fmt.Printf("删除物理文件失败: %v\n", err)
+					} else {
+						fmt.Printf("彻底删除物理文件: %s\n", filePath)
+					}
+				}
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

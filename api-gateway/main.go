@@ -208,9 +208,7 @@ func createProxyHandler(targetURL string) gin.HandlerFunc {
 		// 创建反向代理
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
-		// 修改请求路径
-		originalPath := c.Request.URL.Path
-		c.Request.URL.Path = originalPath
+		// 修改请求路径 - 保持原始路径
 		c.Request.URL.Host = target.Host
 		c.Request.URL.Scheme = target.Scheme
 

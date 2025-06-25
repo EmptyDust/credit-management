@@ -837,6 +837,12 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
+	// 检查是否有其他活动使用相同的文件
+	var otherAttachmentsCount int64
+	h.db.Model(&models.Attachment{}).
+		Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).
+		Count(&otherAttachmentsCount)
+
 	// 软删除附件记录
 	if err := h.db.Delete(&attachment).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -847,11 +853,17 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// 删除物理文件
-	filePath := filepath.Join("uploads/attachments", attachment.FileName)
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-		// 记录错误但不影响响应
-		fmt.Printf("删除物理文件失败: %v\n", err)
+	// 如果没有其他活动使用该文件，则删除物理文件
+	if otherAttachmentsCount == 0 {
+		filePath := filepath.Join("uploads/attachments", attachment.FileName)
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			// 记录错误但不影响响应
+			fmt.Printf("删除物理文件失败: %v\n", err)
+		} else {
+			fmt.Printf("彻底删除物理文件: %s\n", filePath)
+		}
+	} else {
+		fmt.Printf("文件被其他活动使用，保留物理文件: %s (其他活动数量: %d)\n", attachment.FileName, otherAttachmentsCount)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -860,6 +872,7 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		"data": gin.H{
 			"attachment_id": attachmentID,
 			"deleted_at":    time.Now(),
+			"file_removed":  otherAttachmentsCount == 0,
 		},
 	})
 }
