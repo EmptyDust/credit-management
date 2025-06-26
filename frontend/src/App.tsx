@@ -10,11 +10,11 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Teachers from "./pages/Teachers";
-import Affairs from "./pages/Affairs";
-import AffairDetail from "./pages/AffairDetail";
-import ActivityEdit from "./pages/ActivityEdit";
+import Activities from "./pages/Activities";
+import ActivityDetail from "./pages/ActivityDetail";
 import Applications from "./pages/Applications";
 import ProfilePage from "./pages/Profile";
+import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -48,14 +48,14 @@ function App() {
                     </RoleBasedRoute>
                   }
                 />
-                <Route path="/affairs" element={<Affairs />} />
-                <Route path="/affairs/:id" element={<AffairDetail />} />
-                <Route path="/affairs/edit/:id" element={<ActivityEdit />} />
+                <Route path="/activities" element={<Activities />} />
+                <Route path="/activities/:id" element={<ActivityDetail />} />
                 <Route path="/applications" element={<Applications />} />
                 <Route path="/profile" element={<ProfilePage />} />
               </Route>
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Router>
         <Toaster

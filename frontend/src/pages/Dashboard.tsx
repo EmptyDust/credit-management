@@ -55,10 +55,10 @@ interface ApplicationStats {
   credits_this_month: number;
 }
 
-interface AffairStats {
-  total_affairs: number;
-  active_affairs: number;
-  recent_affairs: Array<{
+interface ActivityStats {
+  total_activities: number;
+  active_activities: number;
+  recent_activities: Array<{
     id: string;
     name: string;
     description: string;
@@ -66,7 +66,7 @@ interface AffairStats {
     application_count: number;
     created_at: string;
   }>;
-  popular_affairs: Array<{
+  popular_activities: Array<{
     id: string;
     name: string;
     application_count: number;
@@ -76,7 +76,7 @@ interface AffairStats {
 
 interface RecentActivity {
   id: string;
-  type: "application" | "affair" | "user" | "review";
+  type: "application" | "activity" | "user" | "review";
   action: string;
   timestamp: string;
   user: string;
@@ -185,7 +185,7 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
     switch (activity.type) {
       case "application":
         return <FileText className="h-4 w-4" />;
-      case "affair":
+      case "activity":
         return <Award className="h-4 w-4" />;
       case "user":
         return <Users className="h-4 w-4" />;
@@ -200,7 +200,7 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
     switch (activity.type) {
       case "application":
         return "bg-blue-100 text-blue-600 dark:bg-blue-900/20";
-      case "affair":
+      case "activity":
         return "bg-purple-100 text-purple-600 dark:bg-purple-900/20";
       case "user":
         return "bg-green-100 text-green-600 dark:bg-green-900/20";
@@ -326,11 +326,11 @@ export default function Dashboard() {
     average_credits_per_application: 0,
     credits_this_month: 0,
   });
-  const [affairStats, setAffairStats] = useState<AffairStats>({
-    total_affairs: 0,
-    active_affairs: 0,
-    recent_affairs: [],
-    popular_affairs: [],
+  const [activityStats, setActivityStats] = useState<ActivityStats>({
+    total_activities: 0,
+    active_activities: 0,
+    recent_activities: [],
+    popular_activities: [],
   });
   const [creditTypeStats, setCreditTypeStats] = useState<CreditTypeStats>({
     innovation_practice: 0,
@@ -359,15 +359,14 @@ export default function Dashboard() {
           }
         } catch (error) {
           console.error("Failed to fetch user stats:", error);
-          // Use fallback data for user stats
-          setUserStats({
-            total_users: 1250,
-            student_users: 1100,
-            teacher_users: 120,
-            admin_users: 30,
-            active_users: 1180,
-            new_users_this_month: 45,
-          });
+          // 网络错误时不使用fake数据
+          if (
+            error instanceof Error &&
+            error.message.includes("Network Error")
+          ) {
+            toast.error("网络连接失败，请检查网络连接");
+            return;
+          }
         }
       }
 
@@ -409,10 +408,10 @@ export default function Dashboard() {
           (activity: any) => activity.status === "approved"
         ).length;
 
-        setAffairStats({
-          total_affairs: totalActivities,
-          active_affairs: activeActivities,
-          recent_affairs: activities
+        setActivityStats({
+          total_activities: totalActivities,
+          active_activities: activeActivities,
+          recent_activities: activities
             .sort(
               (a: any, b: any) =>
                 new Date(b.created_at).getTime() -
@@ -427,7 +426,7 @@ export default function Dashboard() {
               application_count: activity.applications?.length || 0,
               created_at: activity.created_at,
             })),
-          popular_affairs: activities
+          popular_activities: activities
             .sort(
               (a: any, b: any) =>
                 (b.participants?.length || 0) - (a.participants?.length || 0)
@@ -442,48 +441,13 @@ export default function Dashboard() {
         });
       } catch (error) {
         console.error("Failed to fetch activities:", error);
-        setAffairStats({
-          total_affairs: 15,
-          active_affairs: 12,
-          recent_affairs: [
-            {
-              id: "1",
-              name: "创新创业项目",
-              description: "参与各类创新创业项目",
-              participant_count: 25,
-              application_count: 25,
-              created_at: new Date().toISOString(),
-            },
-            {
-              id: "2",
-              name: "学科竞赛",
-              description: "参加各类学科竞赛",
-              participant_count: 42,
-              application_count: 42,
-              created_at: new Date(Date.now() - 86400000).toISOString(),
-            },
-          ],
-          popular_affairs: [
-            {
-              id: "1",
-              name: "创新创业项目",
-              application_count: 25,
-              participant_count: 25,
-            },
-            {
-              id: "2",
-              name: "学科竞赛",
-              application_count: 18,
-              participant_count: 18,
-            },
-            {
-              id: "3",
-              name: "志愿服务",
-              application_count: 12,
-              participant_count: 12,
-            },
-          ],
-        });
+        // 网络错误时不使用fake数据
+        if (error instanceof Error && error.message.includes("Network Error")) {
+          toast.error("网络连接失败，请检查网络连接");
+          return;
+        }
+        // 其他错误时显示错误信息
+        toast.error("获取活动数据失败");
       }
 
       // Fetch applications to calculate stats
@@ -563,67 +527,14 @@ export default function Dashboard() {
         });
       } catch (error) {
         console.error("Failed to fetch applications:", error);
-        // Use fallback data for application stats
-        setAppStats({
-          total_applications: 152,
-          pending_applications: 25,
-          approved_applications: 127,
-          rejected_applications: 8,
-          unsubmitted_applications: 20,
-          applications_this_month: 45,
-          approval_rate: 83.5,
-          total_credits_awarded: 456.5,
-          average_credits_per_application: 2.3,
-          credits_this_month: 89.5,
-        });
+        // 网络错误时不使用fake数据
+        if (error instanceof Error && error.message.includes("Network Error")) {
+          toast.error("网络连接失败，请检查网络连接");
+          return;
+        }
+        // 其他错误时显示错误信息
+        toast.error("获取申请数据失败");
       }
-
-      // Mock credit type stats (would need API endpoint)
-      setCreditTypeStats({
-        innovation_practice: 45,
-        discipline_competition: 38,
-        entrepreneurship_project: 25,
-        entrepreneurship_practice: 20,
-        paper_patent: 15,
-      });
-
-      // Mock recent activities (since there's no activity API)
-      setRecentActivities([
-        {
-          id: "1",
-          type: "application",
-          action: "新申请提交",
-          timestamp: new Date().toISOString(),
-          user: "张三",
-          details: "创新创业项目申请",
-          status: "pending",
-        },
-        {
-          id: "2",
-          type: "affair",
-          action: "活动创建",
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          user: "李老师",
-          details: "学科竞赛活动",
-        },
-        {
-          id: "3",
-          type: "review",
-          action: "申请审核",
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          user: "王老师",
-          details: "志愿服务申请审核通过",
-          status: "approved",
-        },
-        {
-          id: "4",
-          type: "user",
-          action: "用户注册",
-          timestamp: new Date(Date.now() - 10800000).toISOString(),
-          user: "赵同学",
-          details: "新学生用户注册",
-        },
-      ]);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
       toast.error("获取数据失败，请稍后重试");
@@ -766,72 +677,74 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Affairs and Activities */}
-      <div className="grid gap-8 md:grid-cols-2">
-        {/* Affairs Statistics */}
+      {/* Activities and Activities */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Activities Statistics */}
         <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <Award className="h-6 w-6 text-purple-600" />
-              事务统计
+              活动统计
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
                 <div className="text-3xl font-bold text-blue-600">
-                  {affairStats.total_affairs}
+                  {activityStats.total_activities}
                 </div>
-                <div className="text-sm text-muted-foreground">总事务数</div>
+                <div className="text-sm text-muted-foreground">总活动数</div>
               </div>
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
                 <div className="text-3xl font-bold text-green-600">
-                  {affairStats.active_affairs}
+                  {activityStats.active_activities}
                 </div>
-                <div className="text-sm text-muted-foreground">活跃事务</div>
+                <div className="text-sm text-muted-foreground">活跃活动</div>
               </div>
             </div>
 
-            {affairStats.recent_affairs.length > 0 && (
+            {activityStats.recent_activities.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
-                  最近事务
+                  最近活动
                 </h4>
                 <div className="space-y-3">
-                  {affairStats.recent_affairs.slice(0, 3).map((affair) => (
-                    <div
-                      key={affair.id}
-                      className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {affair.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {affair.participant_count} 参与者
-                        </p>
+                  {activityStats.recent_activities
+                    .slice(0, 3)
+                    .map((activity) => (
+                      <div
+                        key={activity.id}
+                        className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {activity.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.participant_count} 参与者
+                          </p>
+                        </div>
+                        <Link to={`/activities/${activity.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
                       </div>
-                      <Link to={`/affairs/${affair.id}`}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             )}
 
             <div className="pt-4">
               <Link
-                to="/affairs"
+                to="/activities"
                 className="text-sm text-primary hover:underline font-medium"
               >
-                查看所有事务 →
+                查看所有活动 →
               </Link>
             </div>
           </CardContent>
@@ -1032,10 +945,10 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
-                <Link to="/affairs">
+                <Link to="/activities">
                   <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700">
                     <Award className="h-6 w-6" />
-                    <span className="text-sm font-medium">管理事务</span>
+                    <span className="text-sm font-medium">管理活动</span>
                   </Button>
                 </Link>
                 <Link to="/users">
