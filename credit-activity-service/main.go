@@ -95,6 +95,7 @@ func main() {
 					allUsers.GET("/stats", activityHandler.GetActivityStats)           // 获取活动统计
 					allUsers.POST("", activityHandler.CreateActivity)                  // 创建活动
 					allUsers.POST("/batch", activityHandler.BatchCreateActivities)     // 批量创建活动
+					allUsers.PUT("/batch", activityHandler.BatchUpdateActivities)      // 批量更新活动
 					allUsers.GET("/:id", activityHandler.GetActivity)                  // 获取活动详情
 					allUsers.PUT("/:id", activityHandler.UpdateActivity)               // 更新活动
 					allUsers.DELETE("/:id", activityHandler.DeleteActivity)            // 删除活动

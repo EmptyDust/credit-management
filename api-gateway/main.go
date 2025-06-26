@@ -145,6 +145,7 @@ func main() {
 		api.GET("/activities/csv-template", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/export", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/report", createProxyHandler(config.CreditActivityServiceURL))
+		api.PUT("/activities/batch", createProxyHandler(config.CreditActivityServiceURL))
 
 		// 2. 活动参与者管理路由
 		api.POST("/activities/:id/participants", createProxyHandler(config.CreditActivityServiceURL))

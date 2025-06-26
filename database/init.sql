@@ -111,6 +111,68 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 
 -- ========================================
+-- 2.x. 创建五类活动类型详情表（精简字段版）
+-- ========================================
+
+-- 创新创业实践活动详情表
+CREATE TABLE IF NOT EXISTS innovation_activity_details (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
+    application_no VARCHAR(50),
+    student_no VARCHAR(50),
+    item VARCHAR(200),
+    company VARCHAR(200),
+    project_no VARCHAR(100),
+    issuer VARCHAR(100),
+    date DATE,
+    total_hours DECIMAL(6,2)
+);
+
+-- 学科竞赛学分详情表
+CREATE TABLE IF NOT EXISTS competition_activity_details (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
+    application_no VARCHAR(50),
+    student_no VARCHAR(50),
+    level VARCHAR(100),
+    competition VARCHAR(200),
+    award_level VARCHAR(100),
+    rank VARCHAR(50)
+);
+
+-- 大学生创业项目详情表
+CREATE TABLE IF NOT EXISTS entrepreneurship_project_details (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
+    application_no VARCHAR(50),
+    student_no VARCHAR(50),
+    project_name VARCHAR(200),
+    project_level VARCHAR(100),
+    project_rank VARCHAR(50)
+);
+
+-- 创业实践项目详情表
+CREATE TABLE IF NOT EXISTS entrepreneurship_practice_details (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
+    application_no VARCHAR(50),
+    student_no VARCHAR(50),
+    company_name VARCHAR(200),
+    legal_person VARCHAR(100),
+    share_percent DECIMAL(5,2)
+);
+
+-- 论文专利详情表
+CREATE TABLE IF NOT EXISTS paper_patent_details (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
+    application_no VARCHAR(50),
+    name VARCHAR(200),
+    category VARCHAR(100),
+    rank VARCHAR(50)
+);
+
+-- ========================================
 -- 3. 创建索引（优化版）
 -- ========================================
 
@@ -327,6 +389,46 @@ BEGIN
     END IF;
     
     RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 单个活动删除权限检查函数
+CREATE OR REPLACE FUNCTION delete_activity_with_permission_check(
+    p_activity_id UUID,
+    p_user_id UUID,
+    p_user_type VARCHAR
+) RETURNS TEXT AS $$
+DECLARE
+    v_activity_record RECORD;
+    v_now TIMESTAMPTZ := NOW();
+BEGIN
+    -- 检查活动是否存在且未被删除
+    SELECT * INTO v_activity_record 
+    FROM credit_activities 
+    WHERE id = p_activity_id AND deleted_at IS NULL;
+    
+    IF NOT FOUND THEN
+        RETURN '活动不存在或已删除';
+    END IF;
+    
+    -- 权限检查：只有活动创建者和管理员可以删除活动
+    IF v_activity_record.owner_id != p_user_id AND p_user_type != 'admin' THEN
+        RETURN '无权限删除该活动';
+    END IF;
+    
+    -- 软删除活动
+    UPDATE credit_activities SET deleted_at = v_now WHERE id = p_activity_id;
+    
+    -- 软删除参与者
+    UPDATE activity_participants SET deleted_at = v_now WHERE activity_id = p_activity_id;
+    
+    -- 软删除申请
+    UPDATE applications SET deleted_at = v_now WHERE activity_id = p_activity_id;
+    
+    -- 软删除附件
+    UPDATE attachments SET deleted_at = v_now WHERE activity_id = p_activity_id;
+    
+    RETURN '活动删除成功';
 END;
 $$ LANGUAGE plpgsql;
 

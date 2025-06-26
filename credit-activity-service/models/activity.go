@@ -138,6 +138,12 @@ type ActivityRequest struct {
 	EndDate      string `json:"end_date"`
 	Category     string `json:"category"`
 	Requirements string `json:"requirements"`
+
+	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
+	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
+	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
+	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
+	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
 }
 
 // BatchActivityRequest 批量创建活动请求
@@ -162,12 +168,18 @@ type ActivityCreateResponse struct {
 
 // ActivityUpdateRequest 活动更新请求
 type ActivityUpdateRequest struct {
-	Title        *string `json:"title"`        // 使用指针支持清空字段
-	Description  *string `json:"description"`  // 使用指针支持清空字段
-	StartDate    *string `json:"start_date"`   // 使用字符串格式，与创建活动一致
-	EndDate      *string `json:"end_date"`     // 使用字符串格式，与创建活动一致
-	Category     *string `json:"category"`     // 使用指针支持清空字段
-	Requirements *string `json:"requirements"` // 使用指针支持清空字段
+	Title        *string `json:"title"`
+	Description  *string `json:"description"`
+	StartDate    *string `json:"start_date"`
+	EndDate      *string `json:"end_date"`
+	Category     *string `json:"category"`
+	Requirements *string `json:"requirements"`
+
+	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
+	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
+	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
+	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
+	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
 }
 
 // ActivityReviewRequest 审核活动请求
@@ -194,6 +206,12 @@ type ActivityResponse struct {
 	UpdatedAt      time.Time             `json:"updated_at"`
 	Participants   []ParticipantResponse `json:"participants"`
 	Applications   []ApplicationResponse `json:"applications"`
+
+	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
+	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
+	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
+	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
+	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
 }
 
 // ApplicationResponse 申请响应
@@ -359,4 +377,102 @@ type SearchResponse struct {
 	PageSize   int           `json:"page_size"`   // 每页数量
 	TotalPages int           `json:"total_pages"` // 总页数
 	Filters    interface{}   `json:"filters"`     // 应用的筛选条件
+}
+
+// 创新创业实践活动详情表
+// Table: innovation_activity_details
+// 字段：申请编号、学生学号、事项、实习公司、课题编号、发证机构、日期、累计学时、认定学分、审核者ID、审核意见
+
+type InnovationActivityDetail struct {
+	ID            string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID    string    `json:"activity_id" gorm:"type:uuid;not null;index"`
+	ApplicationNo string    `json:"application_no"`
+	StudentNo     string    `json:"student_no"`
+	Item          string    `json:"item"`
+	Company       string    `json:"company"`
+	ProjectNo     string    `json:"project_no"`
+	Issuer        string    `json:"issuer"`
+	Date          string    `json:"date"`
+	TotalHours    float64   `json:"total_hours"`
+	Credits       float64   `json:"credits"`
+	ReviewerID    string    `json:"reviewer_id"`
+	ReviewComment string    `json:"review_comment"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// 学科竞赛学分详情表
+// Table: competition_activity_details
+// 字段：申请编号、学生学号、竞赛级别、竞赛名称、获奖等级、排名、认定学分、审核者ID、审核意见
+
+type CompetitionActivityDetail struct {
+	ID            string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID    string    `json:"activity_id" gorm:"type:uuid;not null;index"`
+	ApplicationNo string    `json:"application_no"`
+	StudentNo     string    `json:"student_no"`
+	Level         string    `json:"level"`
+	Competition   string    `json:"competition"`
+	AwardLevel    string    `json:"award_level"`
+	Rank          string    `json:"rank"`
+	Credits       float64   `json:"credits"`
+	ReviewerID    string    `json:"reviewer_id"`
+	ReviewComment string    `json:"review_comment"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// 大学生创业项目详情表
+// Table: entrepreneurship_project_details
+// 字段：申请编号、学生学号、项目名称、项目等级、项目排名、认定学分、审核者ID、审核意见
+
+type EntrepreneurshipProjectDetail struct {
+	ID            string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID    string    `json:"activity_id" gorm:"type:uuid;not null;index"`
+	ApplicationNo string    `json:"application_no"`
+	StudentNo     string    `json:"student_no"`
+	ProjectName   string    `json:"project_name"`
+	ProjectLevel  string    `json:"project_level"`
+	ProjectRank   string    `json:"project_rank"`
+	Credits       float64   `json:"credits"`
+	ReviewerID    string    `json:"reviewer_id"`
+	ReviewComment string    `json:"review_comment"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// 创业实践项目详情表
+// Table: entrepreneurship_practice_details
+// 字段：申请编号、学生学号、公司名称、公司法人、本人占股比例、认定学分、审核者ID、审核意见
+
+type EntrepreneurshipPracticeDetail struct {
+	ID            string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID    string    `json:"activity_id" gorm:"type:uuid;not null;index"`
+	ApplicationNo string    `json:"application_no"`
+	StudentNo     string    `json:"student_no"`
+	CompanyName   string    `json:"company_name"`
+	LegalPerson   string    `json:"legal_person"`
+	SharePercent  float64   `json:"share_percent"`
+	Credits       float64   `json:"credits"`
+	ReviewerID    string    `json:"reviewer_id"`
+	ReviewComment string    `json:"review_comment"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// 论文专利详情表
+// Table: paper_patent_details
+// 字段：申请编号、论文/专利/软件著作权名称、类别、排名、认定学分、审核者ID、审核意见
+
+type PaperPatentDetail struct {
+	ID            string    `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID    string    `json:"activity_id" gorm:"type:uuid;not null;index"`
+	ApplicationNo string    `json:"application_no"`
+	Name          string    `json:"name"`
+	Category      string    `json:"category"`
+	Rank          string    `json:"rank"`
+	Credits       float64   `json:"credits"`
+	ReviewerID    string    `json:"reviewer_id"`
+	ReviewComment string    `json:"review_comment"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
