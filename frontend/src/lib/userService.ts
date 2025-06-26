@@ -130,7 +130,14 @@ class UserService {
     page: number;
     limit: number;
   }> {
-    const response = await apiClient.get('/students', { params });
+    const searchParams = {
+      ...params,
+      user_type: 'student',
+      query: params?.search,
+    };
+    delete searchParams.search;
+    
+    const response = await apiClient.get('/search/users', { params: searchParams });
     return response.data.data;
   }
 
@@ -160,7 +167,14 @@ class UserService {
     page: number;
     limit: number;
   }> {
-    const response = await apiClient.get('/teachers', { params });
+    const searchParams = {
+      ...params,
+      user_type: 'teacher',
+      query: params?.search,
+    };
+    delete searchParams.search;
+    
+    const response = await apiClient.get('/search/users', { params: searchParams });
     return response.data.data;
   }
 
@@ -168,10 +182,13 @@ class UserService {
    * 根据用户名搜索教师
    */
   async searchTeachersByUsername(username: string): Promise<TeacherInfo[]> {
-    const response = await apiClient.get('/teachers/search', {
-      params: { username }
+    const response = await apiClient.get('/search/users', {
+      params: { 
+        user_type: 'teacher',
+        query: username 
+      }
     });
-    return response.data.data;
+    return response.data.data.users;
   }
 
   /**
@@ -214,11 +231,11 @@ class UserService {
   async searchUsers(searchTerm: string, userType?: 'student' | 'teacher' | 'admin'): Promise<UserInfo[]> {
     const response = await apiClient.get('/search/users', {
       params: { 
-        q: searchTerm,
+        query: searchTerm,
         user_type: userType 
       }
     });
-    return response.data.data;
+    return response.data.data.users;
   }
 
   /**
@@ -313,6 +330,19 @@ class UserService {
       suspended: '已暂停'
     };
     return statusMap[status as keyof typeof statusMap] || status;
+  }
+
+  /**
+   * 根据用户名搜索学生
+   */
+  async searchStudentsByUsername(username: string): Promise<StudentInfo[]> {
+    const response = await apiClient.get('/search/users', {
+      params: { 
+        user_type: 'student',
+        query: username 
+      }
+    });
+    return response.data.data.users;
   }
 }
 

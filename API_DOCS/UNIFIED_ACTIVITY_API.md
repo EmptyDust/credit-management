@@ -127,6 +127,7 @@ Authorization: Bearer <token>
 | 提交活动审核   | ✓    | ✓    | ✓      |
 | 撤回活动       | ✓    | ✓    | ✓      |
 | 审核活动       | ✗    | ✓    | ✓      |
+| 修改审核状态   | ✗    | ✓    | ✓      |
 | 添加参与者     | ✓    | ✓    | ✓      |
 | 删除参与者     | ✓    | ✓    | ✓      |
 | 批量删除参与者 | ✓    | ✓    | ✓      |
@@ -154,8 +155,8 @@ Authorization: Bearer <token>
 
 - `draft`: 草稿状态，可以修改
 - `pending_review`: 待审核状态，等待教师审核
-- `approved`: 已通过，自动生成申请
-- `rejected`: 已拒绝，可以修改后重新提交
+- `approved`: 已通过，自动生成申请，教师可修改为拒绝状态
+- `rejected`: 已拒绝，可以修改后重新提交，教师可修改为通过状态
 
 ### 申请状态
 
@@ -273,6 +274,8 @@ curl -X POST "http://localhost:8080/api/activities/activity-uuid/review" \
     "review_comments": "活动内容符合要求，同意通过"
   }'
 ```
+
+**注意**: 教师可以审核待审核状态的活动，也可以修改已通过或已拒绝状态的活动。
 
 ## 注意事项
 

@@ -40,10 +40,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Pagination } from "@/components/ui/pagination";
 import apiClient from "@/lib/api";
 import userService from "@/lib/userService";
 import {
-  PlusCircle,
   Search,
   Eye,
   FileText,
@@ -60,7 +60,6 @@ import {
   Image,
   FileVideo,
   FileAudio,
-  MoreHorizontal,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -190,6 +189,12 @@ export default function ApplicationsPage() {
     ApplicationAttachment[]
   >([]);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   const createForm = useForm<CreateApplicationForm>({
     resolver: zodResolver(createApplicationSchema),
     defaultValues: { affair_id: "", details: "", applied_credits: 1 },
@@ -215,27 +220,55 @@ export default function ApplicationsPage() {
     }
   };
 
-  const fetchApplications = async () => {
+  const fetchApplications = async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
+
+      // 构建查询参数
+      const params: any = {
+        page,
+        page_size: size,
+      };
+
+      if (searchTerm) {
+        params.query = searchTerm;
+      }
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
+
       // 根据用户类型选择不同的API端点
       const endpoint =
         user?.userType === "student"
           ? "/applications" // 学生只能看到自己的申请
           : "/applications/all"; // 教师和管理员可以看到所有申请
 
-      const response = await apiClient.get(endpoint);
-      console.log("Applications response:", response.data); // 调试日志
+      const response = await apiClient.get(endpoint, { params });
+      console.log("Applications response:", response.data);
 
-      // 正确处理后端返回的数据结构
+      // 处理响应数据
       let applicationsData = [];
+      let paginationData: any = {};
+
       if (response.data.code === 0 && response.data.data) {
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
           // 分页数据结构
           applicationsData = response.data.data.data;
+          paginationData = {
+            total: response.data.data.total || 0,
+            page: response.data.data.page || 1,
+            page_size: response.data.data.page_size || 10,
+            total_pages: response.data.data.total_pages || 0,
+          };
         } else if (Array.isArray(response.data.data)) {
           // 直接数组结构
           applicationsData = response.data.data;
+          paginationData = {
+            total: applicationsData.length,
+            page: 1,
+            page_size: applicationsData.length,
+            total_pages: 1,
+          };
         }
       }
 
@@ -256,7 +289,7 @@ export default function ApplicationsPage() {
         approved_credits: app.awarded_credits || app.approved_credits,
         details: app.details || "",
         attachments: app.attachments,
-        user_id: app.user_id, // 保存用户ID用于后续查询
+        user_id: app.user_id,
       }));
 
       // 检查是否有缺失的用户信息，如果有则补充
@@ -266,17 +299,14 @@ export default function ApplicationsPage() {
 
       if (applicationsWithMissingInfo.length > 0) {
         try {
-          // 获取缺失用户信息的用户ID列表
           const userIds = applicationsWithMissingInfo
             .map((app: any) => app.user_id)
             .filter(Boolean);
 
           if (userIds.length > 0) {
-            // 批量获取用户信息
             const users = await userService.getUsersByIds(userIds);
             const userMap = new Map(users.map((u) => [u.id, u]));
 
-            // 补充用户信息
             const enrichedApplications = processedApplications.map(
               (app: any) => {
                 const userInfo = userMap.get(app.user_id);
@@ -293,15 +323,29 @@ export default function ApplicationsPage() {
             );
 
             setApplications(enrichedApplications);
+
+            // 更新分页信息
+            setTotalItems(paginationData.total);
+            setTotalPages(paginationData.total_pages);
+            setCurrentPage(paginationData.page);
+            // 不要从API响应更新pageSize，保持用户设置的值
+            // setPageSize(paginationData.page_size);
+
             return;
           }
         } catch (userError) {
           console.warn("Failed to fetch user info:", userError);
-          // 即使获取用户信息失败，也继续使用原始数据
         }
       }
 
       setApplications(processedApplications);
+
+      // 更新分页信息
+      setTotalItems(paginationData.total);
+      setTotalPages(paginationData.total_pages);
+      setCurrentPage(paginationData.page);
+      // 不要从API响应更新pageSize，保持用户设置的值
+      // setPageSize(paginationData.page_size);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
       toast.error("获取申请列表失败");
@@ -339,6 +383,24 @@ export default function ApplicationsPage() {
       console.error("Failed to fetch activities:", err);
       toast.error("获取活动列表失败");
     }
+  };
+
+  // 分页处理函数
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchApplications(page, pageSize);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    fetchApplications(1, size);
+  };
+
+  // 搜索和筛选处理
+  const handleSearchAndFilter = () => {
+    setCurrentPage(1);
+    fetchApplications(1, pageSize);
   };
 
   useEffect(() => {
@@ -384,7 +446,7 @@ export default function ApplicationsPage() {
       createForm.reset();
       setUploadingFiles([]);
       setUploadProgress(0);
-      fetchApplications();
+      fetchApplications(currentPage, pageSize);
       toast.success("申请提交成功！");
     } catch (err) {
       console.error("Failed to create application:", err);
@@ -490,21 +552,12 @@ export default function ApplicationsPage() {
     return <Badge className={config.color}>{config.label}</Badge>;
   };
 
-  const filteredApplications = applications.filter((app) => {
-    const matchesSearch =
-      app.student_name?.includes(searchTerm) ||
-      app.student_number?.includes(searchTerm) ||
-      app.affair_name?.includes(searchTerm);
-    const matchesStatus = statusFilter === "all" || app.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   return (
     <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">申请列表</h1>
-          <p className="text-muted-foreground">管理学分申请和审核流程</p>
+          <p className="text-muted-foreground">已通过的活动自动生成申请</p>
         </div>
       </div>
 
@@ -524,10 +577,21 @@ export default function ApplicationsPage() {
                 placeholder="搜索学生姓名、学号或事务名称..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSearchAndFilter();
+                  }
+                }}
                 className="pl-10 rounded-lg shadow-sm"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value);
+                handleSearchAndFilter();
+              }}
+            >
               <SelectTrigger className="w-48 rounded-lg">
                 <SelectValue placeholder="选择状态" />
               </SelectTrigger>
@@ -541,7 +605,20 @@ export default function ApplicationsPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={fetchApplications}
+              onClick={handleSearchAndFilter}
+              disabled={loading}
+              className="rounded-lg shadow"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("all");
+                setCurrentPage(1);
+                fetchApplications(1, pageSize);
+              }}
               disabled={loading}
               className="rounded-lg shadow"
             >
@@ -581,7 +658,7 @@ export default function ApplicationsPage() {
                       </div>
                     </td>
                   </tr>
-                ) : filteredApplications.length === 0 ? (
+                ) : applications.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
@@ -591,7 +668,7 @@ export default function ApplicationsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredApplications.map((app) => (
+                  applications.map((app) => (
                     <TableRow
                       key={app.id}
                       className="hover:bg-muted/40 transition-colors"
@@ -672,6 +749,22 @@ export default function ApplicationsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {totalItems > 0 && (
+        <Card className="rounded-xl shadow-lg">
+          <CardContent className="pt-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create Application Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>

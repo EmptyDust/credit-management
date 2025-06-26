@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
 import apiClient from "@/lib/api";
 import {
   PlusCircle,
@@ -49,7 +50,6 @@ import {
   Users,
   Building,
   AlertCircle,
-  Eye,
   Upload,
   Download,
 } from "lucide-react";
@@ -145,7 +145,7 @@ const StatCard = ({
 };
 
 export default function TeachersPage() {
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -161,6 +161,12 @@ export default function TeachersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -175,44 +181,79 @@ export default function TeachersPage() {
     },
   });
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
       setError("");
-      let endpoint = "/teachers";
-      const params = new URLSearchParams();
+
+      // 构建查询参数
+      const params: any = {
+        page,
+        page_size: size,
+        user_type: "teacher",
+      };
 
       if (searchQuery) {
-        params.append("q", searchQuery);
+        params.query = searchQuery;
       }
       if (departmentFilter !== "all") {
-        params.append("department", departmentFilter);
+        params.department = departmentFilter;
       }
       if (statusFilter !== "all") {
-        params.append("status", statusFilter);
+        params.status = statusFilter;
       }
 
-      if (params.toString()) {
-        endpoint += `?${params.toString()}`;
-      }
-
-      console.log("Fetching teachers from:", endpoint);
-      const response = await apiClient.get(endpoint);
+      console.log("Fetching teachers with params:", params);
+      const response = await apiClient.get("/search/users", { params });
       console.log("API response:", response.data);
 
-      // 处理不同的响应格式
+      // 处理响应数据
       let teachersData = [];
+      let paginationData: any = {};
+
       if (response.data?.data?.users) {
         teachersData = response.data.data.users;
+        paginationData = {
+          total: response.data.data.total || 0,
+          page: response.data.data.page || 1,
+          page_size: response.data.data.page_size || 10,
+          total_pages: response.data.data.total_pages || 0,
+        };
       } else if (response.data?.teachers) {
         teachersData = response.data.teachers;
+        paginationData = {
+          total: teachersData.length,
+          page: 1,
+          page_size: teachersData.length,
+          total_pages: 1,
+        };
       } else if (Array.isArray(response.data)) {
         teachersData = response.data;
+        paginationData = {
+          total: teachersData.length,
+          page: 1,
+          page_size: teachersData.length,
+          total_pages: 1,
+        };
       } else {
         teachersData = [];
+        paginationData = {
+          total: 0,
+          page: 1,
+          page_size: 10,
+          total_pages: 0,
+        };
       }
 
       setTeachers(teachersData);
+
+      // 更新分页信息
+      setTotalItems(paginationData.total);
+      setTotalPages(paginationData.total_pages);
+      setCurrentPage(paginationData.page);
+      // 不要从API响应更新pageSize，保持用户设置的值
+      // setPageSize(paginationData.page_size);
+
       console.log("Teachers loaded:", teachersData.length);
     } catch (err: any) {
       const errorMessage =
@@ -227,6 +268,29 @@ export default function TeachersPage() {
 
   useEffect(() => {
     fetchTeachers();
+  }, []);
+
+  // 处理分页变化
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchTeachers(page, pageSize);
+  };
+
+  // 处理每页数量变化
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    fetchTeachers(1, size);
+  };
+
+  // 处理搜索和筛选
+  const handleSearchAndFilter = () => {
+    setCurrentPage(1);
+    fetchTeachers(1, pageSize);
+  };
+
+  useEffect(() => {
+    handleSearchAndFilter();
   }, [searchQuery, departmentFilter, statusFilter]);
 
   const handleDialogOpen = (teacher: Teacher | null) => {
@@ -248,24 +312,6 @@ export default function TeachersPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (username: string) => {
-    if (!window.confirm("确定要删除这个教师吗？此操作不可撤销。")) return;
-    try {
-      // Find the teacher by username to get the user_id
-      const teacher = teachers.find((t) => t.username === username);
-      if (!teacher || !teacher.user_id) {
-        toast.error("无法找到教师信息");
-        return;
-      }
-      await apiClient.delete(`/teachers/${teacher.user_id}`);
-      fetchTeachers();
-      toast.success("教师删除成功");
-    } catch (err) {
-      toast.error("删除教师失败");
-      console.error(err);
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
     try {
@@ -274,7 +320,7 @@ export default function TeachersPage() {
           toast.error("无法找到教师ID");
           return;
         }
-        await apiClient.put(`/teachers/${editingTeacher.user_id}`, values);
+        await apiClient.put(`/users/${editingTeacher.user_id}`, values);
         toast.success("教师信息更新成功");
       } else {
         // For creating a new teacher, ensure required fields are included
@@ -283,7 +329,7 @@ export default function TeachersPage() {
           password: values.password || "Password123", // Default password that meets requirements
           user_type: "teacher",
         };
-        await apiClient.post("/teachers", createData);
+        await apiClient.post("/users/teachers", createData);
         toast.success("教师创建成功");
       }
       setIsDialogOpen(false);
@@ -310,21 +356,6 @@ export default function TeachersPage() {
       statusConfig.inactive;
     return <Badge className={config.color}>{config.label}</Badge>;
   };
-
-  const filteredTeachers = teachers.filter((teacher) => {
-    const matchesSearch =
-      (teacher.real_name || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      (teacher.department || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-    const matchesDepartment =
-      departmentFilter === "all" || teacher.department === departmentFilter;
-    const matchesStatus =
-      statusFilter === "all" || teacher.status === statusFilter;
-    return matchesSearch && matchesDepartment && matchesStatus;
-  });
 
   const departments = Array.from(
     new Set(teachers.map((t) => t.department).filter(Boolean))
@@ -369,16 +400,13 @@ export default function TeachersPage() {
     try {
       const formData = new FormData();
       formData.append("file", importFile);
+      formData.append("user_type", "teacher");
 
-      const response = await apiClient.post(
-        "/users/import/teachers",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const response = await apiClient.post("/users/import-csv", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       if (response.data.code === 0) {
         toast.success("批量导入成功");
@@ -398,7 +426,8 @@ export default function TeachersPage() {
 
   const handleExport = async () => {
     try {
-      const response = await apiClient.get("/users/export/teachers", {
+      const response = await apiClient.get("/users/export", {
+        params: { user_type: "teacher" },
         responseType: "blob",
       });
 
@@ -539,7 +568,7 @@ export default function TeachersPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={fetchTeachers}
+              onClick={handleSearchAndFilter}
               disabled={loading}
             >
               <RefreshCw
@@ -586,17 +615,20 @@ export default function TeachersPage() {
                       {error}
                     </TableCell>
                   </TableRow>
-                ) : filteredTeachers.length === 0 ? (
+                ) : teachers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell
+                      colSpan={canManageTeachers ? 6 : 5}
+                      className="text-center py-8"
+                    >
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="h-8 w-8" />
+                        <AlertCircle className="w-8 h-8" />
                         <p>暂无教师记录</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredTeachers.map((teacher) => (
+                  teachers.map((teacher) => (
                     <TableRow key={teacher.username}>
                       <TableCell className="font-medium">
                         {teacher.username}
@@ -640,6 +672,18 @@ export default function TeachersPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* 分页组件 */}
+          {!loading && totalItems > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
         </CardContent>
       </Card>
 

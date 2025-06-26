@@ -1,17 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  FileText,
   Clock,
   AlertCircle,
   ArrowLeft,
   Edit3,
   Send,
   Trash2,
-  RotateCcw,
-  Eye,
-  Paperclip,
 } from "lucide-react";
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
@@ -86,11 +82,24 @@ export default function ActivityDetailPage() {
     activity &&
     (user.user_id === activity.owner_id || user.userType === "admin");
   const canEdit = isOwner && activity?.status === "draft";
-  const canWithdraw = isOwner && activity?.status !== "draft";
+  const canSubmitForReview =
+    user &&
+    activity &&
+    user.user_id === activity.owner_id &&
+    activity?.status === "draft";
+  const canWithdraw =
+    user &&
+    activity &&
+    user.user_id === activity.owner_id &&
+    activity?.status === "pending_review";
   const canReview =
     (user?.userType === "teacher" || user?.userType === "admin") &&
-    activity?.status === "pending_review";
-  const canDelete = isOwner && activity?.status === "draft";
+    (activity?.status === "pending_review" ||
+      activity?.status === "approved" ||
+      activity?.status === "rejected");
+  const canDelete =
+    user?.userType === "admin" ||
+    (user?.user_id === activity?.owner_id && activity?.status === "draft");
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -278,7 +287,11 @@ export default function ActivityDetailPage() {
   const handleReview = async () => {
     if (!activity) return;
     if (!reviewComment.trim()) {
-      toast.error("请填写审核评语");
+      toast.error(
+        activity.status === "pending_review"
+          ? "请填写审核评语"
+          : "请填写修改原因"
+      );
       return;
     }
 
@@ -288,12 +301,16 @@ export default function ActivityDetailPage() {
         status: reviewStatus,
         review_comments: reviewComment,
       });
-      toast.success("审核完成");
+      toast.success(
+        activity.status === "pending_review" ? "审核完成" : "审核状态修改完成"
+      );
       setReviewComment("");
       setShowReviewDialog(false);
       fetchActivity();
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "审核失败";
+      const errorMessage =
+        err.response?.data?.message ||
+        (activity.status === "pending_review" ? "审核失败" : "修改失败");
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
@@ -387,15 +404,17 @@ export default function ActivityDetailPage() {
                   <Edit3 className="h-4 w-4 mr-2" />
                   编辑
                 </Button>
-                <Button
-                  onClick={handleSubmitForReview}
-                  size="lg"
-                  className="bg-blue-600 hover:bg-blue-700 font-bold px-8 shadow-lg"
-                  disabled={submitting}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  {submitting ? "提交中..." : "提交审核"}
-                </Button>
+                {canSubmitForReview && (
+                  <Button
+                    onClick={handleSubmitForReview}
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 font-bold px-8 shadow-lg"
+                    disabled={submitting}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    {submitting ? "提交中..." : "提交审核"}
+                  </Button>
+                )}
               </>
             ))}
           {canWithdraw && (
@@ -417,7 +436,7 @@ export default function ActivityDetailPage() {
               className="bg-green-600 hover:bg-green-700 font-bold px-6"
               disabled={submitting}
             >
-              审批
+              {activity?.status === "pending_review" ? "审批" : "修改审核状态"}
             </Button>
           )}
           {canDelete && (
@@ -449,13 +468,23 @@ export default function ActivityDetailPage() {
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>活动审批</DialogTitle>
-            <DialogDescription>请填写审批意见并选择审批结果</DialogDescription>
+            <DialogTitle>
+              {activity?.status === "pending_review"
+                ? "活动审批"
+                : "修改审核状态"}
+            </DialogTitle>
+            <DialogDescription>
+              {activity?.status === "pending_review"
+                ? "请填写审批意见并选择审批结果"
+                : "请填写修改原因并选择新的审核状态"}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="review-status" className="text-right">
-                审批结果
+                {activity?.status === "pending_review"
+                  ? "审批结果"
+                  : "审核状态"}
               </Label>
               <Select
                 value={reviewStatus}
@@ -464,7 +493,13 @@ export default function ActivityDetailPage() {
                 }
               >
                 <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="选择审批结果" />
+                  <SelectValue
+                    placeholder={
+                      activity?.status === "pending_review"
+                        ? "选择审批结果"
+                        : "选择审核状态"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="approved">通过</SelectItem>
@@ -474,13 +509,19 @@ export default function ActivityDetailPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="review-comment" className="text-right">
-                审批评语
+                {activity?.status === "pending_review"
+                  ? "审批评语"
+                  : "修改原因"}
               </Label>
               <Textarea
                 id="review-comment"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="请输入审批评语..."
+                placeholder={
+                  activity?.status === "pending_review"
+                    ? "请输入审批评语..."
+                    : "请输入修改原因..."
+                }
                 className="col-span-3"
                 rows={4}
               />
@@ -496,7 +537,11 @@ export default function ActivityDetailPage() {
               取消
             </Button>
             <Button type="button" onClick={handleReview} disabled={submitting}>
-              {submitting ? "提交中..." : "提交审批"}
+              {submitting
+                ? "提交中..."
+                : activity?.status === "pending_review"
+                ? "提交审批"
+                : "提交修改"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -35,10 +35,16 @@ export function Pagination({
   showPageSizeSelector = true,
   pageSizeOptions = [10, 20, 50, 100],
 }: PaginationProps) {
-  const startItem = (currentPage - 1) * pageSize + 1;
+  const startItem =
+    totalItems === 0
+      ? 0
+      : Math.min((currentPage - 1) * pageSize + 1, totalItems);
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   const getVisiblePages = () => {
+    if (totalPages === 1) {
+      return [1];
+    }
     const delta = 2;
     const range = [];
     const rangeWithDots = [];
@@ -68,9 +74,19 @@ export function Pagination({
     return rangeWithDots;
   };
 
-  if (totalPages <= 1) {
-    return null;
-  }
+  const handlePageChange = (page: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    onPageChange(page);
+  };
+
+  const handlePageSizeChange = (value: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    onPageSizeChange(Number(value));
+  };
 
   return (
     <div className="flex items-center justify-between space-x-2 py-4">
@@ -84,7 +100,7 @@ export function Pagination({
             <span className="text-sm text-muted-foreground">每页</span>
             <Select
               value={pageSize.toString()}
-              onValueChange={(value) => onPageSizeChange(Number(value))}
+              onValueChange={handlePageSizeChange}
             >
               <SelectTrigger className="h-8 w-[70px]">
                 <SelectValue />
@@ -105,7 +121,7 @@ export function Pagination({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onPageChange(1)}
+            onClick={(e) => handlePageChange(1, e)}
             disabled={currentPage === 1}
             className="h-8 w-8 p-0"
           >
@@ -115,7 +131,7 @@ export function Pagination({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onPageChange(currentPage - 1)}
+            onClick={(e) => handlePageChange(currentPage - 1, e)}
             disabled={currentPage === 1}
             className="h-8 w-8 p-0"
           >
@@ -132,7 +148,7 @@ export function Pagination({
                 <Button
                   variant={currentPage === page ? "default" : "outline"}
                   size="sm"
-                  onClick={() => onPageChange(page as number)}
+                  onClick={(e) => handlePageChange(page as number, e)}
                   className="h-8 w-8 p-0"
                 >
                   {page}
@@ -144,7 +160,7 @@ export function Pagination({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onPageChange(currentPage + 1)}
+            onClick={(e) => handlePageChange(currentPage + 1, e)}
             disabled={currentPage === totalPages}
             className="h-8 w-8 p-0"
           >
@@ -154,7 +170,7 @@ export function Pagination({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onPageChange(totalPages)}
+            onClick={(e) => handlePageChange(totalPages, e)}
             disabled={currentPage === totalPages}
             className="h-8 w-8 p-0"
           >

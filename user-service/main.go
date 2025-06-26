@@ -269,12 +269,10 @@ func main() {
 				admin := auth.Group("")
 				admin.Use(permissionMiddleware.AdminOnly())
 				{
-					admin.POST("/teachers", userHandler.CreateTeacher)       // 管理员创建教师
-					admin.POST("/students", userHandler.CreateStudent)       // 管理员创建学生
-					admin.PUT("/:id", userHandler.UpdateUser)                // 更新指定用户信息
-					admin.DELETE("/:id", userHandler.DeleteUser)             // 删除用户
-					admin.GET("", userHandler.GetAllUsers)                   // 获取所有用户
-					admin.GET("/type/:userType", userHandler.GetUsersByType) // 根据用户类型获取用户
+					admin.POST("/teachers", userHandler.CreateTeacher) // 管理员创建教师
+					admin.POST("/students", userHandler.CreateStudent) // 管理员创建学生
+					admin.PUT("/:id", userHandler.UpdateUser)          // 更新指定用户信息
+					admin.DELETE("/:id", userHandler.DeleteUser)       // 删除用户
 
 					// 新增：批量删除、批量状态、重置密码、导出
 					admin.POST("/batch_delete", userHandler.BatchDeleteUsers)      // 批量删除
@@ -285,13 +283,14 @@ func main() {
 					// 新增：CSV导入功能
 					admin.POST("/import-csv", userHandler.ImportUsersFromCSV)  // 从CSV导入用户
 					admin.GET("/csv-template", userHandler.GetUserCSVTemplate) // 获取CSV模板
-				}
 
-				// 学生、教师和管理员可以访问的路由（基于角色的权限控制）
-				studentTeacherOrAdmin := auth.Group("")
-				studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
-				{
-					// 删除重复的 /type/:userType 路由，因为 GetUsersByType 方法内部已经实现了权限控制
+					// 学生、教师和管理员可以访问的路由（基于角色的权限控制）
+					studentTeacherOrAdmin := auth.Group("")
+					studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
+					{
+						studentTeacherOrAdmin.GET("/stats/students", userHandler.GetStudentStats) // 获取学生统计信息
+						studentTeacherOrAdmin.GET("/stats/teachers", userHandler.GetTeacherStats) // 获取教师统计信息
+					}
 				}
 			}
 		}
@@ -303,14 +302,6 @@ func main() {
 			auth := students.Group("")
 			auth.Use(authMiddleware.AuthRequired())
 			{
-				// 学生、教师和管理员可以访问的路由
-				studentTeacherOrAdmin := auth.Group("")
-				studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
-				{
-					studentTeacherOrAdmin.GET("", userHandler.GetStudents)           // 获取所有学生
-					studentTeacherOrAdmin.GET("/stats", userHandler.GetStudentStats) // 获取学生统计信息
-				}
-
 				// 仅管理员可以访问的路由
 				admin := auth.Group("")
 				admin.Use(permissionMiddleware.AdminOnly())
@@ -329,14 +320,6 @@ func main() {
 			auth := teachers.Group("")
 			auth.Use(authMiddleware.AuthRequired())
 			{
-				// 学生、教师和管理员可以访问的路由
-				studentTeacherOrAdmin := auth.Group("")
-				studentTeacherOrAdmin.Use(permissionMiddleware.StudentTeacherOrAdmin())
-				{
-					studentTeacherOrAdmin.GET("", userHandler.GetTeachers)           // 获取所有教师
-					studentTeacherOrAdmin.GET("/stats", userHandler.GetTeacherStats) // 获取教师统计信息
-				}
-
 				// 仅管理员可以访问的路由
 				admin := auth.Group("")
 				admin.Use(permissionMiddleware.AdminOnly())
@@ -353,7 +336,7 @@ func main() {
 		{
 			search.Use(authMiddleware.AuthRequired())
 			{
-				search.GET("/users", userHandler.SearchUsers) // 通用用户搜索
+				search.GET("/users", userHandler.SearchUsers) // 统一用户搜索
 			}
 		}
 	}

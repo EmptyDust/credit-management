@@ -524,7 +524,7 @@ Authorization: Bearer <token>
 
 **POST** `/api/activities/{id}/review`
 
-审核活动。只有待审核状态的活动可以审核。
+审核活动。可以审核待审核状态的活动，也可以修改已通过或已拒绝状态的活动。
 
 **权限**: 教师、管理员
 
@@ -542,7 +542,7 @@ Authorization: Bearer <token>
 ```json
 {
   "code": 0,
-  "message": "活动审核成功",
+  "message": "审核完成",
   "data": {
     "id": "uuid",
     "status": "approved",
@@ -552,6 +552,13 @@ Authorization: Bearer <token>
   }
 }
 ```
+
+**说明**:
+
+- 可以审核待审核状态的活动
+- 可以修改已通过状态的活动为拒绝状态
+- 可以修改已拒绝状态的活动为通过状态
+- 每次修改都会更新审核人、审核评语和审核时间
 
 ### 1.13 获取待审核活动
 
