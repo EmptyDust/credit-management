@@ -363,6 +363,7 @@ export default function StudentsPage() {
     new Set(students.map((s) => s.college).filter(Boolean))
   );
   const canManageStudents = hasPermission("manage_students");
+  const canViewStudents = hasPermission("view_students");
 
   const handleDeleteConfirm = async () => {
     if (!studentToDelete) return;
@@ -607,13 +608,18 @@ export default function StudentsPage() {
                   <TableHead>班级</TableHead>
                   <TableHead>年级</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  {canManageStudents && (
+                    <TableHead className="text-right">操作</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell
+                      colSpan={canManageStudents ? 8 : 7}
+                      className="text-center py-8"
+                    >
                       <div className="flex items-center justify-center gap-2">
                         <RefreshCw className="h-4 w-4 animate-spin" />
                         加载中...
@@ -623,7 +629,7 @@ export default function StudentsPage() {
                 ) : error ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={canManageStudents ? 8 : 7}
                       className="text-center py-8 text-red-500"
                     >
                       {error}
@@ -631,7 +637,10 @@ export default function StudentsPage() {
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell
+                      colSpan={canManageStudents ? 8 : 7}
+                      className="text-center py-8"
+                    >
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <AlertCircle className="h-8 w-8" />
                         <p>暂无学生记录</p>
@@ -657,29 +666,27 @@ export default function StudentsPage() {
                       <TableCell>{student.class || "-"}</TableCell>
                       <TableCell>{student.grade || "-"}</TableCell>
                       <TableCell>{getStatusBadge(student.status)}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {canManageStudents && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleDialogOpen(student)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={() => {
-                                setStudentToDelete(student);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
+                      {canManageStudents && (
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleDialogOpen(student)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => {
+                              setStudentToDelete(student);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}

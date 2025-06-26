@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
 import apiClient from "@/lib/api";
 import {
   PlusCircle,
@@ -57,7 +58,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Types
 interface Activity {
@@ -71,6 +72,18 @@ interface Activity {
   participants_count?: number;
   applications_count?: number;
   owner_id: string;
+  owner_info?: {
+    name: string;
+    role: string;
+  };
+}
+
+interface PaginatedResponse {
+  data: Activity[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 type CreateActivityForm = z.infer<typeof activitySchema>;
@@ -85,6 +98,7 @@ const activitySchema = z.object({
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, hasPermission } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +115,12 @@ export default function ActivitiesPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
   const form = useForm<CreateActivityForm>({
     resolver: zodResolver(activitySchema),
     defaultValues: {
@@ -109,32 +129,93 @@ export default function ActivitiesPage() {
     },
   });
 
-  const fetchActivities = async () => {
+  // 根据URL参数设置初始过滤器
+  useEffect(() => {
+    const statusFromUrl = searchParams.get("status");
+    if (statusFromUrl) {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [searchParams]);
+
+  const fetchActivities = async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
-      const response = await apiClient.get("/activities");
+
+      // 构建查询参数
+      const params: any = {
+        page,
+        page_size: size,
+      };
+
+      if (searchTerm) {
+        params.query = searchTerm;
+      }
+      if (categoryFilter !== "all") {
+        params.category = categoryFilter;
+      }
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
+
+      const response = await apiClient.get("/activities", { params });
       console.log("API Response:", response.data); // 调试日志
 
       // 处理不同的响应数据结构
-      let activities = [];
-      if (response.data.data && Array.isArray(response.data.data)) {
-        activities = response.data.data;
-      } else if (response.data.data && Array.isArray(response.data.data.data)) {
-        activities = response.data.data.data;
+      let activitiesData: Activity[] = [];
+      let paginationData: any = {};
+
+      if (response.data.data && response.data.data.data) {
+        // 嵌套数据结构
+        activitiesData = response.data.data.data;
+        paginationData = {
+          total: response.data.data.total || 0,
+          page: response.data.data.page || 1,
+          page_size: response.data.data.page_size || 10,
+          total_pages: response.data.data.total_pages || 0,
+        };
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        // 直接数组结构
+        activitiesData = response.data.data;
+        paginationData = {
+          total: activitiesData.length,
+          page: 1,
+          page_size: activitiesData.length,
+          total_pages: 1,
+        };
       } else if (Array.isArray(response.data)) {
-        activities = response.data;
+        // 直接数组
+        activitiesData = response.data;
+        paginationData = {
+          total: activitiesData.length,
+          page: 1,
+          page_size: activitiesData.length,
+          total_pages: 1,
+        };
       } else if (
         response.data.activities &&
         Array.isArray(response.data.activities)
       ) {
-        activities = response.data.activities;
+        // 旧格式
+        activitiesData = response.data.activities;
+        paginationData = {
+          total: activitiesData.length,
+          page: 1,
+          page_size: activitiesData.length,
+          total_pages: 1,
+        };
       } else {
         console.warn("Unexpected response structure:", response.data);
-        activities = [];
+        activitiesData = [];
+        paginationData = {
+          total: 0,
+          page: 1,
+          page_size: 10,
+          total_pages: 0,
+        };
       }
 
       setActivities(
-        activities.map((activity: any) => ({
+        activitiesData.map((activity: any) => ({
           id: activity.id,
           title: activity.title,
           description: activity.description,
@@ -145,13 +226,20 @@ export default function ActivitiesPage() {
           participants_count: activity.participants?.length || 0,
           applications_count: activity.applications?.length || 0,
           owner_id: activity.owner_id,
+          owner_info: activity.owner_info,
         }))
       );
+
+      // 更新分页信息
+      setTotalItems(paginationData.total);
+      setTotalPages(paginationData.total_pages);
+      setCurrentPage(paginationData.page);
+      setPageSize(paginationData.page_size);
     } catch (err) {
       console.error("Failed to fetch activities:", err);
       toast.error("获取活动列表失败");
       // Fallback to mock data
-      setActivities([
+      const mockActivities = [
         {
           id: "1",
           title: "创新创业项目",
@@ -163,6 +251,10 @@ export default function ActivitiesPage() {
           participants_count: 25,
           applications_count: 18,
           owner_id: "admin",
+          owner_info: {
+            name: "张三",
+            role: "teacher",
+          },
         },
         {
           id: "2",
@@ -175,6 +267,10 @@ export default function ActivitiesPage() {
           participants_count: 42,
           applications_count: 35,
           owner_id: "admin",
+          owner_info: {
+            name: "李四",
+            role: "teacher",
+          },
         },
         {
           id: "3",
@@ -187,8 +283,17 @@ export default function ActivitiesPage() {
           participants_count: 18,
           applications_count: 12,
           owner_id: "admin",
+          owner_info: {
+            name: "王五",
+            role: "student",
+          },
         },
-      ]);
+      ];
+      setActivities(mockActivities);
+      setTotalItems(mockActivities.length);
+      setTotalPages(1);
+      setCurrentPage(1);
+      setPageSize(10);
     } finally {
       setLoading(false);
     }
@@ -197,6 +302,30 @@ export default function ActivitiesPage() {
   useEffect(() => {
     fetchActivities();
   }, []);
+
+  // 处理分页变化
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchActivities(page, pageSize);
+  };
+
+  // 处理每页数量变化
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1); // 重置到第一页
+    fetchActivities(1, size);
+  };
+
+  // 处理搜索和筛选
+  const handleSearchAndFilter = () => {
+    setCurrentPage(1); // 重置到第一页
+    fetchActivities(1, pageSize);
+  };
+
+  // 监听搜索和筛选变化
+  useEffect(() => {
+    handleSearchAndFilter();
+  }, [searchTerm, categoryFilter, statusFilter]);
 
   const handleDialogOpen = (activity: Activity | null) => {
     setEditingActivity(activity);
@@ -225,7 +354,7 @@ export default function ActivitiesPage() {
     try {
       await apiClient.delete(`/activities/${deletingActivity.id}`);
       toast.success("活动删除成功");
-      fetchActivities();
+      fetchActivities(currentPage, pageSize);
     } catch (err) {
       toast.error("删除活动失败");
     } finally {
@@ -268,7 +397,7 @@ export default function ActivitiesPage() {
         toast.success("批量导入成功");
         setIsImportDialogOpen(false);
         setImportFile(null);
-        fetchActivities();
+        fetchActivities(currentPage, pageSize);
       } else {
         toast.error(response.data.message || "导入失败");
       }
@@ -310,7 +439,7 @@ export default function ActivitiesPage() {
         await apiClient.put(`/activities/${editingActivity.id}`, values);
         toast.success("活动更新成功");
         setIsDialogOpen(false);
-        fetchActivities();
+        fetchActivities(currentPage, pageSize);
       } else {
         const response = await apiClient.post("/activities", values);
         const createdActivity = response.data.data;
@@ -426,7 +555,7 @@ export default function ActivitiesPage() {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activities.length}</div>
+            <div className="text-2xl font-bold">{totalItems}</div>
             <p className="text-xs text-muted-foreground">
               已通过: {activities.filter((a) => a.status === "approved").length}
             </p>
@@ -524,7 +653,7 @@ export default function ActivitiesPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={fetchActivities}
+              onClick={() => fetchActivities(currentPage, pageSize)}
               disabled={loading}
               className="rounded-lg shadow"
             >
@@ -550,6 +679,7 @@ export default function ActivitiesPage() {
                   <TableHead>描述</TableHead>
                   <TableHead>类别</TableHead>
                   <TableHead>状态</TableHead>
+                  <TableHead>创建人</TableHead>
                   <TableHead>参与人数</TableHead>
                   <TableHead>申请数</TableHead>
                   <TableHead>操作</TableHead>
@@ -558,7 +688,7 @@ export default function ActivitiesPage() {
               <TableBody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center">
+                    <td colSpan={8} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="text-muted-foreground">加载中...</span>
@@ -567,7 +697,7 @@ export default function ActivitiesPage() {
                   </tr>
                 ) : activities.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12">
+                    <td colSpan={8} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
                         <AlertCircle className="w-12 h-12 mb-2" />
                         <p>暂无活动记录</p>
@@ -575,98 +705,110 @@ export default function ActivitiesPage() {
                     </td>
                   </tr>
                 ) : (
-                  activities
-                    .filter(
-                      (activity) =>
-                        (searchTerm === "" ||
-                          activity.title
-                            .toLowerCase()
-                            .includes(searchTerm.toLowerCase())) &&
-                        (categoryFilter === "all" ||
-                          activity.category === categoryFilter) &&
-                        (statusFilter === "all" ||
-                          activity.status === statusFilter)
-                    )
-                    .map((activity) => (
-                      <TableRow
-                        key={activity.id}
-                        className="hover:bg-muted/40 transition-colors"
-                      >
-                        <TableCell className="font-medium">
-                          {activity.title}
-                        </TableCell>
-                        <TableCell className="truncate max-w-xs">
-                          {activity.description}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="secondary"
-                            className="rounded px-2 py-1"
+                  activities.map((activity) => (
+                    <TableRow
+                      key={activity.id}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <TableCell className="font-medium">
+                        {activity.title}
+                      </TableCell>
+                      <TableCell className="truncate max-w-xs">
+                        {activity.description}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="secondary"
+                          className="rounded px-2 py-1"
+                        >
+                          {activity.category || "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`${getStatusStyle(
+                            activity.status
+                          )} rounded-lg px-2 py-1`}
+                        >
+                          {getStatusIcon(activity.status)}
+                          {getStatusText(activity.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">
+                            {activity.owner_info?.name || "未知用户"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {activity.owner_info?.role === "student"
+                              ? "学生"
+                              : activity.owner_info?.role === "teacher"
+                              ? "教师"
+                              : activity.owner_info?.role === "admin"
+                              ? "管理员"
+                              : "用户"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{activity.participants_count || 0}</TableCell>
+                      <TableCell>{activity.applications_count || 0}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="rounded-full hover:bg-primary/10"
+                            title="查看详情"
+                            onClick={() =>
+                              navigate(`/activities/${activity.id}`)
+                            }
                           >
-                            {activity.category || "-"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`${getStatusStyle(
-                              activity.status
-                            )} rounded-lg px-2 py-1`}
-                          >
-                            {getStatusIcon(activity.status)}
-                            {getStatusText(activity.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {activity.participants_count || 0}
-                        </TableCell>
-                        <TableCell>
-                          {activity.applications_count || 0}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {(user?.userType === "admin" ||
+                            (user?.user_id === activity.owner_id &&
+                              activity.status === "draft")) && (
                             <Button
                               size="icon"
                               variant="ghost"
                               className="rounded-full hover:bg-primary/10"
-                              title="查看详情"
+                              title="编辑"
                               onClick={() =>
-                                navigate(`/activities/${activity.id}`)
+                                navigate(`/activities/${activity.id}?edit=1`)
                               }
                             >
-                              <Eye className="h-4 w-4" />
+                              <Edit className="h-4 w-4" />
                             </Button>
-                            {(user?.userType === "admin" ||
-                              (user?.user_id === activity.owner_id &&
-                                activity.status === "draft")) && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="rounded-full hover:bg-primary/10"
-                                title="编辑"
-                                onClick={() =>
-                                  navigate(`/activities/${activity.id}?edit=1`)
-                                }
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="rounded-full hover:bg-red-100"
-                              title="删除"
-                              onClick={() => handleDeleteClick(activity)}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="rounded-full hover:bg-red-100"
+                            title="删除"
+                            onClick={() => handleDeleteClick(activity)}
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
           </div>
+
+          {/* 分页组件 */}
+          {!loading && activities.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
         </CardContent>
       </Card>
 

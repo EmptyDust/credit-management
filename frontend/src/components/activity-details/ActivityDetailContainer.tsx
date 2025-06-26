@@ -1,8 +1,8 @@
-import React, { useState, useImperativeHandle, forwardRef } from "react";
+import { useState, useImperativeHandle, forwardRef } from "react";
 import type { ActivityWithDetails } from "../../types/activity";
 import InnovationActivityDetail from "./InnovationActivityDetail";
 import CompetitionActivityDetail from "./CompetitionActivityDetail";
-import EntrepreneurshipProjectDetail from "./EntrepreneurshipProjectDetail";
+import { EntrepreneurshipProjectDetail } from "./index";
 import EntrepreneurshipPracticeDetail from "./EntrepreneurshipPracticeDetail";
 import PaperPatentDetail from "./PaperPatentDetail";
 

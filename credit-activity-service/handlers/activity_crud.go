@@ -206,25 +206,8 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		}
 	}
 
-	// 构建响应数据
-	response := models.ActivityResponse{
-		ID:             activity.ID,
-		Title:          activity.Title,
-		Description:    activity.Description,
-		StartDate:      activity.StartDate,
-		EndDate:        activity.EndDate,
-		Status:         activity.Status,
-		Category:       activity.Category,
-		Requirements:   activity.Requirements,
-		OwnerID:        activity.OwnerID,
-		ReviewerID:     activity.ReviewerID,
-		ReviewComments: activity.ReviewComments,
-		ReviewedAt:     activity.ReviewedAt,
-		CreatedAt:      activity.CreatedAt,
-		UpdatedAt:      activity.UpdatedAt,
-		Participants:   []models.ParticipantResponse{},
-		Applications:   []models.ApplicationResponse{},
-	}
+	// 构建响应
+	response := h.enrichActivityResponse(activity, "")
 
 	c.JSON(http.StatusCreated, gin.H{
 		"code":    0,
@@ -637,24 +620,7 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 	}
 
 	// 构建响应数据
-	response := models.ActivityResponse{
-		ID:             activity.ID,
-		Title:          activity.Title,
-		Description:    activity.Description,
-		StartDate:      activity.StartDate,
-		EndDate:        activity.EndDate,
-		Status:         activity.Status,
-		Category:       activity.Category,
-		Requirements:   activity.Requirements,
-		OwnerID:        activity.OwnerID,
-		ReviewerID:     activity.ReviewerID,
-		ReviewComments: activity.ReviewComments,
-		ReviewedAt:     activity.ReviewedAt,
-		CreatedAt:      activity.CreatedAt,
-		UpdatedAt:      activity.UpdatedAt,
-		Participants:   []models.ParticipantResponse{},
-		Applications:   []models.ApplicationResponse{},
-	}
+	response := h.enrichActivityResponse(activity, "")
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,

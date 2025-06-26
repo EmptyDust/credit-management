@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   Download,
   Filter,
   Search,
+  ExternalLink,
 } from "lucide-react";
 import {
   Dialog,
@@ -125,7 +127,7 @@ export default function ActivityApplications({
   const [applications, setApplications] = useState<ApplicationWithUserInfo[]>(
     []
   );
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showDetailDialog, setShowDetailDialog] = useState(false);
@@ -134,6 +136,7 @@ export default function ActivityApplications({
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewCredits, setReviewCredits] = useState(0);
   const [reviewComments, setReviewComments] = useState("");
+  const navigate = useNavigate();
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
@@ -568,6 +571,14 @@ export default function ActivityApplications({
           )}
 
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/activities/${activity.id}`)}
+              className="flex items-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              查看关联活动
+            </Button>
             <Button onClick={() => setShowDetailDialog(false)}>关闭</Button>
           </DialogFooter>
         </DialogContent>

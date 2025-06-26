@@ -5,9 +5,7 @@ import type {
 } from "../../types/activity";
 import {
   ActivityBasicInfo,
-  ActivityActions,
   ActivityParticipants,
-  ActivityApplications,
   ActivityAttachments,
 } from "../activity-common";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
@@ -15,6 +13,7 @@ import { Badge } from "../ui/badge";
 import { FileText, Award, Star, Users } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Input } from "@/components/ui/input";
+import ReviewActionCard from "../activity-common/ReviewActionCard";
 
 interface PaperPatentDetailProps {
   activity: ActivityWithDetails;
@@ -46,7 +45,8 @@ const PaperPatentDetail: React.FC<PaperPatentDetailProps> = ({
   const [isManagingAttachments, setIsManagingAttachments] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  const isOwner = user?.id === activity.owner_id || user?.userType === "admin";
+  const isOwner =
+    user?.user_id === activity.owner_id || user?.userType === "admin";
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
 
   const handleRefresh = () => {
@@ -64,18 +64,6 @@ const PaperPatentDetail: React.FC<PaperPatentDetailProps> = ({
         onRefresh={handleRefresh}
         basicInfo={basicInfo}
         setBasicInfo={setBasicInfo}
-      />
-
-      {/* 活动操作 */}
-      <ActivityActions
-        activity={activity}
-        isOwner={isOwner}
-        isReviewer={isReviewer}
-        onRefresh={handleRefresh}
-        onEditModeChange={onEditModeChange}
-        onParticipantsModeChange={setIsManagingParticipants}
-        onAttachmentsModeChange={setIsManagingAttachments}
-        onReviewModeChange={setIsReviewing}
       />
 
       {/* 论文专利详情 */}
@@ -173,8 +161,13 @@ const PaperPatentDetail: React.FC<PaperPatentDetailProps> = ({
       {/* 附件 */}
       <ActivityAttachments activity={activity} onRefresh={handleRefresh} />
 
-      {/* 申请列表 */}
-      <ActivityApplications activity={activity} onRefresh={handleRefresh} />
+      {/* 审批意见卡片 */}
+      <ReviewActionCard
+        activityId={activity.id}
+        activityStatus={activity.status}
+        isReviewer={isReviewer}
+        onSuccess={handleRefresh}
+      />
     </div>
   );
 };

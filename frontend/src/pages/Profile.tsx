@@ -309,7 +309,10 @@ export default function ProfilePage() {
       passwordForm.reset();
       toast.success("密码修改成功！");
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "密码修改失败";
+      let errorMessage = err.response?.data?.message || "密码修改失败";
+      if (errorMessage.includes("管理员权限")) {
+        errorMessage = "您没有权限修改密码，请重新登录或联系管理员。";
+      }
       toast.error(errorMessage);
     } finally {
       setChangingPassword(false);
@@ -586,21 +589,20 @@ export default function ProfilePage() {
                                       placeholder="请输入当前密码"
                                       className="pr-10"
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                       onClick={() =>
                                         togglePasswordVisibility("current")
                                       }
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                      disabled={changingPassword}
                                     >
                                       {showPassword.current ? (
                                         <EyeOff className="h-4 w-4" />
                                       ) : (
                                         <Eye className="h-4 w-4" />
                                       )}
-                                    </Button>
+                                    </button>
                                   </div>
                                 </FormControl>
                                 <FormMessage />
@@ -623,21 +625,20 @@ export default function ProfilePage() {
                                       placeholder="请输入新密码"
                                       className="pr-10"
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                       onClick={() =>
                                         togglePasswordVisibility("new")
                                       }
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                      disabled={changingPassword}
                                     >
                                       {showPassword.new ? (
                                         <EyeOff className="h-4 w-4" />
                                       ) : (
                                         <Eye className="h-4 w-4" />
                                       )}
-                                    </Button>
+                                    </button>
                                   </div>
                                 </FormControl>
                                 <FormMessage />
@@ -662,21 +663,20 @@ export default function ProfilePage() {
                                       placeholder="请再次输入新密码"
                                       className="pr-10"
                                     />
-                                    <Button
+                                    <button
                                       type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                       onClick={() =>
                                         togglePasswordVisibility("confirm")
                                       }
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                      disabled={changingPassword}
                                     >
                                       {showPassword.confirm ? (
                                         <EyeOff className="h-4 w-4" />
                                       ) : (
                                         <Eye className="h-4 w-4" />
                                       )}
-                                    </Button>
+                                    </button>
                                   </div>
                                 </FormControl>
                                 <FormMessage />

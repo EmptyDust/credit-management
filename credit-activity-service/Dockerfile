@@ -38,6 +38,9 @@ WORKDIR /app
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/credit-activity-service .
 
+# 创建uploads目录
+RUN mkdir -p /app/uploads/attachments
+
 # 设置权限
 RUN chown -R appuser:appgroup /app
 

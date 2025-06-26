@@ -1,9 +1,9 @@
 #!/usr/bin/env pwsh
 
-# 学分管理系统综合测试脚本
+# 双创分申请平台综合测试脚本
 # 测试所有服务和前端功能
 
-Write-Host "=== 学分管理系统综合测试 ===" -ForegroundColor Green
+Write-Host "=== 双创分申请平台综合测试 ===" -ForegroundColor Green
 Write-Host "开始时间: $(Get-Date)" -ForegroundColor Yellow
 
 # 配置

@@ -21,17 +21,18 @@ import {
   Activity,
   BarChart3,
   Target,
-  Star,
   BookOpen,
   Trophy,
   Zap,
   Lightbulb,
-  Globe,
   Eye,
+  Calendar,
+  MapPin,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
+import type { ActivityWithDetails, ActivityCategory } from "@/types/activity";
 
 interface UserStats {
   total_users: number;
@@ -42,46 +43,54 @@ interface UserStats {
   new_users_this_month: number;
 }
 
-interface ApplicationStats {
-  total_applications: number;
-  pending_applications: number;
-  approved_applications: number;
-  rejected_applications: number;
-  unsubmitted_applications: number;
-  applications_this_month: number;
-  approval_rate: number;
-  total_credits_awarded: number;
-  average_credits_per_application: number;
-  credits_this_month: number;
-}
-
 interface ActivityStats {
   total_activities: number;
   active_activities: number;
+  draft_activities: number;
+  pending_activities: number;
+  approved_activities: number;
+  rejected_activities: number;
   recent_activities: Array<{
     id: string;
-    name: string;
+    title: string;
     description: string;
+    category: ActivityCategory;
+    status: string;
     participant_count: number;
     application_count: number;
     created_at: string;
+    updated_at: string;
+    start_date: string;
+    end_date: string;
   }>;
   popular_activities: Array<{
     id: string;
-    name: string;
+    title: string;
     application_count: number;
     participant_count: number;
   }>;
+  category_stats: {
+    [key in ActivityCategory]: number;
+  };
+  total_participants: number;
+  total_applications: number;
+  total_credits_awarded: number;
+  average_credits_per_activity: number;
 }
 
 interface RecentActivity {
   id: string;
-  type: "application" | "activity" | "user" | "review";
-  action: string;
-  timestamp: string;
-  user: string;
-  details?: string;
-  status?: string;
+  title: string;
+  description: string;
+  category: ActivityCategory;
+  status: string;
+  participant_count: number;
+  application_count: number;
+  created_at: string;
+  updated_at: string;
+  start_date: string;
+  end_date: string;
+  owner_name?: string;
 }
 
 interface CreditTypeStats {
@@ -181,96 +190,139 @@ const StatCard = ({
 };
 
 const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
-  const getIcon = () => {
-    switch (activity.type) {
-      case "application":
-        return <FileText className="h-4 w-4" />;
-      case "activity":
-        return <Award className="h-4 w-4" />;
-      case "user":
-        return <Users className="h-4 w-4" />;
-      case "review":
-        return <CheckCircle className="h-4 w-4" />;
+  const getCategoryIcon = (category: ActivityCategory) => {
+    switch (category) {
+      case "创新创业实践活动":
+        return <Lightbulb className="h-4 w-4" />;
+      case "学科竞赛":
+        return <Trophy className="h-4 w-4" />;
+      case "大学生创业项目":
+        return <Zap className="h-4 w-4" />;
+      case "创业实践项目":
+        return <Briefcase className="h-4 w-4" />;
+      case "论文专利":
+        return <BookOpen className="h-4 w-4" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
   };
 
-  const getColor = () => {
-    switch (activity.type) {
-      case "application":
-        return "bg-blue-100 text-blue-600 dark:bg-blue-900/20";
-      case "activity":
-        return "bg-purple-100 text-purple-600 dark:bg-purple-900/20";
-      case "user":
-        return "bg-green-100 text-green-600 dark:bg-green-900/20";
-      case "review":
-        return "bg-orange-100 text-orange-600 dark:bg-orange-900/20";
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return (
+          <Badge
+            variant="default"
+            className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+          >
+            已通过
+          </Badge>
+        );
+      case "pending_review":
+        return (
+          <Badge
+            variant="default"
+            className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+          >
+            待审核
+          </Badge>
+        );
+      case "rejected":
+        return (
+          <Badge
+            variant="default"
+            className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+          >
+            已拒绝
+          </Badge>
+        );
+      case "draft":
+        return (
+          <Badge
+            variant="default"
+            className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+          >
+            草稿
+          </Badge>
+        );
       default:
-        return "bg-gray-100 text-gray-600 dark:bg-gray-900/20";
+        return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  const getStatusBadge = (status?: string) => {
-    if (!status) return null;
-
-    const statusConfig = {
-      pending: {
-        label: "待审核",
-        color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20",
-      },
-      approved: {
-        label: "已通过",
-        color: "bg-green-100 text-green-800 dark:bg-green-900/20",
-      },
-      rejected: {
-        label: "已拒绝",
-        color: "bg-red-100 text-red-800 dark:bg-red-900/20",
-      },
-      unsubmitted: {
-        label: "未提交",
-        color: "bg-gray-100 text-gray-800 dark:bg-gray-900/20",
-      },
-    };
-
-    const config = statusConfig[status as keyof typeof statusConfig];
-    return config ? (
-      <Badge className={config.color}>{config.label}</Badge>
-    ) : null;
   };
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
-    const diffInMinutes = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60)
+    const diffInHours = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
     );
-    if (diffInMinutes < 1) return "刚刚";
-    if (diffInMinutes < 60) return `${diffInMinutes}分钟前`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}小时前`;
-    return date.toLocaleDateString();
+
+    if (diffInHours < 1) {
+      return "刚刚";
+    } else if (diffInHours < 24) {
+      return `${diffInHours}小时前`;
+    } else if (diffInHours < 24 * 7) {
+      return `${Math.floor(diffInHours / 24)}天前`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("zh-CN", {
+      month: "short",
+      day: "numeric",
+    });
   };
 
   return (
-    <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-muted">
-      <div className={`p-2 rounded-full ${getColor()} shadow-sm`}>
-        {getIcon()}
+    <div className="flex items-start space-x-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+      <div className="flex-shrink-0 p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+        {getCategoryIcon(activity.category)}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium truncate">{activity.action}</p>
-          {getStatusBadge(activity.status)}
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {activity.title}
+            </h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+              {activity.description}
+            </p>
+          </div>
+          <div className="flex-shrink-0 ml-2">
+            {getStatusBadge(activity.status)}
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">by {activity.user}</p>
-        {activity.details && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {activity.details}
-          </p>
-        )}
+
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center space-x-1">
+              <Calendar className="h-3 w-3" />
+              <span>
+                {formatDate(activity.start_date)} -{" "}
+                {formatDate(activity.end_date)}
+              </span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <Users className="h-3 w-3" />
+              <span>{activity.participant_count} 参与者</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <FileText className="h-3 w-3" />
+              <span>{activity.application_count} 申请</span>
+            </div>
+          </div>
+          <div className="text-xs text-gray-400">
+            {formatTime(activity.updated_at)}
+          </div>
+        </div>
       </div>
-      <div className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatTime(activity.timestamp)}
-      </div>
+      <Link to={`/activities/${activity.id}`}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Eye className="h-4 w-4" />
+        </Button>
+      </Link>
     </div>
   );
 };
@@ -314,23 +366,26 @@ const CreditTypeCard = ({
 export default function Dashboard() {
   const { user, hasPermission } = useAuth();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [appStats, setAppStats] = useState<ApplicationStats>({
-    total_applications: 0,
-    pending_applications: 0,
-    approved_applications: 0,
-    rejected_applications: 0,
-    unsubmitted_applications: 0,
-    applications_this_month: 0,
-    approval_rate: 0,
-    total_credits_awarded: 0,
-    average_credits_per_application: 0,
-    credits_this_month: 0,
-  });
   const [activityStats, setActivityStats] = useState<ActivityStats>({
     total_activities: 0,
     active_activities: 0,
+    draft_activities: 0,
+    pending_activities: 0,
+    approved_activities: 0,
+    rejected_activities: 0,
     recent_activities: [],
     popular_activities: [],
+    category_stats: {
+      创新创业实践活动: 0,
+      学科竞赛: 0,
+      大学生创业项目: 0,
+      创业实践项目: 0,
+      论文专利: 0,
+    },
+    total_participants: 0,
+    total_applications: 0,
+    total_credits_awarded: 0,
+    average_credits_per_activity: 0,
   });
   const [creditTypeStats, setCreditTypeStats] = useState<CreditTypeStats>({
     innovation_practice: 0,
@@ -359,7 +414,6 @@ export default function Dashboard() {
           }
         } catch (error) {
           console.error("Failed to fetch user stats:", error);
-          // 网络错误时不使用fake数据
           if (
             error instanceof Error &&
             error.message.includes("Network Error")
@@ -370,12 +424,11 @@ export default function Dashboard() {
         }
       }
 
-      // Fetch activities to calculate stats
+      // Fetch activities to calculate all stats
       try {
         const activitiesResponse = await apiClient.get("/activities");
-        console.log("Dashboard activities response:", activitiesResponse.data); // 调试日志
+        console.log("Dashboard activities response:", activitiesResponse.data);
 
-        // 处理不同的响应数据结构
         let activities = [];
         if (
           activitiesResponse.data.data &&
@@ -402,138 +455,149 @@ export default function Dashboard() {
           activities = [];
         }
 
-        // Calculate activity stats
+        // Calculate comprehensive activity stats
         const totalActivities = activities.length;
         const activeActivities = activities.filter(
           (activity: any) => activity.status === "approved"
         ).length;
+        const draftActivities = activities.filter(
+          (activity: any) => activity.status === "draft"
+        ).length;
+        const pendingActivities = activities.filter(
+          (activity: any) => activity.status === "pending_review"
+        ).length;
+        const approvedActivities = activities.filter(
+          (activity: any) => activity.status === "approved"
+        ).length;
+        const rejectedActivities = activities.filter(
+          (activity: any) => activity.status === "rejected"
+        ).length;
+
+        // Calculate category stats
+        const categoryStats = {
+          创新创业实践活动: 0,
+          学科竞赛: 0,
+          大学生创业项目: 0,
+          创业实践项目: 0,
+          论文专利: 0,
+        };
+
+        activities.forEach((activity: any) => {
+          if (
+            activity.category &&
+            categoryStats.hasOwnProperty(activity.category)
+          ) {
+            categoryStats[activity.category as ActivityCategory]++;
+          }
+        });
+
+        // Calculate total participants and applications
+        const totalParticipants = activities.reduce(
+          (sum: number, activity: any) =>
+            sum + (activity.participants?.length || 0),
+          0
+        );
+        const totalApplications = activities.reduce(
+          (sum: number, activity: any) =>
+            sum + (activity.applications?.length || 0),
+          0
+        );
+
+        // Calculate total credits awarded
+        const totalCreditsAwarded = activities.reduce(
+          (sum: number, activity: any) => {
+            const approvedApps =
+              activity.applications?.filter(
+                (app: any) => app.status === "approved"
+              ) || [];
+            return (
+              sum +
+              approvedApps.reduce(
+                (appSum: number, app: any) =>
+                  appSum + (app.awarded_credits || 0),
+                0
+              )
+            );
+          },
+          0
+        );
+
+        const averageCreditsPerActivity =
+          totalActivities > 0
+            ? Math.round((totalCreditsAwarded / totalActivities) * 10) / 10
+            : 0;
+
+        // Prepare recent activities for the card
+        const recentActivitiesData = activities
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.updated_at).getTime() -
+              new Date(a.updated_at).getTime()
+          )
+          .slice(0, 10)
+          .map((activity: any) => ({
+            id: activity.id,
+            title: activity.title,
+            description: activity.description,
+            category: activity.category,
+            status: activity.status,
+            participant_count: activity.participants?.length || 0,
+            application_count: activity.applications?.length || 0,
+            created_at: activity.created_at,
+            updated_at: activity.updated_at,
+            start_date: activity.start_date,
+            end_date: activity.end_date,
+            owner_name: activity.owner?.name || activity.owner_name,
+          }));
+
+        // Prepare popular activities
+        const popularActivities = activities
+          .sort(
+            (a: any, b: any) =>
+              (b.participants?.length || 0) - (a.participants?.length || 0)
+          )
+          .slice(0, 5)
+          .map((activity: any) => ({
+            id: activity.id,
+            title: activity.title,
+            application_count: activity.applications?.length || 0,
+            participant_count: activity.participants?.length || 0,
+          }));
 
         setActivityStats({
           total_activities: totalActivities,
           active_activities: activeActivities,
-          recent_activities: activities
-            .sort(
-              (a: any, b: any) =>
-                new Date(b.created_at).getTime() -
-                new Date(a.created_at).getTime()
-            )
-            .slice(0, 5)
-            .map((activity: any) => ({
-              id: activity.id,
-              name: activity.title,
-              description: activity.description,
-              participant_count: activity.participants?.length || 0,
-              application_count: activity.applications?.length || 0,
-              created_at: activity.created_at,
-            })),
-          popular_activities: activities
-            .sort(
-              (a: any, b: any) =>
-                (b.participants?.length || 0) - (a.participants?.length || 0)
-            )
-            .slice(0, 5)
-            .map((activity: any) => ({
-              id: activity.id,
-              name: activity.title,
-              application_count: activity.applications?.length || 0,
-              participant_count: activity.participants?.length || 0,
-            })),
+          draft_activities: draftActivities,
+          pending_activities: pendingActivities,
+          approved_activities: approvedActivities,
+          rejected_activities: rejectedActivities,
+          recent_activities: recentActivitiesData,
+          popular_activities: popularActivities,
+          category_stats: categoryStats,
+          total_participants: totalParticipants,
+          total_applications: totalApplications,
+          total_credits_awarded: totalCreditsAwarded,
+          average_credits_per_activity: averageCreditsPerActivity,
+        });
+
+        // Set recent activities for the card
+        setRecentActivities(recentActivitiesData);
+
+        // Update credit type stats based on activities
+        setCreditTypeStats({
+          innovation_practice: categoryStats["创新创业实践活动"],
+          discipline_competition: categoryStats["学科竞赛"],
+          entrepreneurship_project: categoryStats["大学生创业项目"],
+          entrepreneurship_practice: categoryStats["创业实践项目"],
+          paper_patent: categoryStats["论文专利"],
         });
       } catch (error) {
         console.error("Failed to fetch activities:", error);
-        // 网络错误时不使用fake数据
         if (error instanceof Error && error.message.includes("Network Error")) {
           toast.error("网络连接失败，请检查网络连接");
           return;
         }
-        // 其他错误时显示错误信息
         toast.error("获取活动数据失败");
-      }
-
-      // Fetch applications to calculate stats
-      try {
-        const endpoint =
-          user?.userType === "student"
-            ? "/applications" // 学生只能看到自己的申请
-            : "/applications/all"; // 教师和管理员可以看到所有申请
-        const appResponse = await apiClient.get(endpoint);
-        const applications =
-          appResponse.data.data?.applications ||
-          appResponse.data.applications ||
-          [];
-
-        const total = applications.length;
-        const pending = applications.filter(
-          (app: any) => app.status === "pending"
-        ).length;
-        const approved = applications.filter(
-          (app: any) => app.status === "approved"
-        ).length;
-        const rejected = applications.filter(
-          (app: any) => app.status === "rejected"
-        ).length;
-        const unsubmitted = applications.filter(
-          (app: any) => app.status === "unsubmitted"
-        ).length;
-        const approvalRate =
-          total > 0 ? Math.round((approved / total) * 100) : 0;
-
-        // Calculate credit stats
-        const approvedApps = applications.filter(
-          (app: any) => app.status === "approved"
-        );
-        const totalCredits = approvedApps.reduce(
-          (sum: number, app: any) => sum + (app.awarded_credits || 0),
-          0
-        );
-        const avgCredits =
-          approvedApps.length > 0
-            ? Math.round((totalCredits / approvedApps.length) * 10) / 10
-            : 0;
-
-        // Calculate this month's credits
-        const thisMonthCredits = approvedApps
-          .filter((app: any) => {
-            const appDate = new Date(app.submitted_at || app.created_at);
-            const now = new Date();
-            return (
-              appDate.getMonth() === now.getMonth() &&
-              appDate.getFullYear() === now.getFullYear()
-            );
-          })
-          .reduce(
-            (sum: number, app: any) => sum + (app.awarded_credits || 0),
-            0
-          );
-
-        setAppStats({
-          total_applications: total,
-          pending_applications: pending,
-          approved_applications: approved,
-          rejected_applications: rejected,
-          unsubmitted_applications: unsubmitted,
-          applications_this_month: applications.filter((app: any) => {
-            const appDate = new Date(app.submitted_at || app.created_at);
-            const now = new Date();
-            return (
-              appDate.getMonth() === now.getMonth() &&
-              appDate.getFullYear() === now.getFullYear()
-            );
-          }).length,
-          approval_rate: approvalRate,
-          total_credits_awarded: totalCredits,
-          average_credits_per_application: avgCredits,
-          credits_this_month: thisMonthCredits,
-        });
-      } catch (error) {
-        console.error("Failed to fetch applications:", error);
-        // 网络错误时不使用fake数据
-        if (error instanceof Error && error.message.includes("Network Error")) {
-          toast.error("网络连接失败，请检查网络连接");
-          return;
-        }
-        // 其他错误时显示错误信息
-        toast.error("获取申请数据失败");
       }
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
@@ -630,54 +694,55 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Application Statistics */}
+      {/* Activity Statistics - All data from activities */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          title="总申请数"
-          value={appStats.total_applications}
-          icon={FileText}
-          to="/applications"
-          description="所有申请"
+          title="总活动数"
+          value={activityStats.total_activities}
+          icon={Award}
+          to="/activities"
+          description="所有活动"
           loading={refreshing}
         />
         <StatCard
           title="待审核"
-          value={appStats.pending_applications}
+          value={activityStats.pending_activities}
           icon={GitPullRequest}
-          to="/applications"
+          to="/activities?status=pending_review"
           description="等待审核"
           color="warning"
           loading={refreshing}
         />
         <StatCard
           title="已通过"
-          value={appStats.approved_applications}
+          value={activityStats.approved_activities}
           icon={CheckCircle}
-          to="/applications"
+          to="/activities?status=approved"
           description="审核通过"
           color="success"
           loading={refreshing}
         />
         <StatCard
           title="已拒绝"
-          value={appStats.rejected_applications}
+          value={activityStats.rejected_activities}
           icon={XCircle}
-          to="/applications"
+          to="/activities?status=rejected"
           description="审核拒绝"
           color="danger"
           loading={refreshing}
         />
         <StatCard
-          title="通过率"
-          value={`${appStats.approval_rate}%`}
+          title="申请数量"
+          value={activityStats.total_applications}
           icon={Target}
-          description="申请通过率"
+          to="/applications"
+          description="总申请数"
           color="info"
           loading={refreshing}
         />
       </div>
 
-      {/* Activities and Activities */}
+      {/* Activities and Recent Activities */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Activities Statistics */}
         <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
@@ -697,19 +762,34 @@ export default function Dashboard() {
               </div>
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
                 <div className="text-3xl font-bold text-green-600">
-                  {activityStats.active_activities}
+                  {activityStats.total_participants}
                 </div>
-                <div className="text-sm text-muted-foreground">活跃活动</div>
+                <div className="text-sm text-muted-foreground">总参与者</div>
               </div>
             </div>
 
-            {activityStats.recent_activities.length > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20">
+                <div className="text-3xl font-bold text-yellow-600">
+                  {activityStats.total_applications}
+                </div>
+                <div className="text-sm text-muted-foreground">总申请数</div>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
+                <div className="text-3xl font-bold text-purple-600">
+                  {activityStats.total_credits_awarded}
+                </div>
+                <div className="text-sm text-muted-foreground">总授予学分</div>
+              </div>
+            </div>
+
+            {activityStats.popular_activities.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
-                  最近活动
+                  热门活动
                 </h4>
                 <div className="space-y-3">
-                  {activityStats.recent_activities
+                  {activityStats.popular_activities
                     .slice(0, 3)
                     .map((activity) => (
                       <div
@@ -718,7 +798,7 @@ export default function Dashboard() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            {activity.name}
+                            {activity.title}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {activity.participant_count} 参与者
@@ -758,7 +838,7 @@ export default function Dashboard() {
               最近活动
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+          <CardContent className="space-y-2 h-96 overflow-y-auto">
             {recentActivities.length > 0 ? (
               recentActivities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
@@ -773,7 +853,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Credit Statistics */}
+      {/* Credit Statistics - All data from activities */}
       <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
@@ -785,34 +865,34 @@ export default function Dashboard() {
           <div className="grid gap-6 md:grid-cols-4 mb-8">
             <div className="text-center p-6 rounded-xl bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20">
               <div className="text-3xl font-bold text-green-600">
-                {appStats.total_credits_awarded}
+                {activityStats.total_credits_awarded}
               </div>
               <div className="text-sm text-muted-foreground">总授予学分</div>
             </div>
             <div className="text-center p-6 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
               <div className="text-3xl font-bold text-blue-600">
-                {appStats.average_credits_per_application}
+                {activityStats.average_credits_per_activity}
               </div>
-              <div className="text-sm text-muted-foreground">平均学分/申请</div>
+              <div className="text-sm text-muted-foreground">平均学分/活动</div>
             </div>
             <div className="text-center p-6 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
               <div className="text-3xl font-bold text-purple-600">
-                {appStats.credits_this_month}
+                {activityStats.total_applications}
               </div>
-              <div className="text-sm text-muted-foreground">本月授予学分</div>
+              <div className="text-sm text-muted-foreground">总申请数</div>
             </div>
             <div className="text-center p-6 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
               <div className="text-3xl font-bold text-orange-600">
-                {appStats.applications_this_month}
+                {activityStats.total_participants}
               </div>
-              <div className="text-sm text-muted-foreground">本月申请数</div>
+              <div className="text-sm text-muted-foreground">总参与者</div>
             </div>
           </div>
 
           {/* Credit Types Distribution */}
           <div>
             <h4 className="text-lg font-medium mb-4 text-gray-700 dark:text-gray-300">
-              学分类型分布
+              活动类型分布
             </h4>
             <div className="grid gap-4 md:grid-cols-5">
               <CreditTypeCard
@@ -869,102 +949,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Quick Actions */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Student Quick Actions */}
-        {user?.userType === "student" && (
-          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Star className="h-6 w-6 text-yellow-600" />
-                学生快速操作
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Link to="/applications">
-                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
-                    <FileText className="h-6 w-6" />
-                    <span className="text-sm font-medium">查看申请</span>
-                  </Button>
-                </Link>
-                <Link to="/profile">
-                  <Button
-                    variant="outline"
-                    className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                  >
-                    <UserCheck className="h-6 w-6" />
-                    <span className="text-sm font-medium">个人资料</span>
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Teacher Quick Actions */}
-        {user?.userType === "teacher" && (
-          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Trophy className="h-6 w-6 text-purple-600" />
-                教师快速操作
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Link to="/applications">
-                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700">
-                    <CheckCircle className="h-6 w-6" />
-                    <span className="text-sm font-medium">审核申请</span>
-                  </Button>
-                </Link>
-                <Link to="/students">
-                  <Button
-                    variant="outline"
-                    className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                  >
-                    <Users className="h-6 w-6" />
-                    <span className="text-sm font-medium">查看学生</span>
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Admin Quick Actions */}
-        {hasPermission("admin") && (
-          <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Globe className="h-6 w-6 text-indigo-600" />
-                管理员快速操作
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Link to="/activities">
-                  <Button className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700">
-                    <Award className="h-6 w-6" />
-                    <span className="text-sm font-medium">管理活动</span>
-                  </Button>
-                </Link>
-                <Link to="/users">
-                  <Button
-                    variant="outline"
-                    className="w-full h-16 flex flex-col items-center gap-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                  >
-                    <Users className="h-6 w-6" />
-                    <span className="text-sm font-medium">用户管理</span>
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
     </div>
   );
 }

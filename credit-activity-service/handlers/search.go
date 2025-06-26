@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -183,6 +184,9 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	}
 	userType, _ := c.Get("user_type")
 
+	// 获取认证令牌
+	authToken := c.GetHeader("Authorization")
+
 	// 构建搜索请求
 	var req models.ApplicationSearchRequest
 
@@ -313,6 +317,12 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 				EndDate:     app.Activity.EndDate,
 			},
 		}
+
+		// 获取用户信息
+		if userInfo, err := utils.GetUserInfo(app.UserID, authToken); err == nil {
+			response.UserInfo = userInfo
+		}
+
 		responses = append(responses, response)
 	}
 
@@ -345,6 +355,9 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		return
 	}
 	userType, _ := c.Get("user_type")
+
+	// 获取认证令牌
+	authToken := c.GetHeader("Authorization")
 
 	// 构建搜索请求
 	var req models.ParticipantSearchRequest
@@ -435,6 +448,12 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 		}
+
+		// 获取用户信息
+		if userInfo, err := utils.GetUserInfo(participant.UserID, authToken); err == nil {
+			response.UserInfo = userInfo
+		}
+
 		responses = append(responses, response)
 	}
 
@@ -567,6 +586,10 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 
 	// 构建响应数据
 	var responses []models.AttachmentResponse
+
+	// 获取认证令牌用于调用用户服务
+	authToken := c.GetHeader("Authorization")
+
 	for _, attachment := range attachments {
 		response := models.AttachmentResponse{
 			ID:            attachment.ID,
@@ -581,6 +604,12 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 			UploadedAt:    attachment.UploadedAt,
 			DownloadCount: attachment.DownloadCount,
 		}
+
+		// 获取上传者信息
+		if userInfo, err := utils.GetUserInfo(attachment.UploadedBy, authToken); err == nil {
+			response.Uploader = *userInfo
+		}
+
 		responses = append(responses, response)
 	}
 

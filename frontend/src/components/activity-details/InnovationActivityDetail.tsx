@@ -5,9 +5,7 @@ import type {
 } from "../../types/activity";
 import {
   ActivityBasicInfo,
-  ActivityActions,
   ActivityParticipants,
-  ActivityApplications,
   ActivityAttachments,
 } from "../activity-common";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -15,6 +13,7 @@ import { Badge } from "../ui/badge";
 import { Lightbulb, Building2, FileText, Calendar, Clock } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Input } from "@/components/ui/input";
+import ReviewActionCard from "../activity-common/ReviewActionCard";
 
 interface InnovationActivityDetailProps {
   activity: ActivityWithDetails;
@@ -35,7 +34,6 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
   isEditing,
   onEditModeChange,
   onRefresh,
-  onSave,
   basicInfo,
   setBasicInfo,
   detailInfo,
@@ -46,7 +44,8 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
   const [isManagingAttachments, setIsManagingAttachments] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  const isOwner = user?.id === activity.owner_id || user?.userType === "admin";
+  const isOwner =
+    user?.user_id === activity.owner_id || user?.userType === "admin";
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
 
   const handleRefresh = () => {
@@ -64,18 +63,6 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
         onRefresh={handleRefresh}
         basicInfo={basicInfo}
         setBasicInfo={setBasicInfo}
-      />
-
-      {/* 活动操作 */}
-      <ActivityActions
-        activity={activity}
-        isOwner={isOwner}
-        isReviewer={isReviewer}
-        onRefresh={handleRefresh}
-        onEditModeChange={onEditModeChange}
-        onParticipantsModeChange={setIsManagingParticipants}
-        onAttachmentsModeChange={setIsManagingAttachments}
-        onReviewModeChange={setIsReviewing}
       />
 
       {/* 创新创业详情 */}
@@ -237,8 +224,13 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
       {/* 附件 */}
       <ActivityAttachments activity={activity} onRefresh={handleRefresh} />
 
-      {/* 申请列表 */}
-      <ActivityApplications activity={activity} onRefresh={handleRefresh} />
+      {/* 审批意见卡片 */}
+      <ReviewActionCard
+        activityId={activity.id}
+        activityStatus={activity.status}
+        isReviewer={isReviewer}
+        onSuccess={handleRefresh}
+      />
     </div>
   );
 };
