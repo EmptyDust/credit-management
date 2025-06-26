@@ -122,9 +122,12 @@ func main() {
 		// 搜索路由（统一用户服务）
 		api.GET("/search/users", createProxyHandler(config.UserServiceURL))
 
-		// 学分活动服务路由
+		// 学分活动服务路由 - 完整统一版本
+		// 1. 活动管理基础路由
 		api.GET("/activities/categories", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/templates", createProxyHandler(config.CreditActivityServiceURL))
 		api.POST("/activities", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/batch", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/stats", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/:id", createProxyHandler(config.CreditActivityServiceURL))
@@ -134,21 +137,47 @@ func main() {
 		api.POST("/activities/:id/withdraw", createProxyHandler(config.CreditActivityServiceURL))
 		api.POST("/activities/:id/review", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/pending", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/copy", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/save-template", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/deletable", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/batch-delete", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/import-csv", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/csv-template", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/export", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/report", createProxyHandler(config.CreditActivityServiceURL))
 
-		// 学分活动参与者管理
+		// 2. 活动参与者管理路由
 		api.POST("/activities/:id/participants", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/:id/participants", createProxyHandler(config.CreditActivityServiceURL))
 		api.PUT("/activities/:id/participants/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
 		api.PUT("/activities/:id/participants/:user_id/credits", createProxyHandler(config.CreditActivityServiceURL))
 		api.DELETE("/activities/:id/participants/:user_id", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/participants/batch-remove", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/participants/stats", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/participants/export", createProxyHandler(config.CreditActivityServiceURL))
 		api.POST("/activities/:id/leave", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/my-activities", createProxyHandler(config.CreditActivityServiceURL))
 
-		// 学分活动申请管理
-		api.GET("/activities/applications", createProxyHandler(config.CreditActivityServiceURL))
-		api.GET("/activities/applications/:id", createProxyHandler(config.CreditActivityServiceURL))
-		api.GET("/activities/applications/all", createProxyHandler(config.CreditActivityServiceURL))
-		api.GET("/activities/applications/export", createProxyHandler(config.CreditActivityServiceURL))
-		api.GET("/activities/applications/stats", createProxyHandler(config.CreditActivityServiceURL))
+		// 3. 活动附件管理路由
+		api.GET("/activities/:id/attachments", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/attachments", createProxyHandler(config.CreditActivityServiceURL))
+		api.POST("/activities/:id/attachments/batch", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/attachments/:attachment_id/download", createProxyHandler(config.CreditActivityServiceURL))
+		api.PUT("/activities/:id/attachments/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
+		api.DELETE("/activities/:id/attachments/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
+
+		// 4. 申请管理路由（独立路由组）
+		api.GET("/applications", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/applications/:id", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/applications/stats", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/applications/export", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/applications/all", createProxyHandler(config.CreditActivityServiceURL))
+
+		// 5. 统一检索API路由组
+		api.GET("/search/activities", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/search/applications", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/search/participants", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/search/attachments", createProxyHandler(config.CreditActivityServiceURL))
 	}
 
 	// 默认路由 - 返回API信息

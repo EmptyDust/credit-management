@@ -256,6 +256,13 @@ func main() {
 					allUsers.PUT("/profile", userHandler.UpdateUser) // 更新当前用户信息
 					allUsers.GET("/stats", userHandler.GetUserStats) // 获取用户统计信息
 					allUsers.GET("/:id", userHandler.GetUser)        // 获取指定用户信息
+
+					// 新增：用户自助修改密码
+					allUsers.POST("/change_password", userHandler.ChangePassword) // 修改自己密码
+
+					// 新增：获取用户活动记录（预留）
+					allUsers.GET("/activity", userHandler.GetUserActivity)     // 当前用户活动
+					allUsers.GET("/:id/activity", userHandler.GetUserActivity) // 指定用户活动（管理员/教师）
 				}
 
 				// 管理员路由
@@ -268,6 +275,16 @@ func main() {
 					admin.DELETE("/:id", userHandler.DeleteUser)             // 删除用户
 					admin.GET("", userHandler.GetAllUsers)                   // 获取所有用户
 					admin.GET("/type/:userType", userHandler.GetUsersByType) // 根据用户类型获取用户
+
+					// 新增：批量删除、批量状态、重置密码、导出
+					admin.POST("/batch_delete", userHandler.BatchDeleteUsers)      // 批量删除
+					admin.POST("/batch_status", userHandler.BatchUpdateUserStatus) // 批量状态
+					admin.POST("/reset_password", userHandler.ResetPassword)       // 重置密码
+					admin.GET("/export", userHandler.ExportUsers)                  // 导出用户数据
+
+					// 新增：CSV导入功能
+					admin.POST("/import-csv", userHandler.ImportUsersFromCSV)  // 从CSV导入用户
+					admin.GET("/csv-template", userHandler.GetUserCSVTemplate) // 获取CSV模板
 				}
 
 				// 学生、教师和管理员可以访问的路由（基于角色的权限控制）

@@ -50,6 +50,7 @@ func main() {
 	participantHandler := handlers.NewParticipantHandler(db)
 	applicationHandler := handlers.NewApplicationHandler(db)
 	attachmentHandler := handlers.NewAttachmentHandler(db)
+	searchHandler := handlers.NewSearchHandler(db)
 
 	// 创建中间件
 	authMiddleware := utils.NewAuthMiddleware()
@@ -100,6 +101,14 @@ func main() {
 					allUsers.POST("/:id/submit", activityHandler.SubmitActivity)       // 提交活动审核
 					allUsers.POST("/:id/withdraw", activityHandler.WithdrawActivity)   // 撤回活动
 					allUsers.GET("/deletable", activityHandler.GetDeletableActivities) // 获取可删除的活动列表
+
+					// 新增：活动复制、保存模板
+					allUsers.POST("/:id/copy", activityHandler.CopyActivity)            // 复制活动
+					allUsers.POST("/:id/save-template", activityHandler.SaveAsTemplate) // 保存为模板
+
+					// 新增：CSV导入功能
+					allUsers.POST("/import-csv", activityHandler.ImportActivitiesFromCSV) // 从CSV导入活动
+					allUsers.GET("/csv-template", activityHandler.GetCSVTemplate)         // 获取CSV模板
 				}
 
 				// 教师和管理员可以访问的路由
@@ -109,6 +118,10 @@ func main() {
 					teacherOrAdmin.POST("/:id/review", activityHandler.ReviewActivity)          // 审核活动
 					teacherOrAdmin.GET("/pending", activityHandler.GetPendingActivities)        // 获取待审核活动
 					teacherOrAdmin.POST("/batch-delete", activityHandler.BatchDeleteActivities) // 批量删除活动
+
+					// 新增：活动导出、报表
+					teacherOrAdmin.GET("/export", activityHandler.ExportActivities)  // 导出活动数据
+					teacherOrAdmin.GET("/report", activityHandler.GetActivityReport) // 获取活动报表
 				}
 			}
 
@@ -125,6 +138,11 @@ func main() {
 					ownerOrAdmin.PUT("/participants/:user_id/credits", participantHandler.SetSingleCredits) // 设置单个学分
 					ownerOrAdmin.DELETE("/participants/:user_id", participantHandler.RemoveParticipant)     // 删除参与者
 					ownerOrAdmin.GET("/participants", participantHandler.GetActivityParticipants)           // 获取参与者列表
+
+					// 新增：参与者管理功能
+					ownerOrAdmin.POST("/participants/batch-remove", participantHandler.BatchRemoveParticipants) // 批量删除参与者
+					ownerOrAdmin.GET("/participants/stats", participantHandler.GetParticipantStats)             // 获取参与者统计
+					ownerOrAdmin.GET("/participants/export", participantHandler.ExportParticipants)             // 导出参与者名单
 				}
 
 				// 学生退出活动路由
@@ -134,9 +152,17 @@ func main() {
 					studentOnly.POST("/leave", participantHandler.LeaveActivity) // 退出活动
 				}
 
+				// 新增：用户参与活动列表（所有认证用户）
+				allUsers := participants.Group("")
+				allUsers.Use(permissionMiddleware.AllUsers())
+				{
+					allUsers.GET("/my-activities", participantHandler.GetUserParticipatedActivities) // 获取用户参与的活动列表
+				}
+
 				// 附件管理路由
 				// 所有认证用户都可以访问的路由
-				allUsers := participants.Group("")
+
+				allUsers = participants.Group("")
 				allUsers.Use(permissionMiddleware.AllUsers())
 				{
 					allUsers.GET("/attachments", attachmentHandler.GetAttachments)                             // 获取附件列表
@@ -180,6 +206,21 @@ func main() {
 			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
 			{
 				teacherOrAdmin.GET("/all", applicationHandler.GetAllApplications) // 获取所有申请
+			}
+		}
+
+		// 统一搜索路由组
+		search := api.Group("/search")
+		search.Use(authMiddleware.AuthRequired())
+		{
+			// 所有认证用户都可以访问的搜索路由
+			allUsers := search.Group("")
+			allUsers.Use(permissionMiddleware.AllUsers())
+			{
+				allUsers.GET("/activities", searchHandler.SearchActivities)     // 统一活动搜索
+				allUsers.GET("/applications", searchHandler.SearchApplications) // 统一申请搜索
+				allUsers.GET("/participants", searchHandler.SearchParticipants) // 统一参与者搜索
+				allUsers.GET("/attachments", searchHandler.SearchAttachments)   // 统一附件搜索
 			}
 		}
 	}

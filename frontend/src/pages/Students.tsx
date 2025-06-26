@@ -75,20 +75,37 @@ export type Student = {
 
 // Form schema for validation
 const formSchema = z.object({
-  username: z.string().min(1, "用户名不能为空").max(20, "用户名最多20个字符"),
-  password: z.string().min(8, "密码至少8个字符")
+  username: z.string()
+    .min(3, "用户名至少3个字符")
+    .max(20, "用户名最多20个字符")
+    .regex(/^[a-zA-Z0-9_]+$/, "用户名只能包含字母、数字和下划线"),
+  password: z.string()
+    .min(8, "密码至少8个字符")
     .regex(/[A-Z]/, "密码必须包含至少一个大写字母")
     .regex(/[a-z]/, "密码必须包含至少一个小写字母")
     .regex(/[0-9]/, "密码必须包含至少一个数字")
     .optional(),
-  student_id: z.string().optional(),
-  real_name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
-  college: z.string().min(1, "学院不能为空"),
-  major: z.string().min(1, "专业不能为空"),
-  class: z.string().min(1, "班级不能为空"),
-  phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号").optional().or(z.literal('')),
-  email: z.string().email({ message: "请输入有效的邮箱地址" }).optional().or(z.literal('')),
-  grade: z.string().min(1, "年级不能为空"),
+  student_id: z.string()
+    .length(8, "学号必须是8位数字")
+    .regex(/^\d{8}$/, "学号必须是8位数字")
+    .optional(),
+  real_name: z.string()
+    .min(2, "姓名至少2个字符")
+    .max(50, "姓名最多50个字符"),
+  college: z.string().min(1, "学院不能为空").max(100, "学院名称最多100个字符"),
+  major: z.string().min(1, "专业不能为空").max(100, "专业名称最多100个字符"),
+  class: z.string().min(1, "班级不能为空").max(50, "班级名称最多50个字符"),
+  phone: z.string()
+    .regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号")
+    .optional()
+    .or(z.literal('')),
+  email: z.string()
+    .email({ message: "请输入有效的邮箱地址" })
+    .optional()
+    .or(z.literal('')),
+  grade: z.string()
+    .length(4, "年级必须是4位数字")
+    .regex(/^\d{4}$/, "年级必须是4位数字"),
   status: z.enum(['active', 'inactive']),
   user_type: z.literal('student'),
 });

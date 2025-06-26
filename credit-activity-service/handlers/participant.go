@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -452,4 +453,247 @@ func (h *ParticipantHandler) isStudent(userID string, authToken string) bool {
 // getUserInfo 获取用户信息（使用真实用户服务）
 func (h *ParticipantHandler) getUserInfo(userID string, authToken string) (*models.UserInfo, error) {
 	return utils.GetUserInfo(userID, authToken)
+}
+
+// BatchRemoveParticipants 批量删除参与者
+func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
+	activityID := c.Param("id")
+	userID, _ := c.Get("user_id")
+	userType, _ := c.Get("user_type")
+
+	var req struct {
+		UserIDs []string `json:"user_ids" binding:"required,min=1"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请求参数错误: " + err.Error(),
+			"data":    nil,
+		})
+		return
+	}
+
+	// 检查活动是否存在
+	var activity models.CreditActivity
+	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "活动不存在",
+				"data":    nil,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "获取活动失败",
+				"data":    err.Error(),
+			})
+		}
+		return
+	}
+
+	// 权限检查
+	if activity.OwnerID != userID && userType != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    403,
+			"message": "权限不足，只有活动创建者或管理员可以批量删除参与者",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 批量删除参与者
+	if err := h.db.Where("activity_id = ? AND user_id IN ?", activityID, req.UserIDs).Delete(&models.ActivityParticipant{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "批量删除参与者失败",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "批量删除参与者成功",
+		"data": gin.H{
+			"removed_count": len(req.UserIDs),
+			"removed_users": req.UserIDs,
+		},
+	})
+}
+
+// GetParticipantStats 获取参与者统计信息
+func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
+	activityID := c.Param("id")
+
+	var stats struct {
+		TotalParticipants int64   `json:"total_participants"`
+		TotalCredits      float64 `json:"total_credits"`
+		AvgCredits        float64 `json:"avg_credits"`
+		MaxCredits        float64 `json:"max_credits"`
+		MinCredits        float64 `json:"min_credits"`
+	}
+
+	// 获取基本统计信息
+	if err := h.db.Model(&models.ActivityParticipant{}).
+		Where("activity_id = ?", activityID).
+		Select("COUNT(*) as total_participants, SUM(credits) as total_credits, AVG(credits) as avg_credits, MAX(credits) as max_credits, MIN(credits) as min_credits").
+		Scan(&stats).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取统计信息失败",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	// 获取最近加入的参与者数量（7天内）
+	var recentParticipants int64
+	h.db.Model(&models.ActivityParticipant{}).
+		Where("activity_id = ? AND joined_at >= ?", activityID, time.Now().AddDate(0, 0, -7)).
+		Count(&recentParticipants)
+
+	statsData := gin.H{
+		"total_participants":  stats.TotalParticipants,
+		"total_credits":       stats.TotalCredits,
+		"avg_credits":         stats.AvgCredits,
+		"max_credits":         stats.MaxCredits,
+		"min_credits":         stats.MinCredits,
+		"recent_participants": recentParticipants,
+		"activity_id":         activityID,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "获取统计信息成功",
+		"data":    statsData,
+	})
+}
+
+// ExportParticipants 导出参与者名单
+func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
+	activityID := c.Param("id")
+	format := c.DefaultQuery("format", "json")
+
+	// 获取所有参与者
+	var participants []models.ActivityParticipant
+	if err := h.db.Where("activity_id = ?", activityID).Order("joined_at DESC").Find(&participants).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取参与者数据失败",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	// 获取用户信息
+	responses := make([]models.ParticipantResponse, 0, len(participants))
+	authToken := ""
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		authToken = authHeader
+	}
+	for _, participant := range participants {
+		response := models.ParticipantResponse{
+			UserID:   participant.UserID,
+			Credits:  participant.Credits,
+			JoinedAt: participant.JoinedAt,
+		}
+		if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
+			response.UserInfo = userInfo
+		}
+		responses = append(responses, response)
+	}
+
+	switch format {
+	case "json":
+		c.JSON(http.StatusOK, gin.H{
+			"code":    0,
+			"message": "导出成功",
+			"data": gin.H{
+				"activity_id":  activityID,
+				"participants": responses,
+				"total_count":  len(responses),
+				"export_time":  time.Now(),
+			},
+		})
+	case "csv":
+		// 这里可以实现CSV导出功能
+		c.JSON(http.StatusOK, gin.H{
+			"code":    0,
+			"message": "导出成功",
+			"data": gin.H{
+				"message":     "CSV导出功能待实现",
+				"total_count": len(responses),
+				"activity_id": activityID,
+			},
+		})
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "不支持的导出格式",
+			"data":    nil,
+		})
+	}
+}
+
+// GetUserParticipatedActivities 获取用户参与的活动列表
+func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	// 获取用户参与的活动
+	var participants []models.ActivityParticipant
+	if err := h.db.Where("user_id = ?", userID).Offset((page - 1) * pageSize).Limit(pageSize).Order("joined_at DESC").Find(&participants).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取参与活动列表失败",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	// 获取总数
+	var total int64
+	h.db.Model(&models.ActivityParticipant{}).Where("user_id = ?", userID).Count(&total)
+
+	// 构建响应数据
+	var activities []gin.H
+	for _, participant := range participants {
+		var activity models.CreditActivity
+		if err := h.db.Where("id = ?", participant.ActivityID).First(&activity).Error; err == nil {
+			activities = append(activities, gin.H{
+				"activity_id": activity.ID,
+				"title":       activity.Title,
+				"category":    activity.Category,
+				"status":      activity.Status,
+				"start_date":  activity.StartDate,
+				"end_date":    activity.EndDate,
+				"credits":     participant.Credits,
+				"joined_at":   participant.JoinedAt,
+			})
+		}
+	}
+
+	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "获取成功",
+		"data": gin.H{
+			"activities":  activities,
+			"total":       total,
+			"page":        page,
+			"page_size":   pageSize,
+			"total_pages": totalPages,
+		},
+	})
 }

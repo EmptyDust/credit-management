@@ -80,15 +80,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		RealName:     user.RealName,
 		UserType:     user.UserType,
 		Status:       user.Status,
-		LastLoginAt:  user.LastLoginAt,
+		LastLoginAt:  nil,
 		RegisterTime: user.RegisterTime,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 	}
 
-	// 安全地设置Phone字段
+	// 安全地设置指针字段
 	if user.Phone != nil {
 		userResponse.Phone = *user.Phone
+	}
+	if user.LastLoginAt != nil {
+		userResponse.LastLoginAt = user.LastLoginAt
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -191,15 +194,18 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 		RealName:     user.RealName,
 		UserType:     user.UserType,
 		Status:       user.Status,
-		LastLoginAt:  user.LastLoginAt,
+		LastLoginAt:  nil,
 		RegisterTime: user.RegisterTime,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 	}
 
-	// 安全地设置Phone字段
+	// 安全地设置指针字段
 	if user.Phone != nil {
 		userResponse.Phone = *user.Phone
+	}
+	if user.LastLoginAt != nil {
+		userResponse.LastLoginAt = user.LastLoginAt
 	}
 
 	c.JSON(http.StatusOK, gin.H{
