@@ -103,7 +103,7 @@ export default function ActivityParticipants({
   const [addDialogCredits, setAddDialogCredits] = useState(1.0);
   const [batchDialogCredits, setBatchDialogCredits] = useState(1.0);
   const [editingCredits, setEditingCredits] = useState<{
-    [key: string]: number | undefined;
+    [key: string]: number | "" | undefined;
   }>({});
   const [stats, setStats] = useState<any>(null);
 
@@ -263,7 +263,6 @@ export default function ActivityParticipants({
       toast.success("学分设置成功");
       setEditingCredits((prev) => ({ ...prev, [userId]: undefined }));
       fetchParticipants();
-      onRefresh?.();
     } catch (error) {
       console.error("Failed to set credits:", error);
     }
@@ -729,35 +728,36 @@ export default function ActivityParticipants({
                             step="0.1"
                             min="0"
                             max="10"
-                            value={editingCredits[participant.user_id]}
+                            value={
+                              editingCredits[participant.user_id] === undefined
+                                ? ""
+                                : editingCredits[participant.user_id]
+                            }
                             onChange={(e) => {
                               const value = e.target.value;
-                              if (value === "") {
-                                setEditingCredits((prev) => ({
-                                  ...prev,
-                                  [participant.user_id]: 0,
-                                }));
-                              } else {
-                                const numValue = parseFloat(value);
-                                if (!isNaN(numValue) && numValue >= 0) {
-                                  setEditingCredits((prev) => ({
-                                    ...prev,
-                                    [participant.user_id]: numValue,
-                                  }));
-                                }
-                              }
+                              setEditingCredits((prev) => ({
+                                ...prev,
+                                [participant.user_id]:
+                                  value === "" ? "" : parseFloat(value),
+                              }));
                             }}
                             className="w-20"
                           />
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() =>
-                              setCredits(
-                                participant.user_id,
-                                editingCredits[participant.user_id] || 0
-                              )
-                            }
+                            onClick={() => {
+                              const val = editingCredits[participant.user_id];
+                              if (
+                                val === "" ||
+                                val === undefined ||
+                                isNaN(Number(val))
+                              ) {
+                                toast.error("请输入有效的学分");
+                                return;
+                              }
+                              setCredits(participant.user_id, Number(val));
+                            }}
                           >
                             <Check className="h-3 w-3" />
                           </Button>

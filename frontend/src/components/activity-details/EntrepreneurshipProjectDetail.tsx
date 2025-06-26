@@ -8,6 +8,7 @@ import {
   ActivityActions,
   ActivityParticipants,
   ActivityApplications,
+  ActivityAttachments,
 } from "../activity-common";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -179,8 +180,11 @@ const EntrepreneurshipProjectDetail: React.FC<
       {/* 参与者列表 */}
       <ActivityParticipants activity={activity} onRefresh={handleRefresh} />
 
+      {/* 附件 */}
+      <ActivityAttachments activity={activity} onRefresh={handleRefresh} />
+
       {/* 申请列表 */}
-      <ActivityApplications activity={activity} />
+      <ActivityApplications activity={activity} onRefresh={handleRefresh} />
     </div>
   );
 };
