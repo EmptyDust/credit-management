@@ -118,58 +118,64 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE TABLE IF NOT EXISTS innovation_activity_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
-    application_no VARCHAR(50),
-    student_no VARCHAR(50),
     item VARCHAR(200),
     company VARCHAR(200),
     project_no VARCHAR(100),
     issuer VARCHAR(100),
     date DATE,
-    total_hours DECIMAL(6,2)
+    total_hours DECIMAL(6,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
 );
 
 -- 学科竞赛学分详情表
 CREATE TABLE IF NOT EXISTS competition_activity_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
-    application_no VARCHAR(50),
-    student_no VARCHAR(50),
     level VARCHAR(100),
     competition VARCHAR(200),
     award_level VARCHAR(100),
-    rank VARCHAR(50)
+    rank VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
 );
 
 -- 大学生创业项目详情表
 CREATE TABLE IF NOT EXISTS entrepreneurship_project_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
-    application_no VARCHAR(50),
-    student_no VARCHAR(50),
     project_name VARCHAR(200),
     project_level VARCHAR(100),
-    project_rank VARCHAR(50)
+    project_rank VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
 );
 
 -- 创业实践项目详情表
 CREATE TABLE IF NOT EXISTS entrepreneurship_practice_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
-    application_no VARCHAR(50),
-    student_no VARCHAR(50),
     company_name VARCHAR(200),
     legal_person VARCHAR(100),
-    share_percent DECIMAL(5,2)
+    share_percent DECIMAL(5,2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
 );
 
 -- 论文专利详情表
 CREATE TABLE IF NOT EXISTS paper_patent_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES credit_activities(id) ON DELETE CASCADE,
-    application_no VARCHAR(50),
     name VARCHAR(200),
     category VARCHAR(100),
-    rank VARCHAR(50)
+    rank VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ
 );
 
 -- ========================================
@@ -213,6 +219,22 @@ CREATE INDEX IF NOT EXISTS idx_attachments_file_category ON attachments(file_cat
 CREATE INDEX IF NOT EXISTS idx_attachments_file_type ON attachments(file_type);
 CREATE INDEX IF NOT EXISTS idx_attachments_md5_hash ON attachments(md5_hash);
 CREATE INDEX IF NOT EXISTS idx_attachments_deleted_at ON attachments(deleted_at);
+
+-- 活动类型详情表索引
+CREATE INDEX IF NOT EXISTS idx_innovation_activity_details_activity_id ON innovation_activity_details(activity_id);
+CREATE INDEX IF NOT EXISTS idx_innovation_activity_details_deleted_at ON innovation_activity_details(deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_competition_activity_details_activity_id ON competition_activity_details(activity_id);
+CREATE INDEX IF NOT EXISTS idx_competition_activity_details_deleted_at ON competition_activity_details(deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_entrepreneurship_project_details_activity_id ON entrepreneurship_project_details(activity_id);
+CREATE INDEX IF NOT EXISTS idx_entrepreneurship_project_details_deleted_at ON entrepreneurship_project_details(deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_entrepreneurship_practice_details_activity_id ON entrepreneurship_practice_details(activity_id);
+CREATE INDEX IF NOT EXISTS idx_entrepreneurship_practice_details_deleted_at ON entrepreneurship_practice_details(deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_paper_patent_details_activity_id ON paper_patent_details(activity_id);
+CREATE INDEX IF NOT EXISTS idx_paper_patent_details_deleted_at ON paper_patent_details(deleted_at);
 
 -- ========================================
 -- 4. 创建验证函数
@@ -516,6 +538,13 @@ CREATE TRIGGER update_activity_participants_updated_at BEFORE UPDATE ON activity
 CREATE TRIGGER update_applications_updated_at BEFORE UPDATE ON applications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_attachments_updated_at BEFORE UPDATE ON attachments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- 活动类型详情表更新时间戳触发器
+CREATE TRIGGER update_innovation_activity_details_updated_at BEFORE UPDATE ON innovation_activity_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_competition_activity_details_updated_at BEFORE UPDATE ON competition_activity_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_entrepreneurship_project_details_updated_at BEFORE UPDATE ON entrepreneurship_project_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_entrepreneurship_practice_details_updated_at BEFORE UPDATE ON entrepreneurship_practice_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_paper_patent_details_updated_at BEFORE UPDATE ON paper_patent_details FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- 用户数据验证触发器
 CREATE TRIGGER trigger_validate_user_data
     BEFORE INSERT OR UPDATE ON users
@@ -665,6 +694,11 @@ BEGIN
     RAISE NOTICE '- activity_participants (活动参与者表) - 带唯一性约束';
     RAISE NOTICE '- applications (申请表) - 带学分验证';
     RAISE NOTICE '- attachments (附件表) - 带文件类型和大小约束';
+    RAISE NOTICE '- innovation_activity_details (创新创业实践活动详情表)';
+    RAISE NOTICE '- competition_activity_details (学科竞赛详情表)';
+    RAISE NOTICE '- entrepreneurship_project_details (大学生创业项目详情表)';
+    RAISE NOTICE '- entrepreneurship_practice_details (创业实践项目详情表)';
+    RAISE NOTICE '- paper_patent_details (论文专利详情表)';
     RAISE NOTICE '';
     RAISE NOTICE '约束验证：';
     RAISE NOTICE '- 用户名：3-20位字母数字下划线';
@@ -682,4 +716,5 @@ BEGIN
     RAISE NOTICE '- 复合索引优化查询性能';
     RAISE NOTICE '- 触发器自动维护数据一致性';
     RAISE NOTICE '- 批量操作和恢复功能';
+    RAISE NOTICE '- 活动类型详情表支持';
 END $$; 

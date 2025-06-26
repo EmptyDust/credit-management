@@ -10,7 +10,7 @@ import type { ActivityWithDetails } from "@/types/activity";
 // 导入活动详情组件
 import { ActivityDetailContainer } from "@/components/activity-details/index";
 
-export default function AffairDetailPage() {
+export default function ActivityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -60,7 +60,7 @@ export default function AffairDetailPage() {
               未找到该活动
             </h2>
             <button
-              onClick={() => navigate("/affairs")}
+              onClick={() => navigate("/activities")}
               className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               返回活动列表
@@ -76,7 +76,7 @@ export default function AffairDetailPage() {
       {/* 返回按钮 */}
       <div className="mb-6">
         <button
-          onClick={() => navigate("/affairs")}
+          onClick={() => navigate("/activities")}
           className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800"
         >
           <ArrowLeft className="h-4 w-4" />

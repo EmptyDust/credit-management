@@ -46,6 +46,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  Upload,
+  Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -58,7 +60,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 // Types
-interface Affair {
+interface Activity {
   id: string;
   title: string;
   description?: string;
@@ -70,9 +72,9 @@ interface Affair {
   applications_count?: number;
 }
 
-type CreateAffairForm = z.infer<typeof affairSchema>;
+type CreateActivityForm = z.infer<typeof activitySchema>;
 
-const affairSchema = z.object({
+const activitySchema = z.object({
   title: z
     .string()
     .min(1, "活动名称不能为空")
@@ -80,28 +82,33 @@ const affairSchema = z.object({
   category: z.string().min(1, "请选择活动类型"),
 });
 
-export default function AffairsPage() {
-  const { hasPermission, user } = useAuth();
-  const [affairs, setAffairs] = useState<Affair[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingAffair, setEditingAffair] = useState<Affair | null>(null);
-  const [deletingAffair, setDeletingAffair] = useState<Affair | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+export default function ActivitiesPage() {
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingActivity, setDeletingActivity] = useState<Activity | null>(
+    null
+  );
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
-  const form = useForm<CreateAffairForm>({
-    resolver: zodResolver(affairSchema),
+  const form = useForm<CreateActivityForm>({
+    resolver: zodResolver(activitySchema),
     defaultValues: {
       title: "",
       category: "",
     },
   });
 
-  const fetchAffairs = async () => {
+  const fetchActivities = async () => {
     try {
       setLoading(true);
       const response = await apiClient.get("/activities");
@@ -125,7 +132,7 @@ export default function AffairsPage() {
         activities = [];
       }
 
-      setAffairs(
+      setActivities(
         activities.map((activity: any) => ({
           id: activity.id,
           title: activity.title,
@@ -142,7 +149,7 @@ export default function AffairsPage() {
       console.error("Failed to fetch activities:", err);
       toast.error("获取活动列表失败");
       // Fallback to mock data
-      setAffairs([
+      setActivities([
         {
           id: "1",
           title: "创新创业项目",
@@ -183,15 +190,15 @@ export default function AffairsPage() {
   };
 
   useEffect(() => {
-    fetchAffairs();
+    fetchActivities();
   }, []);
 
-  const handleDialogOpen = (affair: Affair | null) => {
-    setEditingAffair(affair);
-    if (affair) {
+  const handleDialogOpen = (activity: Activity | null) => {
+    setEditingActivity(activity);
+    if (activity) {
       form.reset({
-        title: affair.title,
-        category: affair.category || "",
+        title: activity.title,
+        category: activity.category || "",
       });
     } else {
       form.reset({
@@ -202,49 +209,120 @@ export default function AffairsPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteClick = (affair: Affair) => {
-    setDeletingAffair(affair);
+  const handleDeleteClick = (activity: Activity) => {
+    setDeletingActivity(activity);
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deletingAffair) return;
+    if (!deletingActivity) return;
 
     try {
-      await apiClient.delete(`/activities/${deletingAffair.id}`);
-      fetchAffairs();
+      await apiClient.delete(`/activities/${deletingActivity.id}`);
       toast.success("活动删除成功");
-      setIsDeleteDialogOpen(false);
-      setDeletingAffair(null);
+      fetchActivities();
     } catch (err) {
       toast.error("删除活动失败");
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeletingActivity(null);
     }
   };
 
-  const onSubmit = async (values: CreateAffairForm) => {
+  const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const allowedTypes = [
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("请选择Excel或CSV文件");
+        return;
+      }
+      setImportFile(file);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+
+    setImporting(true);
     try {
-      if (editingAffair) {
-        await apiClient.put(`/activities/${editingAffair.id}`, values);
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const response = await apiClient.post("/activities/import", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.data.code === 0) {
+        toast.success("批量导入成功");
+        setIsImportDialogOpen(false);
+        setImportFile(null);
+        fetchActivities();
+      } else {
+        toast.error(response.data.message || "导入失败");
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "导入失败";
+      toast.error(errorMessage);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const response = await apiClient.get("/activities/export", {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute(
+        "download",
+        `activities_${new Date().toISOString().split("T")[0]}.xlsx`
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success("导出成功");
+    } catch (err) {
+      toast.error("导出失败");
+    }
+  };
+
+  const onSubmit = async (values: CreateActivityForm) => {
+    try {
+      if (editingActivity) {
+        await apiClient.put(`/activities/${editingActivity.id}`, values);
         toast.success("活动更新成功");
         setIsDialogOpen(false);
-        fetchAffairs();
+        fetchActivities();
       } else {
         const response = await apiClient.post("/activities", values);
         const createdActivity = response.data.data;
         toast.success("活动创建成功");
         setIsDialogOpen(false);
-        navigate(`/affairs/${createdActivity.id}`);
+        navigate(`/activities/${createdActivity.id}`);
       }
     } catch (err: any) {
       const errorMessage =
         err.response?.data?.message ||
-        `活动${editingAffair ? "更新" : "创建"}失败`;
+        `活动${editingActivity ? "更新" : "创建"}失败`;
       toast.error(errorMessage);
     }
   };
 
   const categories = Array.from(
-    new Set(affairs.map((a) => a.category).filter(Boolean))
+    new Set(activities.map((a) => a.category).filter(Boolean))
   );
 
   // 获取状态显示文本
@@ -297,18 +375,42 @@ export default function AffairsPage() {
     <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">活动管理</h1>
+          <h1 className="text-3xl font-bold tracking-tight">活动列表</h1>
           <p className="text-muted-foreground">管理学分相关活动</p>
         </div>
-        {(hasPermission("manage_affairs") || user?.userType === "student") && (
-          <Button
-            onClick={() => handleDialogOpen(null)}
-            className="rounded-lg shadow transition-all duration-200 hover:scale-105 bg-primary text-white font-bold"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            新建活动
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {(hasPermission("manage_activities") ||
+            user?.userType === "student") && (
+            <Button
+              onClick={() => handleDialogOpen(null)}
+              className="rounded-lg shadow transition-all duration-200 hover:scale-105 bg-primary text-white font-bold"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              新建活动
+            </Button>
+          )}
+          {(hasPermission("manage_activities") ||
+            user?.userType === "admin") && (
+            <>
+              <Button
+                onClick={() => setIsImportDialogOpen(true)}
+                variant="outline"
+                className="rounded-lg shadow transition-all duration-200 hover:scale-105"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                批量导入
+              </Button>
+              <Button
+                onClick={handleExport}
+                variant="outline"
+                className="rounded-lg shadow transition-all duration-200 hover:scale-105"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                导出数据
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -319,9 +421,9 @@ export default function AffairsPage() {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{affairs.length}</div>
+            <div className="text-2xl font-bold">{activities.length}</div>
             <p className="text-xs text-muted-foreground">
-              已通过: {affairs.filter((a) => a.status === "approved").length}
+              已通过: {activities.filter((a) => a.status === "approved").length}
             </p>
           </CardContent>
         </Card>
@@ -332,8 +434,8 @@ export default function AffairsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {affairs.reduce(
-                (sum, affair) => sum + (affair.participants_count || 0),
+              {activities.reduce(
+                (sum, activity) => sum + (activity.participants_count || 0),
                 0
               )}
             </div>
@@ -347,8 +449,8 @@ export default function AffairsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {affairs.reduce(
-                (sum, affair) => sum + (affair.applications_count || 0),
+              {activities.reduce(
+                (sum, activity) => sum + (activity.applications_count || 0),
                 0
               )}
             </div>
@@ -362,7 +464,7 @@ export default function AffairsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {affairs.filter((a) => a.status === "pending_review").length}
+              {activities.filter((a) => a.status === "pending_review").length}
             </div>
             <p className="text-xs text-muted-foreground">待审核活动</p>
           </CardContent>
@@ -417,7 +519,7 @@ export default function AffairsPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={fetchAffairs}
+              onClick={fetchActivities}
               disabled={loading}
               className="rounded-lg shadow"
             >
@@ -429,7 +531,7 @@ export default function AffairsPage() {
         </CardContent>
       </Card>
 
-      {/* Affairs Table */}
+      {/* Activities Table */}
       <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle>活动列表</CardTitle>
@@ -439,7 +541,6 @@ export default function AffairsPage() {
             <Table>
               <TableHeader className="bg-muted/60">
                 <TableRow>
-                  <TableHead className="font-bold text-primary">ID</TableHead>
                   <TableHead>名称</TableHead>
                   <TableHead>描述</TableHead>
                   <TableHead>类别</TableHead>
@@ -452,16 +553,16 @@ export default function AffairsPage() {
               <TableBody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center">
+                    <td colSpan={7} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="text-muted-foreground">加载中...</span>
                       </div>
                     </td>
                   </tr>
-                ) : affairs.length === 0 ? (
+                ) : activities.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12">
+                    <td colSpan={7} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
                         <AlertCircle className="w-12 h-12 mb-2" />
                         <p>暂无活动记录</p>
@@ -469,52 +570,53 @@ export default function AffairsPage() {
                     </td>
                   </tr>
                 ) : (
-                  affairs
+                  activities
                     .filter(
-                      (affair) =>
+                      (activity) =>
                         (searchTerm === "" ||
-                          affair.title
+                          activity.title
                             .toLowerCase()
                             .includes(searchTerm.toLowerCase())) &&
                         (categoryFilter === "all" ||
-                          affair.category === categoryFilter) &&
+                          activity.category === categoryFilter) &&
                         (statusFilter === "all" ||
-                          affair.status === statusFilter)
+                          activity.status === statusFilter)
                     )
-                    .map((affair) => (
+                    .map((activity) => (
                       <TableRow
-                        key={affair.id}
+                        key={activity.id}
                         className="hover:bg-muted/40 transition-colors"
                       >
-                        <TableCell className="font-semibold text-primary">
-                          #{affair.id}
-                        </TableCell>
                         <TableCell className="font-medium">
-                          {affair.title}
+                          {activity.title}
                         </TableCell>
                         <TableCell className="truncate max-w-xs">
-                          {affair.description}
+                          {activity.description}
                         </TableCell>
                         <TableCell>
                           <Badge
                             variant="secondary"
                             className="rounded px-2 py-1"
                           >
-                            {affair.category || "-"}
+                            {activity.category || "-"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge
                             className={`${getStatusStyle(
-                              affair.status
+                              activity.status
                             )} rounded-lg px-2 py-1`}
                           >
-                            {getStatusIcon(affair.status)}
-                            {getStatusText(affair.status)}
+                            {getStatusIcon(activity.status)}
+                            {getStatusText(activity.status)}
                           </Badge>
                         </TableCell>
-                        <TableCell>{affair.participants_count || 0}</TableCell>
-                        <TableCell>{affair.applications_count || 0}</TableCell>
+                        <TableCell>
+                          {activity.participants_count || 0}
+                        </TableCell>
+                        <TableCell>
+                          {activity.applications_count || 0}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Button
@@ -522,7 +624,9 @@ export default function AffairsPage() {
                               variant="ghost"
                               className="rounded-full hover:bg-primary/10"
                               title="查看详情"
-                              onClick={() => navigate(`/affairs/${affair.id}`)}
+                              onClick={() =>
+                                navigate(`/activities/${activity.id}`)
+                              }
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -531,7 +635,7 @@ export default function AffairsPage() {
                               variant="ghost"
                               className="rounded-full hover:bg-primary/10"
                               title="编辑"
-                              onClick={() => handleDialogOpen(affair)}
+                              onClick={() => handleDialogOpen(activity)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -540,7 +644,7 @@ export default function AffairsPage() {
                               variant="ghost"
                               className="rounded-full hover:bg-red-100"
                               title="删除"
-                              onClick={() => handleDeleteClick(affair)}
+                              onClick={() => handleDeleteClick(activity)}
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
@@ -560,10 +664,10 @@ export default function AffairsPage() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {editingAffair ? "编辑活动" : "添加新活动"}
+              {editingActivity ? "编辑活动" : "添加新活动"}
             </DialogTitle>
             <DialogDescription>
-              {editingAffair ? "修改活动信息" : "创建新的活动"}
+              {editingActivity ? "修改活动信息" : "创建新的活动"}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -597,11 +701,21 @@ export default function AffairsPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="创新创业">创新创业</SelectItem>
-                        <SelectItem value="学科竞赛">学科竞赛</SelectItem>
-                        <SelectItem value="志愿服务">志愿服务</SelectItem>
-                        <SelectItem value="学术研究">学术研究</SelectItem>
-                        <SelectItem value="文体活动">文体活动</SelectItem>
+                        <SelectItem value="创新创业实践活动">
+                          创新创业实践活动
+                        </SelectItem>
+                        <SelectItem value="学科竞赛活动">
+                          学科竞赛活动
+                        </SelectItem>
+                        <SelectItem value="创业实践项目">
+                          创业实践项目
+                        </SelectItem>
+                        <SelectItem value="创业实践活动">
+                          创业实践活动
+                        </SelectItem>
+                        <SelectItem value="论文专利活动">
+                          论文专利活动
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -610,7 +724,7 @@ export default function AffairsPage() {
               />
               <DialogFooter>
                 <Button type="submit" className="w-full">
-                  {editingAffair ? "更新活动" : "创建活动"}
+                  {editingActivity ? "更新活动" : "创建活动"}
                 </Button>
               </DialogFooter>
             </form>
@@ -627,21 +741,86 @@ export default function AffairsPage() {
               确认删除
             </DialogTitle>
             <DialogDescription>
-              您确定要删除活动 "{deletingAffair?.title}" 吗？此操作不可撤销。
+              您确定要删除活动 "{deletingActivity?.title}" 吗？此操作不可撤销。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setIsDeleteDialogOpen(false);
-                setDeletingAffair(null);
-              }}
+              onClick={() => setIsDeleteDialogOpen(false)}
             >
               取消
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
               确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              批量导入活动
+            </DialogTitle>
+            <DialogDescription>
+              请选择Excel或CSV文件进行批量导入。文件应包含活动的基本信息。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">选择文件</label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleImportFile}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                支持Excel (.xlsx, .xls) 和CSV格式，文件大小不超过10MB
+              </p>
+            </div>
+            {importFile && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm font-medium">已选择文件：</p>
+                <p className="text-sm text-muted-foreground">
+                  {importFile.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  大小：{(importFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportFile(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleImport}
+              disabled={!importFile || importing}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {importing ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  导入中...
+                </div>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  开始导入
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
