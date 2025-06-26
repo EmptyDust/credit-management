@@ -4,8 +4,8 @@
 
 学分活动服务提供完整的学分活动管理功能，包括活动创建、参与者管理、申请处理和附件管理。
 
-**基础URL**: `http://localhost:8083`
-**API前缀**: `/api`
+**基础 URL**: `http://localhost:8083`
+**API 前缀**: `/api`
 
 ## 认证
 
@@ -17,7 +17,7 @@ Authorization: Bearer <token>
 
 ## 通用响应格式
 
-所有API响应都使用统一的格式：
+所有 API 响应都使用统一的格式：
 
 ```json
 {
@@ -28,6 +28,7 @@ Authorization: Bearer <token>
 ```
 
 **响应码说明**:
+
 - `0`: 成功
 - `400`: 请求参数错误
 - `401`: 未认证
@@ -46,18 +47,13 @@ Authorization: Bearer <token>
 **权限**: 无需认证
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
   "message": "success",
   "data": {
-    "categories": [
-      "创新创业",
-      "学科竞赛",
-      "志愿服务",
-      "学术研究",
-      "文体活动"
-    ],
+    "categories": ["创新创业", "学科竞赛", "志愿服务", "学术研究", "文体活动"],
     "count": 5,
     "description": "活动类别列表"
   }
@@ -73,6 +69,7 @@ Authorization: Bearer <token>
 **权限**: 无需认证
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -105,6 +102,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **请求体**:
+
 ```json
 {
   "title": "创新创业实践活动",
@@ -117,12 +115,14 @@ Authorization: Bearer <token>
 ```
 
 **支持的日期格式**:
+
 - `YYYY-MM-DD` (如: 2024-12-01)
 - `YYYY-MM-DD HH:mm:ss` (如: 2024-12-01 10:00:00)
 - `YYYY-MM-DDTHH:mm:ss` (如: 2024-12-01T10:00:00)
 - `YYYY-MM-DDTHH:mm:ssZ` (如: 2024-12-01T10:00:00Z)
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -147,11 +147,12 @@ Authorization: Bearer <token>
 
 **POST** `/api/activities/batch`
 
-批量创建多个活动（最多10个）。
+批量创建多个活动（最多 10 个）。
 
 **权限**: 所有认证用户
 
 **请求体**:
+
 ```json
 {
   "activities": [
@@ -176,6 +177,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -201,7 +203,116 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.5 获取活动列表
+### 1.5 批量更新活动
+
+**PUT** `/api/activities/batch`
+
+批量更新多个活动，支持主表和详情表的批量更新。
+
+**权限**: 所有认证用户（只能更新自己创建的活动）
+
+**请求体**:
+
+```json
+{
+  "activities": [
+    {
+      "id": "uuid1",
+      "title": "更新后的标题1",
+      "description": "更新后的描述1",
+      "start_date": "2024-12-01",
+      "end_date": "2024-12-15",
+      "category": "学科竞赛",
+      "requirements": "更新后的要求1",
+      "detail": {
+        "competition_level": "省级",
+        "award_level": "一等奖",
+        "certificate_number": "CERT001"
+      }
+    },
+    {
+      "id": "uuid2",
+      "title": "更新后的标题2",
+      "description": "更新后的描述2",
+      "start_date": "2024-12-16",
+      "end_date": "2024-12-31",
+      "category": "创新创业",
+      "requirements": "更新后的要求2",
+      "detail": {
+        "project_type": "创新项目",
+        "team_size": 5,
+        "mentor_name": "李老师"
+      }
+    }
+  ]
+}
+```
+
+**字段说明**:
+
+- `id`: 活动 ID（必填）
+- 其他字段都是可选的，支持部分更新
+- `detail`: 根据活动类别包含不同的详情字段
+  - 学科竞赛: `competition_level`, `award_level`, `certificate_number`
+  - 创新创业: `project_type`, `team_size`, `mentor_name`
+  - 志愿服务: `service_hours`, `service_location`, `service_type`
+  - 学术研究: `research_field`, `publication_type`, `co_authors`
+  - 文体活动: `activity_type`, `performance_level`, `venue`
+
+**响应示例**:
+
+```json
+{
+  "code": 0,
+  "message": "批量更新活动成功",
+  "data": {
+    "updated_count": 2,
+    "total_count": 2,
+    "updated_activities": [
+      {
+        "id": "uuid1",
+        "title": "更新后的标题1",
+        "status": "success",
+        "updated_at": "2024-01-01T10:00:00Z"
+      },
+      {
+        "id": "uuid2",
+        "title": "更新后的标题2",
+        "status": "success",
+        "updated_at": "2024-01-01T10:00:00Z"
+      }
+    ],
+    "errors": []
+  }
+}
+```
+
+**错误处理**:
+
+```json
+{
+  "code": 400,
+  "message": "批量更新活动失败",
+  "data": {
+    "updated_count": 1,
+    "total_count": 2,
+    "updated_activities": [
+      {
+        "id": "uuid1",
+        "status": "success"
+      }
+    ],
+    "errors": [
+      {
+        "id": "uuid2",
+        "error": "活动不存在或无权限更新"
+      }
+    ]
+  }
+}
+```
+
+### 1.6 获取活动列表
 
 **GET** `/api/activities`
 
@@ -210,14 +321,16 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **查询参数**:
+
 - `query` (可选): 搜索关键词，支持标题、描述、类别、要求的模糊搜索
 - `status` (可选): 活动状态筛选 (draft, pending_review, approved, rejected)
 - `category` (可选): 活动类别筛选
-- `owner_id` (可选): 创建者ID筛选
-- `page` (可选): 页码，默认1
-- `limit` (可选): 每页数量，默认10
+- `owner_id` (可选): 创建者 ID 筛选
+- `page` (可选): 页码，默认 1
+- `limit` (可选): 每页数量，默认 10
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -248,7 +361,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.6 获取活动详情
+### 1.7 获取活动详情
 
 **GET** `/api/activities/{id}`
 
@@ -257,6 +370,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户（学生只能看到自己创建或参与的活动）
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -293,7 +407,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.7 更新活动
+### 1.8 更新活动
 
 **PUT** `/api/activities/{id}`
 
@@ -302,6 +416,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **请求体** (支持部分更新):
+
 ```json
 {
   "title": "更新后的活动标题",
@@ -314,11 +429,13 @@ Authorization: Bearer <token>
 ```
 
 **字段说明**:
+
 - 所有字段都是可选的，支持部分更新
-- 使用指针类型，支持清空字段（传null）
+- 使用指针类型，支持清空字段（传 null）
 - 日期格式支持：`YYYY-MM-DD`、`YYYY-MM-DD HH:mm:ss`、`YYYY-MM-DDTHH:mm:ss`、`YYYY-MM-DDTHH:mm:ssZ`
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -338,7 +455,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.8 删除活动
+### 1.9 删除活动
 
 **DELETE** `/api/activities/{id}`
 
@@ -347,6 +464,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -358,7 +476,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.9 提交活动审核
+### 1.10 提交活动审核
 
 **POST** `/api/activities/{id}/submit`
 
@@ -367,6 +485,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -379,7 +498,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.10 撤回活动
+### 1.11 撤回活动
 
 **POST** `/api/activities/{id}/withdraw`
 
@@ -388,6 +507,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -400,7 +520,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.11 审核活动
+### 1.12 审核活动
 
 **POST** `/api/activities/{id}/review`
 
@@ -409,6 +529,7 @@ Authorization: Bearer <token>
 **权限**: 教师、管理员
 
 **请求体**:
+
 ```json
 {
   "status": "approved",
@@ -417,6 +538,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -431,7 +553,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.12 获取待审核活动
+### 1.13 获取待审核活动
 
 **GET** `/api/activities/pending`
 
@@ -440,10 +562,12 @@ Authorization: Bearer <token>
 **权限**: 教师、管理员
 
 **查询参数**:
-- `page` (可选): 页码，默认1
-- `limit` (可选): 每页数量，默认10
+
+- `page` (可选): 页码，默认 1
+- `limit` (可选): 每页数量，默认 10
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -468,7 +592,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.13 批量删除活动
+### 1.14 批量删除活动
 
 **POST** `/api/activities/batch-delete`
 
@@ -477,6 +601,7 @@ Authorization: Bearer <token>
 **权限**: 教师、管理员
 
 **请求体**:
+
 ```json
 {
   "activity_ids": ["uuid1", "uuid2", "uuid3"]
@@ -484,6 +609,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -496,7 +622,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.14 获取可删除的活动列表
+### 1.15 获取可删除的活动列表
 
 **GET** `/api/activities/deletable`
 
@@ -505,6 +631,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -527,7 +654,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 1.15 获取活动统计
+### 1.16 获取活动统计
 
 **GET** `/api/activities/stats`
 
@@ -536,6 +663,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -563,6 +691,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **请求体**:
+
 ```json
 {
   "user_ids": ["student-uuid1", "student-uuid2"],
@@ -571,6 +700,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -603,6 +733,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **请求体**:
+
 ```json
 {
   "credits_map": {
@@ -614,6 +745,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -638,6 +770,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **请求体**:
+
 ```json
 {
   "credits": 2.5
@@ -645,6 +778,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -666,6 +800,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -686,6 +821,7 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、管理员
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -717,6 +853,7 @@ Authorization: Bearer <token>
 **权限**: 活动参与者（学生）
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -739,11 +876,13 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **查询参数**:
+
 - `status` (可选): 申请状态筛选
-- `page` (可选): 页码，默认1
-- `limit` (可选): 每页数量，默认10
+- `page` (可选): 页码，默认 1
+- `limit` (可选): 每页数量，默认 10
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -787,6 +926,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户（学生只能查看自己的申请）
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -822,12 +962,14 @@ Authorization: Bearer <token>
 **权限**: 教师、管理员
 
 **查询参数**:
-- `activity_id` (可选): 活动ID筛选
-- `user_id` (可选): 用户ID筛选
-- `page` (可选): 页码，默认1
-- `limit` (可选): 每页数量，默认10
+
+- `activity_id` (可选): 活动 ID 筛选
+- `user_id` (可选): 用户 ID 筛选
+- `page` (可选): 页码，默认 1
+- `limit` (可选): 每页数量，默认 10
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -866,18 +1008,19 @@ Authorization: Bearer <token>
 
 **GET** `/api/applications/export`
 
-导出申请数据为CSV格式。
+导出申请数据为 CSV 格式。
 
 **权限**: 所有认证用户（学生只能导出自己的申请，教师/管理员可以导出所有申请）
 
 **查询参数**:
+
 - `format` (可选): 导出格式，支持 "csv", "excel"，默认 "csv"
-- `activity_id` (可选): 活动ID筛选
+- `activity_id` (可选): 活动 ID 筛选
 - `status` (可选): 申请状态筛选
 - `start_date` (可选): 开始日期筛选 (YYYY-MM-DD)
 - `end_date` (可选): 结束日期筛选 (YYYY-MM-DD)
 
-**响应**: 文件下载（CSV或Excel格式）
+**响应**: 文件下载（CSV 或 Excel 格式）
 
 ### 3.5 获取申请统计
 
@@ -888,6 +1031,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -911,6 +1055,7 @@ Authorization: Bearer <token>
 **权限**: 所有认证用户
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -946,10 +1091,12 @@ Authorization: Bearer <token>
 **权限**: 活动创建者、参与者、管理员
 
 **请求体**: `multipart/form-data`
+
 - `file`: 文件
 - `description` (可选): 文件描述
 
 **支持的文件类型**:
+
 - 文档: .pdf, .doc, .docx, .txt, .rtf, .odt
 - 图片: .jpg, .jpeg, .png, .gif, .bmp, .webp
 - 视频: .mp4, .avi, .mov, .wmv, .flv
@@ -961,6 +1108,7 @@ Authorization: Bearer <token>
 **文件大小限制**: 20MB
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -986,14 +1134,16 @@ Authorization: Bearer <token>
 
 **POST** `/api/activities/{id}/attachments/batch`
 
-批量上传多个附件（最多10个）。
+批量上传多个附件（最多 10 个）。
 
 **权限**: 活动创建者、参与者、管理员
 
 **请求体**: `multipart/form-data`
+
 - `files`: 文件数组
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -1044,6 +1194,7 @@ Authorization: Bearer <token>
 **权限**: 上传者、管理员
 
 **请求体**:
+
 ```json
 {
   "description": "更新后的文件描述"
@@ -1051,6 +1202,7 @@ Authorization: Bearer <token>
 ```
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -1072,6 +1224,7 @@ Authorization: Bearer <token>
 **权限**: 上传者、管理员
 
 **响应示例**:
+
 ```json
 {
   "code": 0,
@@ -1092,6 +1245,7 @@ Authorization: Bearer <token>
 检查服务健康状态。
 
 **响应示例**:
+
 ```json
 {
   "status": "ok",
@@ -1103,13 +1257,13 @@ Authorization: Bearer <token>
 
 ### 6.1 常见错误码
 
-| 错误码 | 说明 | 解决方案 |
-|--------|------|----------|
-| 400 | 请求参数错误 | 检查请求参数格式和必填字段 |
-| 401 | 未认证 | 检查Authorization头是否正确 |
-| 403 | 权限不足 | 检查用户角色和权限 |
-| 404 | 资源不存在 | 检查资源ID是否正确 |
-| 500 | 服务器内部错误 | 联系管理员 |
+| 错误码 | 说明           | 解决方案                      |
+| ------ | -------------- | ----------------------------- |
+| 400    | 请求参数错误   | 检查请求参数格式和必填字段    |
+| 401    | 未认证         | 检查 Authorization 头是否正确 |
+| 403    | 权限不足       | 检查用户角色和权限            |
+| 404    | 资源不存在     | 检查资源 ID 是否正确          |
+| 500    | 服务器内部错误 | 联系管理员                    |
 
 ### 6.2 错误响应示例
 
@@ -1138,31 +1292,33 @@ Authorization: Bearer <token>
 
 ### 8.1 角色权限
 
-| 功能 | 学生 | 教师 | 管理员 |
-|------|------|------|--------|
-| 创建活动 | ✓ | ✓ | ✓ |
-| 编辑自己的活动 | ✓ | ✓ | ✓ |
-| 删除自己的活动 | ✓ | ✓ | ✓ |
-| 提交活动审核 | ✓ | ✓ | ✓ |
-| 撤回活动 | ✓ | ✓ | ✓ |
-| 审核活动 | ✗ | ✓ | ✓ |
-| 添加参与者 | ✓ | ✓ | ✓ |
-| 删除参与者 | ✓ | ✓ | ✓ |
-| 设置学分 | ✓ | ✓ | ✓ |
-| 退出活动 | ✓ | ✗ | ✗ |
-| 查看自己的申请 | ✓ | ✓ | ✓ |
-| 导出自己的申请 | ✓ | ✓ | ✓ |
-| 查看所有申请 | ✗ | ✓ | ✓ |
-| 导出所有申请 | ✗ | ✓ | ✓ |
+| 功能           | 学生 | 教师 | 管理员 |
+| -------------- | ---- | ---- | ------ |
+| 创建活动       | ✓    | ✓    | ✓      |
+| 编辑自己的活动 | ✓    | ✓    | ✓      |
+| 删除自己的活动 | ✓    | ✓    | ✓      |
+| 提交活动审核   | ✓    | ✓    | ✓      |
+| 撤回活动       | ✓    | ✓    | ✓      |
+| 审核活动       | ✗    | ✓    | ✓      |
+| 添加参与者     | ✓    | ✓    | ✓      |
+| 删除参与者     | ✓    | ✓    | ✓      |
+| 设置学分       | ✓    | ✓    | ✓      |
+| 退出活动       | ✓    | ✗    | ✗      |
+| 查看自己的申请 | ✓    | ✓    | ✓      |
+| 导出自己的申请 | ✓    | ✓    | ✓      |
+| 查看所有申请   | ✗    | ✓    | ✓      |
+| 导出所有申请   | ✗    | ✓    | ✓      |
 
 ### 8.2 特殊权限说明
 
 1. **活动创建者权限**：
+
    - 可以编辑、删除、提交、撤回自己创建的活动
    - 可以管理自己活动的参与者
    - 不一定是活动的参与者
 
 2. **教师权限**：
+
    - 可以创建和管理自己的活动
    - 可以审核所有活动
    - 可以查看和导出所有申请
@@ -1176,11 +1332,13 @@ Authorization: Bearer <token>
 ### 9.1 完整活动创建流程
 
 1. **获取活动类别**
+
 ```bash
 curl -X GET "http://localhost:8083/api/activities/categories"
 ```
 
 2. **创建活动**
+
 ```bash
 curl -X POST "http://localhost:8083/api/activities" \
   -H "Authorization: Bearer your-token" \
@@ -1196,6 +1354,7 @@ curl -X POST "http://localhost:8083/api/activities" \
 ```
 
 3. **添加参与者**
+
 ```bash
 curl -X POST "http://localhost:8083/api/activities/activity-uuid/participants" \
   -H "Authorization: Bearer your-token" \
@@ -1207,12 +1366,14 @@ curl -X POST "http://localhost:8083/api/activities/activity-uuid/participants" \
 ```
 
 4. **提交审核**
+
 ```bash
 curl -X POST "http://localhost:8083/api/activities/activity-uuid/submit" \
   -H "Authorization: Bearer your-token"
 ```
 
 5. **审核活动（教师）**
+
 ```bash
 curl -X POST "http://localhost:8083/api/activities/activity-uuid/review" \
   -H "Authorization: Bearer teacher-token" \
@@ -1226,33 +1387,287 @@ curl -X POST "http://localhost:8083/api/activities/activity-uuid/review" \
 ### 9.2 申请查看和导出
 
 1. **查看申请列表**
+
 ```bash
 curl -X GET "http://localhost:8083/api/applications" \
   -H "Authorization: Bearer your-token"
 ```
 
 2. **导出申请数据**
+
 ```bash
 curl -X GET "http://localhost:8083/api/applications/export?format=csv" \
-  -H "Authorization: Bearer your-token" \
-  --output applications.csv
+  -H "Authorization: Bearer your-token"
 ```
 
-## 10. 注意事项
+## 10. 统一搜索 API
 
-1. **日期格式**: 支持多种日期格式，建议使用ISO 8601格式
-2. **文件上传**: 单个文件最大20MB，批量上传最多10个文件
-3. **权限控制**: 严格按照角色权限进行访问控制
-4. **数据验证**: 所有输入数据都会进行严格验证
-5. **错误处理**: 所有错误都有明确的错误码和错误信息
-6. **分页查询**: 默认每页10条记录，最大100条
-7. **搜索功能**: 支持模糊搜索和多条件筛选
-8. **导出功能**: 支持CSV和Excel格式导出
-9. **软删除**: 删除操作采用软删除方式，数据不会真正删除
-10. **事务安全**: 批量操作使用数据库事务确保数据一致性
+### 10.1 统一活动搜索
+
+**GET** `/api/search/activities`
+
+提供统一的活动搜索功能，支持多条件筛选和分页。
+
+**权限**: 所有认证用户（学生只能看到自己创建或参与的活动）
+
+**查询参数**:
+
+- `query` (可选): 搜索关键词，支持标题、描述、类别、要求的模糊搜索
+- `category` (可选): 活动类别筛选
+- `status` (可选): 活动状态筛选 (draft, pending_review, approved, rejected)
+- `owner_id` (可选): 创建者 ID 筛选
+- `start_date` (可选): 开始日期筛选 (YYYY-MM-DD)
+- `end_date` (可选): 结束日期筛选 (YYYY-MM-DD)
+- `page` (可选): 页码，默认 1
+- `page_size` (可选): 每页数量，默认 10，最大 100
+- `sort_by` (可选): 排序字段，默认 created_at
+- `sort_order` (可选): 排序方向，默认 desc
+
+**响应示例**:
+
+```json
+{
+  "code": 0,
+  "message": "搜索成功",
+  "data": {
+    "data": [
+      {
+        "id": "uuid",
+        "title": "创新创业实践活动",
+        "description": "参与创新创业项目，提升创新能力和实践技能",
+        "start_date": "2024-12-01T00:00:00Z",
+        "end_date": "2024-12-31T00:00:00Z",
+        "status": "approved",
+        "category": "创新创业",
+        "requirements": "需要提交项目计划书和成果展示",
+        "owner_id": "user-uuid",
+        "reviewer_id": "teacher-uuid",
+        "review_comments": "活动内容符合要求",
+        "reviewed_at": "2024-01-01T10:00:00Z",
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z",
+        "participants": [],
+        "applications": []
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 10,
+    "total_pages": 1,
+    "filters": {
+      "query": "创新创业",
+      "category": "创新创业",
+      "status": "approved",
+      "page": 1,
+      "page_size": 10,
+      "sort_by": "created_at",
+      "sort_order": "desc"
+    }
+  }
+}
+```
+
+### 10.2 统一申请搜索
+
+**GET** `/api/search/applications`
+
+提供统一的申请搜索功能，支持多条件筛选和分页。
+
+**权限**: 所有认证用户（学生只能看到自己的申请）
+
+**查询参数**:
+
+- `query` (可选): 搜索关键词，通过活动信息搜索
+- `activity_id` (可选): 活动 ID 筛选
+- `user_id` (可选): 用户 ID 筛选
+- `status` (可选): 申请状态筛选
+- `start_date` (可选): 开始日期筛选 (YYYY-MM-DD)
+- `end_date` (可选): 结束日期筛选 (YYYY-MM-DD)
+- `min_credits` (可选): 最小学分筛选
+- `max_credits` (可选): 最大学分筛选
+- `page` (可选): 页码，默认 1
+- `page_size` (可选): 每页数量，默认 10，最大 100
+- `sort_by` (可选): 排序字段，默认 submitted_at
+- `sort_order` (可选): 排序方向，默认 desc
+
+**响应示例**:
+
+```json
+{
+  "code": 0,
+  "message": "搜索成功",
+  "data": {
+    "data": [
+      {
+        "id": "uuid",
+        "activity_id": "activity-uuid",
+        "user_id": "student-uuid",
+        "status": "approved",
+        "applied_credits": 2.0,
+        "awarded_credits": 2.0,
+        "submitted_at": "2024-01-01T10:00:00Z",
+        "created_at": "2024-01-01T10:00:00Z",
+        "updated_at": "2024-01-01T10:00:00Z",
+        "activity": {
+          "id": "activity-uuid",
+          "title": "创新创业实践活动",
+          "description": "参与创新创业项目，提升创新能力和实践技能",
+          "category": "创新创业",
+          "start_date": "2024-12-01T00:00:00Z",
+          "end_date": "2024-12-31T00:00:00Z"
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 10,
+    "total_pages": 1,
+    "filters": {
+      "query": "创新创业",
+      "status": "approved",
+      "page": 1,
+      "page_size": 10,
+      "sort_by": "submitted_at",
+      "sort_order": "desc"
+    }
+  }
+}
+```
+
+### 10.3 统一参与者搜索
+
+**GET** `/api/search/participants`
+
+提供统一的参与者搜索功能，支持多条件筛选和分页。
+
+**权限**: 所有认证用户（学生只能看到自己参与的活动）
+
+**查询参数**:
+
+- `activity_id` (可选): 活动 ID 筛选
+- `user_id` (可选): 用户 ID 筛选
+- `min_credits` (可选): 最小学分筛选
+- `max_credits` (可选): 最大学分筛选
+- `page` (可选): 页码，默认 1
+- `page_size` (可选): 每页数量，默认 10，最大 100
+- `sort_by` (可选): 排序字段，默认 joined_at
+- `sort_order` (可选): 排序方向，默认 desc
+
+**响应示例**:
+
+```json
+{
+  "code": 0,
+  "message": "搜索成功",
+  "data": {
+    "data": [
+      {
+        "user_id": "student-uuid",
+        "credits": 2.0,
+        "joined_at": "2024-01-01T10:00:00Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 10,
+    "total_pages": 1,
+    "filters": {
+      "activity_id": "activity-uuid",
+      "page": 1,
+      "page_size": 10,
+      "sort_by": "joined_at",
+      "sort_order": "desc"
+    }
+  }
+}
+```
+
+### 10.4 统一附件搜索
+
+**GET** `/api/search/attachments`
+
+提供统一的附件搜索功能，支持多条件筛选和分页。
+
+**权限**: 所有认证用户（学生只能看到自己创建或参与活动的附件）
+
+**查询参数**:
+
+- `query` (可选): 搜索关键词，支持文件名、原始文件名、描述的模糊搜索
+- `activity_id` (可选): 活动 ID 筛选
+- `uploader_id` (可选): 上传者 ID 筛选
+- `file_type` (可选): 文件类型筛选
+- `file_category` (可选): 文件分类筛选
+- `min_size` (可选): 最小文件大小筛选（字节）
+- `max_size` (可选): 最大文件大小筛选（字节）
+- `page` (可选): 页码，默认 1
+- `page_size` (可选): 每页数量，默认 10，最大 100
+- `sort_by` (可选): 排序字段，默认 uploaded_at
+- `sort_order` (可选): 排序方向，默认 desc
+
+**响应示例**:
+
+```json
+{
+  "code": 0,
+  "message": "搜索成功",
+  "data": {
+    "data": [
+      {
+        "id": "uuid",
+        "activity_id": "activity-uuid",
+        "file_name": "project_plan.pdf",
+        "original_name": "项目计划书.pdf",
+        "file_size": 1024000,
+        "file_type": "application/pdf",
+        "file_category": "document",
+        "description": "项目计划书",
+        "uploaded_by": "student-uuid",
+        "uploaded_at": "2024-01-01T10:00:00Z",
+        "download_count": 5
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 10,
+    "total_pages": 1,
+    "filters": {
+      "query": "项目计划书",
+      "file_type": "application/pdf",
+      "page": 1,
+      "page_size": 10,
+      "sort_by": "uploaded_at",
+      "sort_order": "desc"
+    }
+  }
+}
+```
+
+### 10.5 搜索功能说明
+
+**搜索特性**:
+
+1. **模糊搜索**: 支持关键词的模糊匹配
+2. **多条件筛选**: 支持多个条件的组合筛选
+3. **分页支持**: 支持分页查询，避免大量数据返回
+4. **排序功能**: 支持多种字段的升序/降序排序
+5. **权限控制**: 根据用户角色自动过滤数据
+
+**性能优化**:
+
+1. **索引优化**: 对常用搜索字段建立数据库索引
+2. **查询优化**: 使用高效的 SQL 查询语句
+3. **缓存支持**: 对搜索结果进行适当缓存
+4. **分页限制**: 限制每页最大返回数量为 100
+
+**使用建议**:
+
+1. 合理使用搜索条件，避免过于复杂的查询
+2. 使用分页功能处理大量数据
+3. 根据实际需求选择合适的排序字段
+4. 注意权限限制，确保只能访问有权限的数据
 
 ---
 
 **版本**: 1.0.0  
 **更新时间**: 2024-01-01  
-**维护者**: 学分活动服务团队 
+**维护者**: 学分活动服务团队

@@ -87,6 +87,7 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 			}
 		}
 	}
+	// 教师和管理员可以查看所有活动的附件，无需额外权限检查
 
 	// 获取查询参数
 	category := c.Query("category")
@@ -209,18 +210,14 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者、参与者和管理员可以上传附件
+	// 权限检查：只有活动创建者和管理员可以上传附件
 	if userType != "admin" && activity.OwnerID != userID {
-		// 检查是否为参与者
-		var participant models.ActivityParticipant
-		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "无权限上传附件到此活动",
-				"data":    nil,
-			})
-			return
-		}
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    403,
+			"message": "无权限上传附件到此活动",
+			"data":    nil,
+		})
+		return
 	}
 
 	// 获取上传的文件
@@ -392,18 +389,14 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者、参与者和管理员可以上传附件
+	// 权限检查：只有活动创建者和管理员可以上传附件
 	if userType != "admin" && activity.OwnerID != userID {
-		// 检查是否为参与者
-		var participant models.ActivityParticipant
-		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "无权限上传附件到此活动",
-				"data":    nil,
-			})
-			return
-		}
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":    403,
+			"message": "无权限上传附件到此活动",
+			"data":    nil,
+		})
+		return
 	}
 
 	// 获取上传的文件
@@ -638,6 +631,7 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 			}
 		}
 	}
+	// 教师和管理员可以下载所有活动的附件，无需额外权限检查
 
 	// 获取附件信息
 	var attachment models.Attachment
