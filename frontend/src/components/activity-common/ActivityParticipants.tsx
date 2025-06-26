@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -41,13 +40,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
@@ -109,6 +101,9 @@ export default function ActivityParticipants({
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
+
+  // 添加活动状态检查：只有草稿状态的活动才能编辑参与者
+  const canEditParticipants = isOwner && activity.status === "draft";
 
   // 获取参与者列表
   const fetchParticipants = async () => {
@@ -497,9 +492,14 @@ export default function ActivityParticipants({
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
             参与者列表 ({participants.length})
+            {!canEditParticipants && isOwner && (
+              <Badge variant="secondary" className="ml-2">
+                仅查看模式
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
-            {isOwner && (
+            {canEditParticipants && (
               <>
                 <Button
                   variant="outline"
@@ -550,7 +550,7 @@ export default function ActivityParticipants({
               className="pl-10"
             />
           </div>
-          {isOwner && selectedParticipants.length > 0 && (
+          {canEditParticipants && selectedParticipants.length > 0 && (
             <div className="flex items-center gap-2">
               <Badge variant="secondary">
                 已选择 {selectedParticipants.length} 人
@@ -575,7 +575,7 @@ export default function ActivityParticipants({
 
         {/* 参与者表格 */}
         <div className="space-y-2">
-          {isOwner && (
+          {canEditParticipants && (
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 点击行选择参与者，或使用 Ctrl+A 全选
@@ -591,7 +591,7 @@ export default function ActivityParticipants({
             <Table>
               <TableHeader>
                 <TableRow>
-                  {isOwner && (
+                  {canEditParticipants && (
                     <TableHead className="w-12">
                       <Checkbox
                         checked={
@@ -614,7 +614,9 @@ export default function ActivityParticipants({
                   <TableHead>用户信息</TableHead>
                   <TableHead>学分</TableHead>
                   <TableHead>加入时间</TableHead>
-                  {isOwner && <TableHead className="w-20">操作</TableHead>}
+                  {canEditParticipants && (
+                    <TableHead className="w-20">操作</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -632,7 +634,7 @@ export default function ActivityParticipants({
                         !(e.target as HTMLElement).closest(
                           'input[type="checkbox"]'
                         ) &&
-                        isOwner
+                        canEditParticipants
                       ) {
                         const isSelected = selectedParticipants.includes(
                           participant.user_id
@@ -650,7 +652,10 @@ export default function ActivityParticipants({
                       }
                     }}
                     onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && isOwner) {
+                      if (
+                        (e.key === "Enter" || e.key === " ") &&
+                        canEditParticipants
+                      ) {
                         e.preventDefault();
                         const isSelected = selectedParticipants.includes(
                           participant.user_id
@@ -674,7 +679,7 @@ export default function ActivityParticipants({
                     }`}
                     data-participant-id={participant.user_id}
                   >
-                    {isOwner && (
+                    {canEditParticipants && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedParticipants.includes(
@@ -777,7 +782,7 @@ export default function ActivityParticipants({
                           <span className="font-bold text-primary">
                             {participant.credits} 学分
                           </span>
-                          {isOwner && (
+                          {canEditParticipants && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -802,7 +807,7 @@ export default function ActivityParticipants({
                         {new Date(participant.joined_at).toLocaleTimeString()}
                       </div>
                     </TableCell>
-                    {isOwner && (
+                    {canEditParticipants && (
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

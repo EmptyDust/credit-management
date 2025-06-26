@@ -38,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pagination } from "@/components/ui/pagination";
 import apiClient from "@/lib/api";
 import {
   PlusCircle,
@@ -51,7 +52,6 @@ import {
   GraduationCap,
   AlertCircle,
   UserCheck,
-  Eye,
   Upload,
   Download,
 } from "lucide-react";
@@ -170,7 +170,7 @@ const StatCard = ({
 };
 
 export default function StudentsPage() {
-  const { user, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -185,6 +185,12 @@ export default function StudentsPage() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -204,44 +210,79 @@ export default function StudentsPage() {
     },
   });
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
       setError("");
-      let endpoint = "/students";
-      const params = new URLSearchParams();
+
+      // 构建查询参数
+      const params: any = {
+        page,
+        page_size: size,
+        user_type: "student",
+      };
 
       if (searchQuery) {
-        params.append("q", searchQuery);
+        params.query = searchQuery;
       }
       if (collegeFilter !== "all") {
-        params.append("college", collegeFilter);
+        params.college = collegeFilter;
       }
       if (statusFilter !== "all") {
-        params.append("status", statusFilter);
+        params.status = statusFilter;
       }
 
-      if (params.toString()) {
-        endpoint += `?${params.toString()}`;
-      }
-
-      console.log("Fetching students from:", endpoint);
-      const response = await apiClient.get(endpoint);
+      console.log("Fetching students with params:", params);
+      const response = await apiClient.get("/search/users", { params });
       console.log("API response:", response.data);
 
-      // 处理不同的响应格式
+      // 处理响应数据
       let studentsData = [];
+      let paginationData: any = {};
+
       if (response.data?.data?.users) {
         studentsData = response.data.data.users;
+        paginationData = {
+          total: response.data.data.total || 0,
+          page: response.data.data.page || 1,
+          page_size: response.data.data.page_size || 10,
+          total_pages: response.data.data.total_pages || 0,
+        };
       } else if (response.data?.students) {
         studentsData = response.data.students;
+        paginationData = {
+          total: studentsData.length,
+          page: 1,
+          page_size: studentsData.length,
+          total_pages: 1,
+        };
       } else if (Array.isArray(response.data)) {
         studentsData = response.data;
+        paginationData = {
+          total: studentsData.length,
+          page: 1,
+          page_size: studentsData.length,
+          total_pages: 1,
+        };
       } else {
         studentsData = [];
+        paginationData = {
+          total: 0,
+          page: 1,
+          page_size: 10,
+          total_pages: 0,
+        };
       }
 
       setStudents(studentsData);
+
+      // 更新分页信息
+      setTotalItems(paginationData.total);
+      setTotalPages(paginationData.total_pages);
+      setCurrentPage(paginationData.page);
+      // 不要从API响应更新pageSize，保持用户设置的值
+      // setPageSize(paginationData.page_size);
+
       console.log("Students loaded:", studentsData.length);
     } catch (err: any) {
       const errorMessage =
@@ -256,6 +297,29 @@ export default function StudentsPage() {
 
   useEffect(() => {
     fetchStudents();
+  }, []);
+
+  // 处理分页变化
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchStudents(page, pageSize);
+  };
+
+  // 处理每页数量变化
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    fetchStudents(1, size);
+  };
+
+  // 处理搜索和筛选
+  const handleSearchAndFilter = () => {
+    setCurrentPage(1);
+    fetchStudents(1, pageSize);
+  };
+
+  useEffect(() => {
+    handleSearchAndFilter();
   }, [searchQuery, collegeFilter, statusFilter]);
 
   const handleDialogOpen = (student: Student | null) => {
@@ -281,23 +345,6 @@ export default function StudentsPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (studentId: string) => {
-    try {
-      // Find the student by student_id to get the user_id
-      const student = students.find((s) => s.student_id === studentId);
-      if (!student || !student.user_id) {
-        toast.error("无法找到学生信息");
-        return;
-      }
-      await apiClient.delete(`/students/${student.user_id}`);
-      fetchStudents();
-      toast.success("学生删除成功");
-    } catch (err) {
-      toast.error("删除学生失败");
-      console.error(err);
-    }
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true);
     try {
@@ -306,7 +353,7 @@ export default function StudentsPage() {
           toast.error("无法找到学生ID");
           return;
         }
-        await apiClient.put(`/students/${editingStudent.user_id}`, values);
+        await apiClient.put(`/users/${editingStudent.user_id}`, values);
         toast.success("学生信息更新成功");
       } else {
         // For creating a new student, ensure required fields are included
@@ -315,7 +362,7 @@ export default function StudentsPage() {
           password: values.password || "Password123", // Default password that meets requirements
           user_type: "student",
         };
-        await apiClient.post("/students", createData);
+        await apiClient.post("/users/students", createData);
         toast.success("学生创建成功");
       }
       setIsDialogOpen(false);
@@ -343,35 +390,18 @@ export default function StudentsPage() {
     return <Badge className={config.color}>{config.label}</Badge>;
   };
 
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      (student.real_name || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      (student.student_id || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      (student.major || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCollege =
-      collegeFilter === "all" || student.college === collegeFilter;
-    const matchesStatus =
-      statusFilter === "all" || student.status === statusFilter;
-    return matchesSearch && matchesCollege && matchesStatus;
-  });
-
   const colleges = Array.from(
     new Set(students.map((s) => s.college).filter(Boolean))
   );
   const canManageStudents = hasPermission("manage_students");
-  const canViewStudents = hasPermission("view_students");
 
   const handleDeleteConfirm = async () => {
     if (!studentToDelete) return;
 
     try {
-      await apiClient.delete(`/users/${studentToDelete.id}`);
+      await apiClient.delete(`/users/${studentToDelete.user_id}`);
       toast.success("学生删除成功");
-      fetchStudents();
+      fetchStudents(currentPage, pageSize);
     } catch (err) {
       toast.error("删除学生失败");
     } finally {
@@ -403,16 +433,13 @@ export default function StudentsPage() {
     try {
       const formData = new FormData();
       formData.append("file", importFile);
+      formData.append("user_type", "student");
 
-      const response = await apiClient.post(
-        "/users/import/students",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const response = await apiClient.post("/users/import-csv", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       if (response.data.code === 0) {
         toast.success("批量导入成功");
@@ -432,7 +459,8 @@ export default function StudentsPage() {
 
   const handleExport = async () => {
     try {
-      const response = await apiClient.get("/users/export/students", {
+      const response = await apiClient.get("/users/export", {
+        params: { user_type: "student" },
         responseType: "blob",
       });
 
@@ -580,7 +608,7 @@ export default function StudentsPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={fetchStudents}
+              onClick={handleSearchAndFilter}
               disabled={loading}
             >
               <RefreshCw
@@ -635,20 +663,20 @@ export default function StudentsPage() {
                       {error}
                     </TableCell>
                   </TableRow>
-                ) : filteredStudents.length === 0 ? (
+                ) : students.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={canManageStudents ? 8 : 7}
                       className="text-center py-8"
                     >
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="h-8 w-8" />
+                        <AlertCircle className="w-8 h-8" />
                         <p>暂无学生记录</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStudents.map((student, index) => (
+                  students.map((student, index) => (
                     <TableRow key={student.student_id || `student-${index}`}>
                       <TableCell className="font-medium">
                         {student.student_id || "-"}
@@ -693,6 +721,18 @@ export default function StudentsPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* 分页组件 */}
+          {!loading && totalItems > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          )}
         </CardContent>
       </Card>
 

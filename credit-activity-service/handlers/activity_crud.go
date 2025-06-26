@@ -227,7 +227,17 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 	category := c.Query("category")
 	ownerID := c.Query("owner_id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	// 修复：优先使用page_size参数，如果没有则兼容limit参数
+	pageSizeStr := c.DefaultQuery("page_size", "")
+	limit := 10
+	if pageSizeStr != "" {
+		limit, _ = strconv.Atoi(pageSizeStr)
+	} else {
+		limit, _ = strconv.Atoi(c.DefaultQuery("limit", "10"))
+	}
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
 	offset := (page - 1) * limit
 
 	dbQuery := h.db.Model(&models.CreditActivity{})
@@ -259,7 +269,6 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 
 	var activities []models.CreditActivity
 	var total int64
-
 	dbQuery.Count(&total)
 	if err := dbQuery.Offset(offset).Limit(limit).Order("created_at DESC").Find(&activities).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

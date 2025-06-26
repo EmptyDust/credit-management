@@ -300,8 +300,8 @@ export default function ProfilePage() {
   const handlePasswordChange = async (values: PasswordForm) => {
     setChangingPassword(true);
     try {
-      await apiClient.put("/users/change-password", {
-        current_password: values.current_password,
+      await apiClient.post("/users/change_password", {
+        old_password: values.current_password,
         new_password: values.new_password,
       });
 

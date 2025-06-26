@@ -42,14 +42,13 @@ import {
   RefreshCw,
   Award,
   Users,
+  Calendar,
   AlertCircle,
   CheckCircle,
   XCircle,
   Eye,
   Upload,
   Download,
-  FileText,
-  Clock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -79,14 +78,6 @@ interface Activity {
   };
 }
 
-interface PaginatedResponse {
-  data: Activity[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-}
-
 type CreateActivityForm = z.infer<typeof activitySchema>;
 
 const activitySchema = z.object({
@@ -96,58 +87,6 @@ const activitySchema = z.object({
     .max(200, "活动名称不能超过200个字符"),
   category: z.string().min(1, "请选择活动类型"),
 });
-
-// 统计卡片样式与仪表盘一致
-const StatCard = ({
-  title,
-  value,
-  icon: Icon,
-  color = "default",
-  subtitle,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  color?: "default" | "success" | "warning" | "danger" | "info" | "purple";
-  subtitle?: string;
-}) => {
-  const colorClasses = {
-    default: "text-muted-foreground",
-    success: "text-green-600",
-    warning: "text-yellow-600",
-    danger: "text-red-600",
-    info: "text-blue-600",
-    purple: "text-purple-600",
-  };
-  const bgClasses = {
-    default: "bg-muted/20",
-    success: "bg-green-100 dark:bg-green-900/20",
-    warning: "bg-yellow-100 dark:bg-yellow-900/20",
-    danger: "bg-red-100 dark:bg-red-900/20",
-    info: "bg-blue-100 dark:bg-blue-900/20",
-    purple: "bg-purple-100 dark:bg-purple-900/20",
-  };
-  return (
-    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div className={`p-3 rounded-xl ${bgClasses[color]}`}>
-          <Icon className={`h-6 w-6 ${colorClasses[color]}`} />
-        </div>
-        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">
-          {value}
-        </div>
-        {subtitle && (
-          <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
@@ -211,14 +150,13 @@ export default function ActivitiesPage() {
       }
 
       const response = await apiClient.get("/activities", { params });
-      console.log("API Response:", response.data); // 调试日志
+      console.log("API Response:", response.data);
 
-      // 处理不同的响应数据结构
+      // 处理响应数据
       let activitiesData: Activity[] = [];
       let paginationData: any = {};
 
       if (response.data.data && response.data.data.data) {
-        // 嵌套数据结构
         activitiesData = response.data.data.data;
         paginationData = {
           total: response.data.data.total || 0,
@@ -227,7 +165,6 @@ export default function ActivitiesPage() {
           total_pages: response.data.data.total_pages || 0,
         };
       } else if (response.data.data && Array.isArray(response.data.data)) {
-        // 直接数组结构
         activitiesData = response.data.data;
         paginationData = {
           total: activitiesData.length,
@@ -235,29 +172,8 @@ export default function ActivitiesPage() {
           page_size: activitiesData.length,
           total_pages: 1,
         };
-      } else if (Array.isArray(response.data)) {
-        // 直接数组
-        activitiesData = response.data;
-        paginationData = {
-          total: activitiesData.length,
-          page: 1,
-          page_size: activitiesData.length,
-          total_pages: 1,
-        };
-      } else if (
-        response.data.activities &&
-        Array.isArray(response.data.activities)
-      ) {
-        // 旧格式
-        activitiesData = response.data.activities;
-        paginationData = {
-          total: response.data.total || activitiesData.length,
-          page: response.data.page || 1,
-          page_size: response.data.page_size || activitiesData.length,
-          total_pages: response.data.total_pages || 1,
-        };
       } else {
-        // 默认处理
+        console.warn("Unexpected response structure:", response.data);
         activitiesData = [];
         paginationData = {
           total: 0,
@@ -267,12 +183,51 @@ export default function ActivitiesPage() {
         };
       }
 
-      setActivities(activitiesData);
+      setActivities(
+        activitiesData.map((activity: any) => ({
+          id: activity.id,
+          title: activity.title,
+          description: activity.description,
+          status: activity.status,
+          category: activity.category,
+          created_at: activity.created_at,
+          updated_at: activity.updated_at,
+          participants_count: activity.participants?.length || 0,
+          applications_count: activity.applications?.length || 0,
+          owner_id: activity.owner_id,
+          owner_info: activity.owner_info,
+        }))
+      );
+
+      // 更新分页信息
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
-    } catch (error) {
-      console.error("Failed to fetch activities:", error);
+      setCurrentPage(paginationData.page);
+      setPageSize(paginationData.page_size);
+    } catch (err) {
+      console.error("Failed to fetch activities:", err);
       toast.error("获取活动列表失败");
+      // Fallback to mock data
+      const mockActivities = [
+        {
+          id: "1",
+          title: "创新创业项目",
+          description: "参与各类创新创业项目，包括创业计划书撰写、项目路演等",
+          status: "approved",
+          category: "创新创业",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          participants_count: 25,
+          applications_count: 18,
+          owner_id: "admin",
+          owner_info: { name: "张三", role: "teacher" },
+        },
+      ];
+      setActivities(mockActivities);
+      setTotalItems(mockActivities.length);
+      setTotalPages(1);
+      setCurrentPage(1);
+      setPageSize(10);
     } finally {
       setLoading(false);
     }
@@ -282,21 +237,28 @@ export default function ActivitiesPage() {
     fetchActivities();
   }, []);
 
+  // 处理分页变化
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     fetchActivities(page, pageSize);
   };
 
+  // 处理每页数量变化
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setCurrentPage(1);
     fetchActivities(1, size);
   };
 
+  // 处理搜索和筛选
   const handleSearchAndFilter = () => {
     setCurrentPage(1);
     fetchActivities(1, pageSize);
   };
+
+  useEffect(() => {
+    handleSearchAndFilter();
+  }, [searchTerm, categoryFilter, statusFilter]);
 
   const handleDialogOpen = (activity: Activity | null) => {
     setEditingActivity(activity);
@@ -325,9 +287,8 @@ export default function ActivitiesPage() {
     try {
       await apiClient.delete(`/activities/${deletingActivity.id}`);
       toast.success("活动删除成功");
-      fetchActivities();
-    } catch (error) {
-      console.error("Failed to delete activity:", error);
+      fetchActivities(currentPage, pageSize);
+    } catch (err) {
       toast.error("删除活动失败");
     } finally {
       setIsDeleteDialogOpen(false);
@@ -338,6 +299,15 @@ export default function ActivitiesPage() {
   const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const allowedTypes = [
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("请选择Excel或CSV文件");
+        return;
+      }
       setImportFile(file);
     }
   };
@@ -345,23 +315,28 @@ export default function ActivitiesPage() {
   const handleImport = async () => {
     if (!importFile) return;
 
-    const formData = new FormData();
-    formData.append("file", importFile);
-
+    setImporting(true);
     try {
-      setImporting(true);
-      await apiClient.post("/activities/import", formData, {
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      const response = await apiClient.post("/activities/import", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
-      toast.success("批量导入成功");
-      setIsImportDialogOpen(false);
-      setImportFile(null);
-      fetchActivities();
-    } catch (error) {
-      console.error("Failed to import activities:", error);
-      toast.error("批量导入失败");
+
+      if (response.data.code === 0) {
+        toast.success("批量导入成功");
+        setIsImportDialogOpen(false);
+        setImportFile(null);
+        fetchActivities(currentPage, pageSize);
+      } else {
+        toast.error(response.data.message || "导入失败");
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "导入失败";
+      toast.error(errorMessage);
     } finally {
       setImporting(false);
     }
@@ -396,18 +371,28 @@ export default function ActivitiesPage() {
       if (editingActivity) {
         await apiClient.put(`/activities/${editingActivity.id}`, values);
         toast.success("活动更新成功");
+        setIsDialogOpen(false);
+        fetchActivities(currentPage, pageSize);
       } else {
-        await apiClient.post("/activities", values);
+        const response = await apiClient.post("/activities", values);
+        const createdActivity = response.data.data;
         toast.success("活动创建成功");
+        setIsDialogOpen(false);
+        navigate(`/activities/${createdActivity.id}`);
       }
-      setIsDialogOpen(false);
-      fetchActivities();
-    } catch (error) {
-      console.error("Failed to save activity:", error);
-      toast.error(editingActivity ? "更新活动失败" : "创建活动失败");
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.message ||
+        `活动${editingActivity ? "更新" : "创建"}失败`;
+      toast.error(errorMessage);
     }
   };
 
+  const categories = Array.from(
+    new Set(activities.map((a) => a.category).filter(Boolean))
+  );
+
+  // 获取状态显示文本
   const getStatusText = (status: string) => {
     switch (status) {
       case "draft":
@@ -423,29 +408,29 @@ export default function ActivitiesPage() {
     }
   };
 
+  // 获取状态样式
   const getStatusStyle = (status: string) => {
     switch (status) {
-      case "draft":
-        return "bg-gray-100 text-gray-800";
-      case "pending_review":
-        return "bg-yellow-100 text-yellow-800";
       case "approved":
         return "bg-green-100 text-green-800";
+      case "pending_review":
+        return "bg-yellow-100 text-yellow-800";
       case "rejected":
         return "bg-red-100 text-red-800";
+      case "draft":
+        return "bg-gray-100 text-gray-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
   };
 
+  // 获取状态图标
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "draft":
-        return <FileText className="w-3 h-3 mr-1 inline" />;
-      case "pending_review":
-        return <Clock className="w-3 h-3 mr-1 inline" />;
       case "approved":
         return <CheckCircle className="w-3 h-3 mr-1 inline" />;
+      case "pending_review":
+        return <AlertCircle className="w-3 h-3 mr-1 inline" />;
       case "rejected":
         return <XCircle className="w-3 h-3 mr-1 inline" />;
       default:
@@ -453,13 +438,8 @@ export default function ActivitiesPage() {
     }
   };
 
-  // 获取所有活动类别
-  const categories = Array.from(
-    new Set(activities.map((a) => a.category).filter(Boolean))
-  );
-
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
+    <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">活动列表</h1>
@@ -470,7 +450,7 @@ export default function ActivitiesPage() {
             user?.userType === "student") && (
             <Button
               onClick={() => handleDialogOpen(null)}
-              className="rounded-lg shadow transition-all duration-200 hover:scale-105"
+              className="rounded-lg shadow transition-all duration-200 hover:scale-105 bg-primary text-white font-bold"
             >
               <PlusCircle className="mr-2 h-4 w-4" />
               新建活动
@@ -502,46 +482,64 @@ export default function ActivitiesPage() {
 
       {/* Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          title="总活动数"
-          value={totalItems}
-          icon={Award}
-          color="info"
-          subtitle={`已通过: ${
-            activities.filter((a) => a.status === "approved").length
-          }`}
-        />
-        <StatCard
-          title="参与学生"
-          value={activities.reduce(
-            (sum, activity) => sum + (activity.participants_count || 0),
-            0
-          )}
-          icon={Users}
-          color="success"
-          subtitle="总参与人次"
-        />
-        <StatCard
-          title="申请数量"
-          value={activities.reduce(
-            (sum, activity) => sum + (activity.applications_count || 0),
-            0
-          )}
-          icon={FileText}
-          color="purple"
-          subtitle="总申请数量"
-        />
-        <StatCard
-          title="待审核"
-          value={activities.filter((a) => a.status === "pending_review").length}
-          icon={Clock}
-          color="warning"
-          subtitle="待审核活动"
-        />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">总活动数</CardTitle>
+            <Award className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalItems}</div>
+            <p className="text-xs text-muted-foreground">
+              已通过: {activities.filter((a) => a.status === "approved").length}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">参与学生</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {activities.reduce(
+                (sum, activity) => sum + (activity.participants_count || 0),
+                0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">总参与人次</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">申请数量</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {activities.reduce(
+                (sum, activity) => sum + (activity.applications_count || 0),
+                0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">总申请数量</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">待审核</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {activities.filter((a) => a.status === "pending_review").length}
+            </div>
+            <p className="text-xs text-muted-foreground">待审核活动</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
-      <Card className="bg-white/80 backdrop-blur border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -549,25 +547,18 @@ export default function ActivitiesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="搜索活动名称..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearchAndFilter();
-                    }
-                  }}
-                  className="pl-10"
-                />
-              </div>
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索活动名称..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-lg shadow-sm"
+              />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="选择类别" />
               </SelectTrigger>
               <SelectContent>
@@ -595,8 +586,9 @@ export default function ActivitiesPage() {
             </Select>
             <Button
               variant="outline"
-              onClick={handleSearchAndFilter}
+              onClick={() => fetchActivities(currentPage, pageSize)}
               disabled={loading}
+              className="rounded-lg shadow"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -607,115 +599,133 @@ export default function ActivitiesPage() {
       </Card>
 
       {/* Activities Table */}
-      <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle>活动列表</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-md bg-white dark:bg-gray-900/60">
+          <div className="border rounded-xl overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/60">
                 <TableRow>
                   <TableHead>名称</TableHead>
                   <TableHead>描述</TableHead>
                   <TableHead>类别</TableHead>
                   <TableHead>状态</TableHead>
+                  <TableHead>创建人</TableHead>
                   <TableHead>参与人数</TableHead>
-                  <TableHead>申请数量</TableHead>
-                  <TableHead>创建时间</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead>申请数</TableHead>
+                  <TableHead>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <div className="flex items-center justify-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        加载中...
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <span className="text-muted-foreground">加载中...</span>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : activities.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="w-8 h-8" />
+                  <tr>
+                    <td colSpan={8} className="py-12">
+                      <div className="flex flex-col items-center text-muted-foreground">
+                        <AlertCircle className="w-12 h-12 mb-2" />
                         <p>暂无活动记录</p>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   activities.map((activity) => (
-                    <TableRow key={activity.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{activity.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            ID: {activity.id}
-                          </div>
-                        </div>
+                    <TableRow
+                      key={activity.id}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <TableCell className="font-medium">
+                        {activity.title}
+                      </TableCell>
+                      <TableCell className="truncate max-w-xs">
+                        {activity.description}
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-xs truncate">
-                          {activity.description || "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="rounded">
+                        <Badge
+                          variant="secondary"
+                          className="rounded px-2 py-1"
+                        >
                           {activity.category || "-"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={`rounded ${getStatusStyle(
+                          className={`${getStatusStyle(
                             activity.status
-                          )}`}
+                          )} rounded-lg px-2 py-1`}
                         >
                           {getStatusIcon(activity.status)}
                           {getStatusText(activity.status)}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-bold text-blue-600">
-                          {activity.participants_count || 0}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">
+                            {activity.owner_info?.name || "未知用户"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {activity.owner_info?.role === "student"
+                              ? "学生"
+                              : activity.owner_info?.role === "teacher"
+                              ? "教师"
+                              : activity.owner_info?.role === "admin"
+                              ? "管理员"
+                              : "用户"}
+                          </span>
+                        </div>
                       </TableCell>
+                      <TableCell>{activity.participants_count || 0}</TableCell>
+                      <TableCell>{activity.applications_count || 0}</TableCell>
                       <TableCell>
-                        <span className="font-bold text-green-600">
-                          {activity.applications_count || 0}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {activity.created_at?.split("T")[0] || "-"}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => navigate(`/activities/${activity.id}`)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {(hasPermission("manage_activities") ||
-                          user?.user_id === activity.owner_id) && (
-                          <>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="rounded-full hover:bg-primary/10"
+                            title="查看详情"
+                            onClick={() =>
+                              navigate(`/activities/${activity.id}`)
+                            }
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {(user?.userType === "admin" ||
+                            (user?.user_id === activity.owner_id &&
+                              activity.status === "draft")) && (
                             <Button
-                              variant="outline"
                               size="icon"
-                              onClick={() => handleDialogOpen(activity)}
+                              variant="ghost"
+                              className="rounded-full hover:bg-primary/10"
+                              title="编辑"
+                              onClick={() =>
+                                navigate(`/activities/${activity.id}?edit=1`)
+                              }
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
+                          )}
+                          {(user?.userType === "admin" ||
+                            user?.user_id === activity.owner_id) && (
                             <Button
-                              variant="destructive"
                               size="icon"
+                              variant="ghost"
+                              className="rounded-full hover:bg-red-100"
+                              title="删除"
                               onClick={() => handleDeleteClick(activity)}
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
-                          </>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

@@ -246,33 +246,54 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
           </Badge>
         );
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return (
+          <Badge variant="outline" className="text-xs">
+            {status || "未知"}
+          </Badge>
+        );
     }
   };
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInHours = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    );
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return "无效时间";
+      }
+      const now = new Date();
+      const diffInHours = Math.floor(
+        (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+      );
 
-    if (diffInHours < 1) {
-      return "刚刚";
-    } else if (diffInHours < 24) {
-      return `${diffInHours}小时前`;
-    } else if (diffInHours < 24 * 7) {
-      return `${Math.floor(diffInHours / 24)}天前`;
-    } else {
-      return date.toLocaleDateString();
+      if (diffInHours < 1) {
+        return "刚刚";
+      } else if (diffInHours < 24) {
+        return `${diffInHours}小时前`;
+      } else if (diffInHours < 24 * 7) {
+        return `${Math.floor(diffInHours / 24)}天前`;
+      } else {
+        return date.toLocaleDateString();
+      }
+    } catch (error) {
+      console.error("Time formatting error:", error);
+      return "无效时间";
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("zh-CN", {
-      month: "short",
-      day: "numeric",
-    });
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return "无效日期";
+      }
+      return date.toLocaleDateString("zh-CN", {
+        month: "short",
+        day: "numeric",
+      });
+    } catch (error) {
+      console.error("Date formatting error:", error);
+      return "无效日期";
+    }
   };
 
   return (
@@ -284,10 +305,10 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-              {activity.title}
+              {activity.title || "无标题"}
             </h4>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-              {activity.description}
+              {activity.description || "暂无描述"}
             </p>
           </div>
           <div className="flex-shrink-0 ml-2">
@@ -300,21 +321,21 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
             <div className="flex items-center space-x-1">
               <Calendar className="h-3 w-3" />
               <span>
-                {formatDate(activity.start_date)} -{" "}
-                {formatDate(activity.end_date)}
+                {formatDate(activity.start_date || "")} -{" "}
+                {formatDate(activity.end_date || "")}
               </span>
             </div>
             <div className="flex items-center space-x-1">
               <Users className="h-3 w-3" />
-              <span>{activity.participant_count} 参与者</span>
+              <span>{activity.participant_count || 0} 参与者</span>
             </div>
             <div className="flex items-center space-x-1">
               <FileText className="h-3 w-3" />
-              <span>{activity.application_count} 申请</span>
+              <span>{activity.application_count || 0} 申请</span>
             </div>
           </div>
           <div className="text-xs text-gray-400">
-            {formatTime(activity.updated_at)}
+            {formatTime(activity.updated_at || "")}
           </div>
         </div>
       </div>
@@ -529,37 +550,39 @@ export default function Dashboard() {
 
         // Prepare recent activities for the card
         const recentActivitiesData = activities
+          .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
           .sort(
             (a: any, b: any) =>
-              new Date(b.updated_at).getTime() -
-              new Date(a.updated_at).getTime()
+              new Date(b.updated_at || 0).getTime() -
+              new Date(a.updated_at || 0).getTime()
           )
-          .slice(0, 10)
+          .slice(0, 6)
           .map((activity: any) => ({
-            id: activity.id,
-            title: activity.title,
-            description: activity.description,
-            category: activity.category,
-            status: activity.status,
+            id: activity.id || "",
+            title: activity.title || "无标题",
+            description: activity.description || "暂无描述",
+            category: activity.category || "创新创业实践活动",
+            status: activity.status || "draft",
             participant_count: activity.participants?.length || 0,
             application_count: activity.applications?.length || 0,
-            created_at: activity.created_at,
-            updated_at: activity.updated_at,
-            start_date: activity.start_date,
-            end_date: activity.end_date,
-            owner_name: activity.owner?.name || activity.owner_name,
+            created_at: activity.created_at || "",
+            updated_at: activity.updated_at || "",
+            start_date: activity.start_date || "",
+            end_date: activity.end_date || "",
+            owner_name: activity.owner?.name || activity.owner_name || "",
           }));
 
         // Prepare popular activities
         const popularActivities = activities
+          .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
           .sort(
             (a: any, b: any) =>
               (b.participants?.length || 0) - (a.participants?.length || 0)
           )
           .slice(0, 5)
           .map((activity: any) => ({
-            id: activity.id,
-            title: activity.title,
+            id: activity.id || "",
+            title: activity.title || "无标题",
             application_count: activity.applications?.length || 0,
             participant_count: activity.participants?.length || 0,
           }));
@@ -838,7 +861,7 @@ export default function Dashboard() {
               最近活动
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 h-96 overflow-y-auto">
+          <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
             {recentActivities.length > 0 ? (
               recentActivities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
@@ -846,7 +869,10 @@ export default function Dashboard() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <AlertCircle className="h-8 w-8 mx-auto mb-2" />
-                <p>暂无活动记录</p>
+                <p>{refreshing ? "加载中..." : "暂无活动记录"}</p>
+                {!refreshing && (
+                  <p className="text-xs mt-1">请创建一些活动来查看最近活动</p>
+                )}
               </div>
             )}
           </CardContent>

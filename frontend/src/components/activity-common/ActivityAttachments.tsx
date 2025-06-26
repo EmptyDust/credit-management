@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   FileText,
   Download,
   Trash2,
-  Eye,
   File,
   Image,
   FileVideo,
@@ -140,8 +140,9 @@ export default function ActivityAttachments({
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
-  const canUpload = isOwner;
-  const canDelete = isOwner && user.user_id === activity.owner_id;
+
+  // 添加活动状态检查：只有草稿状态的活动才能编辑附件
+  const canEditAttachments = isOwner && activity.status === "draft";
 
   // 获取附件列表
   const fetchAttachments = async () => {
@@ -349,9 +350,14 @@ export default function ActivityAttachments({
           <CardTitle className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5" />
             附件 ({attachments.length})
+            {!canEditAttachments && isOwner && (
+              <Badge variant="secondary" className="ml-2">
+                仅查看模式
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-2">
-            {canUpload && (
+            {canEditAttachments && (
               <Button
                 variant="outline"
                 size="sm"
@@ -495,7 +501,7 @@ export default function ActivityAttachments({
                         >
                           <Download className="h-4 w-4" />
                         </Button>
-                        {canDelete && (
+                        {canEditAttachments && (
                           <Button
                             variant="ghost"
                             size="sm"

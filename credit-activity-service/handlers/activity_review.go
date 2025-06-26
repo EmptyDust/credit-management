@@ -143,11 +143,14 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	// 只有待审核状态的活动可以审核
-	if activity.Status != models.StatusPendingReview {
+	// 允许审核待审核、已通过、已拒绝状态的活动
+	// 教师可以修改审核状态，包括将已通过改为拒绝，或将已拒绝改为通过
+	if activity.Status != models.StatusPendingReview &&
+		activity.Status != models.StatusApproved &&
+		activity.Status != models.StatusRejected {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
-			"message": "只能审核待审核状态的活动",
+			"message": "只能审核待审核、已通过或已拒绝状态的活动",
 			"data":    nil,
 		})
 		return
@@ -228,7 +231,6 @@ func (h *ActivityHandler) GetPendingActivities(c *gin.Context) {
 func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 	id := c.Param("id")
 	userID, _ := c.Get("user_id")
-	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", id).First(&activity).Error; err != nil {
@@ -249,7 +251,7 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 	}
 
 	// 权限检查：只有活动创建者可以撤回
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
 			"message": "权限不足，只有活动创建者可以撤回活动",
