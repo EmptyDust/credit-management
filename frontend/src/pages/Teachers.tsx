@@ -335,7 +335,7 @@ export default function TeachersPage() {
     if (!teacherToDelete) return;
 
     try {
-      await apiClient.delete(`/users/${teacherToDelete.id}`);
+      await apiClient.delete(`/users/${teacherToDelete.user_id}`);
       toast.success("教师删除成功");
       fetchTeachers();
     } catch (err) {

@@ -5,8 +5,9 @@ import toast from "react-hot-toast";
 // Define a comprehensive user interface
 interface User {
   id: string;
+  user_id?: string;
   username: string;
-  userType: 'student' | 'teacher' | 'admin';
+  userType: "student" | "teacher" | "admin";
   email?: string;
   fullName?: string;
   studentNumber?: string; // For students
@@ -15,7 +16,7 @@ interface User {
   college?: string; // For students
   major?: string; // For students
   class?: string; // For students
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
   permissions?: string[];
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const normalizedUser = {
             ...userData,
             userType: userData.userType || userData.user_type,
+            user_id: userData.user_id || userData.id,
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -90,7 +92,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.setItem("token", token);
     localStorage.setItem("refreshToken", refreshToken);
     localStorage.setItem("user", JSON.stringify(user));
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setIsAuthenticated(true);
     setUser(user);
     toast.success(`欢迎回来，${user.fullName || user.username}！`);
@@ -108,7 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
-      delete apiClient.defaults.headers.common['Authorization'];
+      delete apiClient.defaults.headers.common["Authorization"];
       setIsAuthenticated(false);
       setUser(null);
       toast.success("已成功退出登录");
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser({
         ...userData,
         userType: userData.userType || userData.user_type,
+        user_id: userData.user_id || userData.id,
       });
       localStorage.setItem("user", JSON.stringify(userData));
     } catch (error) {
@@ -141,66 +144,90 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
-    
+
     // Admin has all permissions
-    if (user.userType === 'admin') return true;
-    
+    if (user.userType === "admin") return true;
+
     // Check user's explicit permissions
     if (user.permissions && user.permissions.includes(permission)) {
       return true;
     }
-    
+
     // Check role-based permissions
     if (user.roles) {
       const rolePermissions: Record<string, string[]> = {
-        'student': ['view_own_applications', 'create_application', 'view_own_profile', 'edit_own_profile'],
-        'teacher': ['view_applications', 'review_applications', 'view_students', 'view_own_profile', 'edit_own_profile'],
-        'admin': ['*'] // All permissions
+        student: [
+          "view_own_applications",
+          "create_application",
+          "view_own_profile",
+          "edit_own_profile",
+        ],
+        teacher: [
+          "view_applications",
+          "review_applications",
+          "view_students",
+          "view_own_profile",
+          "edit_own_profile",
+        ],
+        admin: ["*"], // All permissions
       };
-      
+
       for (const role of user.roles) {
         const permissions = rolePermissions[role] || [];
-        if (permissions.includes('*') || permissions.includes(permission)) {
+        if (permissions.includes("*") || permissions.includes(permission)) {
           return true;
         }
       }
     }
-    
+
     // Fallback to user type permissions
     const userTypePermissions: Record<string, string[]> = {
-      'student': ['view_own_applications', 'create_application', 'view_own_profile', 'edit_own_profile'],
-      'teacher': ['view_applications', 'review_applications', 'view_students', 'view_own_profile', 'edit_own_profile'],
-      'admin': ['*'] // All permissions
+      student: [
+        "view_own_applications",
+        "create_application",
+        "view_own_profile",
+        "edit_own_profile",
+      ],
+      teacher: [
+        "view_applications",
+        "review_applications",
+        "view_students",
+        "view_own_profile",
+        "edit_own_profile",
+      ],
+      admin: ["*"], // All permissions
     };
-    
+
     const permissions = userTypePermissions[user.userType] || [];
-    return permissions.includes('*') || permissions.includes(permission);
+    return permissions.includes("*") || permissions.includes(permission);
   };
 
   const hasRole = (role: string): boolean => {
     if (!user) return false;
-    
+
     // Check explicit roles
     if (user.roles && user.roles.includes(role)) {
       return true;
     }
-    
+
     // Check user type as role
     return user.userType === role;
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      isAuthenticated, 
-      user, 
-      loading,
-      login, 
-      logout, 
-      refreshUser,
-      hasPermission,
-      hasRole,
-      updateUser
-    }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        user,
+        loading,
+        login,
+        logout,
+        refreshUser,
+        hasPermission,
+        hasRole,
+        updateUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -208,4 +235,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export const useAuth = () => {
   return useContext(AuthContext);
-}; 
+};

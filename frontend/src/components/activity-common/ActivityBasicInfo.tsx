@@ -18,9 +18,6 @@ import {
 } from "lucide-react";
 import type { Activity } from "@/types/activity";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import {
   Form,
   FormControl,
@@ -44,22 +41,9 @@ interface ActivityBasicInfoProps {
   isEditing?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
   onRefresh?: () => void;
+  basicInfo: any;
+  setBasicInfo: React.Dispatch<React.SetStateAction<any>>;
 }
-
-// 活动编辑表单验证模式
-const activityEditSchema = z.object({
-  title: z.string().min(1, "活动标题不能为空").max(100, "标题最多100个字符"),
-  description: z
-    .string()
-    .min(1, "活动描述不能为空")
-    .max(1000, "描述最多1000个字符"),
-  requirements: z.string().optional(),
-  category: z.string().min(1, "请选择活动类别"),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
-});
-
-type ActivityEditForm = z.infer<typeof activityEditSchema>;
 
 // 获取状态显示文本
 const getStatusText = (status: string) => {
@@ -120,26 +104,12 @@ export default function ActivityBasicInfo({
   isEditing = false,
   onEditModeChange,
   onRefresh,
+  basicInfo,
+  setBasicInfo,
 }: ActivityBasicInfoProps) {
   const [saving, setSaving] = useState(false);
 
-  const form = useForm<ActivityEditForm>({
-    resolver: zodResolver(activityEditSchema),
-    defaultValues: {
-      title: activity.title,
-      description: activity.description,
-      requirements: activity.requirements || "",
-      category: activity.category,
-      start_date: activity.start_date
-        ? new Date(activity.start_date).toISOString().split("T")[0]
-        : "",
-      end_date: activity.end_date
-        ? new Date(activity.end_date).toISOString().split("T")[0]
-        : "",
-    },
-  });
-
-  const handleSave = async (values: ActivityEditForm) => {
+  const handleSave = async (values: any) => {
     setSaving(true);
     try {
       await apiClient.put(`/activities/${activity.id}`, values);
@@ -155,7 +125,6 @@ export default function ActivityBasicInfo({
   };
 
   const handleCancel = () => {
-    form.reset();
     onEditModeChange?.(false);
   };
 
@@ -173,71 +142,50 @@ export default function ActivityBasicInfo({
             </div>
             <div className="flex-1">
               {isEditing ? (
-                <Form {...form}>
-                  <form
-                    onSubmit={form.handleSubmit(handleSave)}
-                    className="space-y-4"
-                  >
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>活动标题</FormLabel>
-                          <FormControl>
-                            <Input {...field} className="text-2xl font-bold" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                <form
+                  className="space-y-4"
+                  id="activity-edit-form"
+                  autoComplete="off"
+                >
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">
+                      活动标题
+                    </label>
+                    <Input
+                      className="text-2xl font-bold"
+                      value={basicInfo.title}
+                      onChange={(e) =>
+                        setBasicInfo({ ...basicInfo, title: e.target.value })
+                      }
+                      placeholder="请输入活动标题"
                     />
-                    <FormField
-                      control={form.control}
-                      name="category"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>活动类别</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">
+                      活动类别
+                    </label>
+                    <Select
+                      value={basicInfo.category}
+                      onValueChange={(val) =>
+                        setBasicInfo({ ...basicInfo, category: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择活动类别" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activityCategories.map((category) => (
+                          <SelectItem
+                            key={category.value}
+                            value={category.value}
                           >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="选择活动类别" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {activityCategories.map((category) => (
-                                <SelectItem
-                                  key={category.value}
-                                  value={category.value}
-                                >
-                                  {category.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex gap-2">
-                      <Button type="submit" disabled={saving} size="sm">
-                        <Save className="h-4 w-4 mr-2" />
-                        {saving ? "保存中..." : "保存"}
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleCancel}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        取消
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
+                            {category.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </form>
               ) : (
                 <>
                   <CardTitle className="text-3xl font-bold">
@@ -264,89 +212,54 @@ export default function ActivityBasicInfo({
       </CardHeader>
       <CardContent className="space-y-6">
         {isEditing ? (
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(handleSave)}
-              className="space-y-4"
-            >
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>活动描述</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        className="min-h-[120px] text-lg leading-relaxed"
-                        placeholder="请详细描述活动内容..."
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <form
+            className="space-y-4"
+            id="activity-edit-form-details"
+            autoComplete="off"
+          >
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">活动描述</label>
+              <Textarea
+                className="min-h-[120px] text-lg leading-relaxed"
+                placeholder="请详细描述活动内容..."
+                value={basicInfo.description}
+                onChange={(e) =>
+                  setBasicInfo({ ...basicInfo, description: e.target.value })
+                }
               />
-              <FormField
-                control={form.control}
-                name="requirements"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>活动要求</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        className="min-h-[80px]"
-                        placeholder="请描述活动要求..."
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="start_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>开始时间</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="end_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>结束时间</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="date" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  开始时间
+                </label>
+                <Input
+                  type="date"
+                  value={basicInfo.start_date}
+                  onChange={(e) =>
+                    setBasicInfo({ ...basicInfo, start_date: e.target.value })
+                  }
                 />
               </div>
-            </form>
-          </Form>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  结束时间
+                </label>
+                <Input
+                  type="date"
+                  value={basicInfo.end_date}
+                  onChange={(e) =>
+                    setBasicInfo({ ...basicInfo, end_date: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </form>
         ) : (
           <>
-            <div className="text-lg leading-relaxed whitespace-pre-line">
+            <div className="text-lg leading-relaxed whitespace-pre-line break-words max-w-full">
               {activity.description}
             </div>
-
-            {activity.requirements && (
-              <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-4">
-                <h3 className="font-semibold mb-2">活动要求</h3>
-                <p className="text-gray-700 dark:text-gray-300">
-                  {activity.requirements}
-                </p>
-              </div>
-            )}
           </>
         )}
 

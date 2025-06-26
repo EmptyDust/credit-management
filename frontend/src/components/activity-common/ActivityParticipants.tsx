@@ -4,10 +4,14 @@ import type { Activity } from "@/types/activity";
 
 interface ActivityParticipantsProps {
   activity: Activity;
+  isManaging?: boolean;
+  onManagingChange?: (isManaging: boolean) => void;
 }
 
 export default function ActivityParticipants({
   activity,
+  isManaging = false,
+  onManagingChange,
 }: ActivityParticipantsProps) {
   const participants = activity.participants || [];
 

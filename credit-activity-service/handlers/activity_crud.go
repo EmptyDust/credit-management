@@ -167,7 +167,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 
 	// 创建详情表
 	switch req.Category {
-	case "创新创业":
+	case "创新创业实践活动":
 		if req.InnovationDetail != nil {
 			detail := req.InnovationDetail
 			detail.ActivityID = activity.ID
@@ -373,10 +373,19 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		}
 	}
 
+	// 获取当前用户的认证令牌
+	authToken := ""
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		authToken = authHeader
+	}
+
+	// 使用 enrichActivityResponse 来添加详情字段
+	response := h.enrichActivityResponse(activity, authToken)
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "success",
-		"data":    activity,
+		"data":    response,
 	})
 }
 
@@ -565,29 +574,15 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 
 	// 更新详情表
 	switch activity.Category {
-	case "创新创业":
+	case "创新创业实践活动":
 		if req.InnovationDetail != nil {
 			var detail models.InnovationActivityDetail
 			h.db.Where("activity_id = ?", activity.ID).First(&detail)
 			if detail.ID != "" {
-				// 处理Date字段
-				if req.InnovationDetail.Date.String() != "" {
-					parsedDate, err := time.Parse("2006-01-02", req.InnovationDetail.Date.String())
-					if err == nil {
-						req.InnovationDetail.Date = parsedDate
-					}
-				}
 				h.db.Model(&detail).Updates(req.InnovationDetail)
 			} else {
 				detail = *req.InnovationDetail
 				detail.ActivityID = activity.ID
-				// 处理Date字段
-				if detail.Date.String() != "" {
-					parsedDate, err := time.Parse("2006-01-02", detail.Date.String())
-					if err == nil {
-						detail.Date = parsedDate
-					}
-				}
 				h.db.Create(&detail)
 			}
 		}

@@ -516,9 +516,6 @@ export default function ApplicationsPage() {
             <Table>
               <TableHeader className="bg-muted/60">
                 <TableRow>
-                  <TableHead className="font-bold text-primary">
-                    申请ID
-                  </TableHead>
                   <TableHead>学生</TableHead>
                   <TableHead>事务类型</TableHead>
                   <TableHead>申请学分</TableHead>
@@ -531,7 +528,7 @@ export default function ApplicationsPage() {
               <TableBody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center">
+                    <td colSpan={7} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="text-muted-foreground">加载中...</span>
@@ -540,7 +537,7 @@ export default function ApplicationsPage() {
                   </tr>
                 ) : filteredApplications.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12">
+                    <td colSpan={7} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
                         <AlertCircle className="w-12 h-12 mb-2" />
                         <p>暂无申请记录</p>
@@ -553,9 +550,6 @@ export default function ApplicationsPage() {
                       key={app.id}
                       className="hover:bg-muted/40 transition-colors"
                     >
-                      <TableCell className="font-semibold text-primary">
-                        #{app.id}
-                      </TableCell>
                       <TableCell>
                         <div className="font-medium">{app.student_number}</div>
                         <div className="text-xs text-muted-foreground">

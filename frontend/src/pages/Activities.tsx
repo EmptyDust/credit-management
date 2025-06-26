@@ -70,6 +70,7 @@ interface Activity {
   updated_at: string;
   participants_count?: number;
   applications_count?: number;
+  owner_id: string;
 }
 
 type CreateActivityForm = z.infer<typeof activitySchema>;
@@ -143,6 +144,7 @@ export default function ActivitiesPage() {
           updated_at: activity.updated_at,
           participants_count: activity.participants?.length || 0,
           applications_count: activity.applications?.length || 0,
+          owner_id: activity.owner_id,
         }))
       );
     } catch (err) {
@@ -160,6 +162,7 @@ export default function ActivitiesPage() {
           updated_at: new Date().toISOString(),
           participants_count: 25,
           applications_count: 18,
+          owner_id: "admin",
         },
         {
           id: "2",
@@ -171,6 +174,7 @@ export default function ActivitiesPage() {
           updated_at: new Date().toISOString(),
           participants_count: 42,
           applications_count: 35,
+          owner_id: "admin",
         },
         {
           id: "3",
@@ -182,6 +186,7 @@ export default function ActivitiesPage() {
           updated_at: new Date().toISOString(),
           participants_count: 18,
           applications_count: 12,
+          owner_id: "admin",
         },
       ]);
     } finally {
@@ -630,15 +635,21 @@ export default function ActivitiesPage() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="rounded-full hover:bg-primary/10"
-                              title="编辑"
-                              onClick={() => handleDialogOpen(activity)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            {(user?.userType === "admin" ||
+                              (user?.user_id === activity.owner_id &&
+                                activity.status === "draft")) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="rounded-full hover:bg-primary/10"
+                                title="编辑"
+                                onClick={() =>
+                                  navigate(`/activities/${activity.id}?edit=1`)
+                                }
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
@@ -704,18 +715,14 @@ export default function ActivitiesPage() {
                         <SelectItem value="创新创业实践活动">
                           创新创业实践活动
                         </SelectItem>
-                        <SelectItem value="学科竞赛活动">
-                          学科竞赛活动
+                        <SelectItem value="学科竞赛">学科竞赛</SelectItem>
+                        <SelectItem value="大学生创业项目">
+                          大学生创业项目
                         </SelectItem>
                         <SelectItem value="创业实践项目">
                           创业实践项目
                         </SelectItem>
-                        <SelectItem value="创业实践活动">
-                          创业实践活动
-                        </SelectItem>
-                        <SelectItem value="论文专利活动">
-                          论文专利活动
-                        </SelectItem>
+                        <SelectItem value="论文专利">论文专利</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

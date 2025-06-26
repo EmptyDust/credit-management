@@ -94,7 +94,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 
 	// 联查详情表
 	switch activity.Category {
-	case "创新创业":
+	case "创新创业实践活动":
 		var detail models.InnovationActivityDetail
 		h.db.Where("activity_id = ?", activity.ID).First(&detail)
 		if detail.ID != "" {
