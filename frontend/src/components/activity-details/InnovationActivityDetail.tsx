@@ -249,11 +249,7 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
       </div>
 
       {/* 参与者列表 */}
-      <ActivityParticipants
-        activity={activity}
-        isManaging={isManagingParticipants}
-        onManagingChange={setIsManagingParticipants}
-      />
+      <ActivityParticipants activity={activity} onRefresh={handleRefresh} />
 
       {/* 申请列表 */}
       <ActivityApplications activity={activity} />
