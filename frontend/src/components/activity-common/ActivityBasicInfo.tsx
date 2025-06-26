@@ -257,7 +257,7 @@ export default function ActivityBasicInfo({
             <div>
               <div className="font-medium">创建人</div>
               <div className="text-sm text-muted-foreground">
-                {activity.owner_id}
+                {activity.owner_info?.name || activity.owner_id}
               </div>
             </div>
           </div>

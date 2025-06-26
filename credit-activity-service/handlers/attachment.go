@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -109,7 +110,7 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 
 	// 获取附件列表
 	var attachments []models.Attachment
-	if err := query.Preload("Uploader").Order("uploaded_at DESC").Find(&attachments).Error; err != nil {
+	if err := query.Order("uploaded_at DESC").Find(&attachments).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "获取附件列表失败: " + err.Error(),
@@ -123,6 +124,9 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 	var totalSize int64
 	categoryCount := make(map[string]int64)
 	fileTypeCount := make(map[string]int64)
+
+	// 获取认证令牌用于调用用户服务
+	authToken := c.GetHeader("Authorization")
 
 	for _, attachment := range attachments {
 		response := models.AttachmentResponse{
@@ -138,8 +142,13 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 			UploadedAt:    attachment.UploadedAt,
 			DownloadCount: attachment.DownloadCount,
 			DownloadURL:   fmt.Sprintf("/api/activities/%s/attachments/%s/download", activityID, attachment.ID),
-			Uploader:      attachment.Uploader,
 		}
+
+		// 获取上传者信息
+		if userInfo, err := utils.GetUserInfo(attachment.UploadedBy, authToken); err == nil {
+			response.Uploader = *userInfo
+		}
+
 		responses = append(responses, response)
 
 		// 统计信息
@@ -258,22 +267,9 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 
 	md5Hash := fmt.Sprintf("%x", md5.Sum(fileBytes))
 
-	// 检查文件是否已存在（通过MD5）
-	var existingAttachment models.Attachment
-	if err := h.db.Where("md5_hash = ? AND activity_id = ? AND deleted_at IS NULL", md5Hash, activityID).First(&existingAttachment).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{
-			"code":    409,
-			"message": "文件已存在",
-			"data": gin.H{
-				"existing_file": existingAttachment.OriginalName,
-			},
-		})
-		return
-	}
-
 	// 生成存储文件名
 	fileExt := filepath.Ext(header.Filename)
-	fileName := fmt.Sprintf("%s_%d%s", md5Hash[:8], time.Now().Unix(), fileExt)
+	// fileName := fmt.Sprintf("%s_%d%s", md5Hash[:8], time.Now().Unix(), fileExt)
 
 	// 创建存储目录
 	uploadDir := "uploads/attachments"
@@ -286,21 +282,24 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 保存文件
-	filePath := filepath.Join(uploadDir, fileName)
-	if err := os.WriteFile(filePath, fileBytes, 0644); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "保存文件失败: " + err.Error(),
-			"data":    nil,
-		})
-		return
+	// 保存文件（如果物理文件已存在则跳过写入）
+	// filePath := filepath.Join(uploadDir, fileName)
+	md5FilePath := filepath.Join(uploadDir, md5Hash+fileExt)
+	if _, err := os.Stat(md5FilePath); os.IsNotExist(err) {
+		if err := os.WriteFile(md5FilePath, fileBytes, 0644); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "保存文件失败: " + err.Error(),
+				"data":    nil,
+			})
+			return
+		}
 	}
 
-	// 创建附件记录
+	// 创建附件记录（每次都插入新记录，哪怕md5_hash一样）
 	attachment := models.Attachment{
 		ActivityID:   activityID,
-		FileName:     fileName,
+		FileName:     md5Hash + fileExt, // 物理文件名统一用md5+ext
 		OriginalName: header.Filename,
 		FileSize:     header.Size,
 		FileType:     fileExt,
@@ -312,8 +311,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&attachment).Error; err != nil {
-		// 删除已保存的文件
-		os.Remove(filePath)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
 			"message": "创建附件记录失败: " + err.Error(),
@@ -667,9 +664,178 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	h.db.Model(&attachment).Update("download_count", attachment.DownloadCount+1)
 
 	// 设置响应头
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", attachment.OriginalName))
-	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", attachment.OriginalName))
+
+	// 根据文件类型设置正确的Content-Type
+	contentType := "application/octet-stream"
+	if attachment.FileType != "" {
+		switch strings.ToLower(attachment.FileType) {
+		case ".pdf":
+			contentType = "application/pdf"
+		case ".doc", ".docx":
+			contentType = "application/msword"
+		case ".xls", ".xlsx":
+			contentType = "application/vnd.ms-excel"
+		case ".ppt", ".pptx":
+			contentType = "application/vnd.ms-powerpoint"
+		case ".txt":
+			contentType = "text/plain"
+		case ".jpg", ".jpeg":
+			contentType = "image/jpeg"
+		case ".png":
+			contentType = "image/png"
+		case ".gif":
+			contentType = "image/gif"
+		case ".zip":
+			contentType = "application/zip"
+		case ".rar":
+			contentType = "application/x-rar-compressed"
+		}
+	}
+
+	c.Header("Content-Type", contentType)
 	c.Header("Content-Length", strconv.FormatInt(attachment.FileSize, 10))
+
+	// 发送文件
+	c.File(filePath)
+}
+
+// PreviewAttachment 预览附件
+func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
+	activityID := c.Param("id")
+	attachmentID := c.Param("attachment_id")
+
+	if activityID == "" || attachmentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "活动ID或附件ID不能为空",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 获取当前用户信息
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code":    401,
+			"message": "未认证",
+			"data":    nil,
+		})
+		return
+	}
+
+	userType, _ := c.Get("user_type")
+
+	// 检查活动是否存在
+	var activity models.CreditActivity
+	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "活动不存在",
+				"data":    nil,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "获取活动失败: " + err.Error(),
+				"data":    nil,
+			})
+		}
+		return
+	}
+
+	// 权限检查：学生只能预览自己创建或参与的活动的附件
+	if userType == "student" {
+		if activity.OwnerID != userID {
+			// 检查是否为参与者
+			var participant models.ActivityParticipant
+			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
+				c.JSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "无权限预览此活动的附件",
+					"data":    nil,
+				})
+				return
+			}
+		}
+	}
+	// 教师和管理员可以预览所有活动的附件，无需额外权限检查
+
+	// 获取附件信息
+	var attachment models.Attachment
+	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"code":    404,
+				"message": "附件不存在",
+				"data":    nil,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "获取附件失败: " + err.Error(),
+				"data":    nil,
+			})
+		}
+		return
+	}
+
+	// 检查文件是否存在
+	filePath := filepath.Join("uploads/attachments", attachment.FileName)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "文件不存在",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 根据文件类型设置正确的Content-Type用于预览
+	contentType := "application/octet-stream"
+	if attachment.FileType != "" {
+		switch strings.ToLower(attachment.FileType) {
+		case ".pdf":
+			contentType = "application/pdf"
+		case ".txt":
+			contentType = "text/plain; charset=utf-8"
+		case ".jpg", ".jpeg":
+			contentType = "image/jpeg"
+		case ".png":
+			contentType = "image/png"
+		case ".gif":
+			contentType = "image/gif"
+		case ".bmp":
+			contentType = "image/bmp"
+		case ".webp":
+			contentType = "image/webp"
+		case ".mp4":
+			contentType = "video/mp4"
+		case ".avi":
+			contentType = "video/x-msvideo"
+		case ".mov":
+			contentType = "video/quicktime"
+		case ".wmv":
+			contentType = "video/x-ms-wmv"
+		case ".flv":
+			contentType = "video/x-flv"
+		case ".mp3":
+			contentType = "audio/mpeg"
+		case ".wav":
+			contentType = "audio/wav"
+		case ".ogg":
+			contentType = "audio/ogg"
+		case ".aac":
+			contentType = "audio/aac"
+		}
+	}
+
+	// 设置预览响应头（不设置Content-Disposition为attachment，允许浏览器直接显示）
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", strconv.FormatInt(attachment.FileSize, 10))
+	c.Header("Cache-Control", "public, max-age=3600") // 缓存1小时
 
 	// 发送文件
 	c.File(filePath)

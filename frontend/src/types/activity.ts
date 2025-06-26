@@ -33,6 +33,7 @@ export interface Activity {
   category: ActivityCategory;
   requirements: string;
   owner_id: string;
+  owner_info?: UserInfo;
   reviewer_id?: string;
   review_comments?: string;
   reviewed_at?: string;
@@ -193,4 +194,21 @@ export interface ActivityDetailProps {
 export interface ActivityTypeDetailProps {
   activity: Activity;
   detail: InnovationActivityDetail | CompetitionActivityDetail | EntrepreneurshipProjectDetail | EntrepreneurshipPracticeDetail | PaperPatentDetail;
+}
+
+// 附件类型定义
+export interface Attachment {
+  id: string;
+  activity_id: string;
+  file_name: string;
+  original_name: string;
+  file_size: number;
+  file_type: string;
+  file_category: string;
+  description: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  download_count: number;
+  download_url: string;
+  uploader?: UserInfo;
 } 

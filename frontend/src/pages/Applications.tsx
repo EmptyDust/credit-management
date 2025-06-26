@@ -41,6 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import apiClient from "@/lib/api";
+import userService from "@/lib/userService";
 import {
   PlusCircle,
   Search,
@@ -59,6 +60,7 @@ import {
   Image,
   FileVideo,
   FileAudio,
+  MoreHorizontal,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -79,6 +81,7 @@ interface Application {
   approved_credits: number;
   details: string;
   attachments?: string; // JSON string of attachments
+  user_id?: string; // 用户ID，用于查询用户信息
 }
 
 interface ApplicationAttachment {
@@ -236,25 +239,69 @@ export default function ApplicationsPage() {
         }
       }
 
-      setApplications(
-        applicationsData.map((app: any) => ({
-          id: app.id,
-          affair_id: app.activity_id,
-          affair_name: app.activity?.title || app.affair_name,
-          student_number: app.user_info?.student_id || app.student_number,
-          student_name: app.user_info?.name || app.student_name,
-          submission_time: app.submitted_at || app.submission_time,
-          status: app.status,
-          reviewer_id: app.reviewer_id,
-          reviewer_name: app.reviewer_name,
-          review_comment: app.review_comment,
-          review_time: app.reviewed_at || app.review_time,
-          applied_credits: app.applied_credits,
-          approved_credits: app.awarded_credits || app.approved_credits,
-          details: app.details || "",
-          attachments: app.attachments,
-        }))
+      // 处理申请数据
+      const processedApplications = applicationsData.map((app: any) => ({
+        id: app.id,
+        affair_id: app.activity_id,
+        affair_name: app.activity?.title || app.affair_name,
+        student_number: app.user_info?.student_id || app.student_number || "",
+        student_name: app.user_info?.name || app.student_name || "",
+        submission_time: app.submitted_at || app.submission_time,
+        status: app.status,
+        reviewer_id: app.reviewer_id,
+        reviewer_name: app.reviewer_name,
+        review_comment: app.review_comment,
+        review_time: app.reviewed_at || app.review_time,
+        applied_credits: app.applied_credits,
+        approved_credits: app.awarded_credits || app.approved_credits,
+        details: app.details || "",
+        attachments: app.attachments,
+        user_id: app.user_id, // 保存用户ID用于后续查询
+      }));
+
+      // 检查是否有缺失的用户信息，如果有则补充
+      const applicationsWithMissingInfo = processedApplications.filter(
+        (app: any) => !app.student_name || !app.student_number
       );
+
+      if (applicationsWithMissingInfo.length > 0) {
+        try {
+          // 获取缺失用户信息的用户ID列表
+          const userIds = applicationsWithMissingInfo
+            .map((app: any) => app.user_id)
+            .filter(Boolean);
+
+          if (userIds.length > 0) {
+            // 批量获取用户信息
+            const users = await userService.getUsersByIds(userIds);
+            const userMap = new Map(users.map((u) => [u.id, u]));
+
+            // 补充用户信息
+            const enrichedApplications = processedApplications.map(
+              (app: any) => {
+                const userInfo = userMap.get(app.user_id);
+                if (userInfo && (!app.student_name || !app.student_number)) {
+                  return {
+                    ...app,
+                    student_name: app.student_name || userInfo.real_name || "",
+                    student_number:
+                      app.student_number || userInfo.student_id || "",
+                  };
+                }
+                return app;
+              }
+            );
+
+            setApplications(enrichedApplications);
+            return;
+          }
+        } catch (userError) {
+          console.warn("Failed to fetch user info:", userError);
+          // 即使获取用户信息失败，也继续使用原始数据
+        }
+      }
+
+      setApplications(processedApplications);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
       toast.error("获取申请列表失败");
@@ -446,7 +493,7 @@ export default function ApplicationsPage() {
   const filteredApplications = applications.filter((app) => {
     const matchesSearch =
       app.student_name?.includes(searchTerm) ||
-      app.student_number.includes(searchTerm) ||
+      app.student_number?.includes(searchTerm) ||
       app.affair_name?.includes(searchTerm);
     const matchesStatus = statusFilter === "all" || app.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -521,14 +568,13 @@ export default function ApplicationsPage() {
                   <TableHead>申请学分</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>提交时间</TableHead>
-                  <TableHead>审核人</TableHead>
                   <TableHead>操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center">
+                    <td colSpan={6} className="py-8 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
                         <span className="text-muted-foreground">加载中...</span>
@@ -537,7 +583,7 @@ export default function ApplicationsPage() {
                   </tr>
                 ) : filteredApplications.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12">
+                    <td colSpan={6} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
                         <AlertCircle className="w-12 h-12 mb-2" />
                         <p>暂无申请记录</p>
@@ -605,7 +651,6 @@ export default function ApplicationsPage() {
                       <TableCell>
                         {app.submission_time?.split("T")[0] || "-"}
                       </TableCell>
-                      <TableCell>{app.reviewer_name || "-"}</TableCell>
                       <TableCell>
                         <Button
                           size="icon"

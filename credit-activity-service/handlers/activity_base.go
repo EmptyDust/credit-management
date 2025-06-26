@@ -39,6 +39,11 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 		UpdatedAt:      activity.UpdatedAt,
 	}
 
+	// 获取 owner 信息
+	if ownerInfo, err := h.getUserInfo(activity.OwnerID, authToken); err == nil {
+		response.OwnerInfo = ownerInfo
+	}
+
 	// 获取参与者信息
 	var participants []models.ActivityParticipant
 	h.db.Where("activity_id = ?", activity.ID).Find(&participants)
@@ -86,6 +91,11 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 			Category:    activity.Category,
 			StartDate:   activity.StartDate,
 			EndDate:     activity.EndDate,
+		}
+
+		// 获取用户信息
+		if userInfo, err := h.getUserInfo(application.UserID, authToken); err == nil {
+			response.UserInfo = userInfo
 		}
 
 		applicationResponses = append(applicationResponses, response)

@@ -21,6 +21,14 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	log.Println("Gin模式已设置")
 
+	// 创建必要的目录
+	log.Println("正在创建必要的目录...")
+	if err := createDirectories(); err != nil {
+		log.Printf("Warning: Failed to create directories, but continuing: %v", err)
+	} else {
+		log.Println("目录创建成功")
+	}
+
 	// 初始化数据库连接
 	log.Println("正在连接数据库...")
 	db, err := initDatabase()
@@ -159,19 +167,23 @@ func main() {
 				{
 					allUsers.GET("/my-activities", participantHandler.GetUserParticipatedActivities) // 获取用户参与的活动列表
 				}
+			}
 
-				// 附件管理路由
+			// 附件管理路由 - 直接放在activities组下
+			attachments := activities.Group(":id")
+			attachments.Use(authMiddleware.AuthRequired())
+			{
 				// 所有认证用户都可以访问的路由
-
-				allUsers = participants.Group("")
+				allUsers := attachments.Group("")
 				allUsers.Use(permissionMiddleware.AllUsers())
 				{
 					allUsers.GET("/attachments", attachmentHandler.GetAttachments)                             // 获取附件列表
 					allUsers.GET("/attachments/:attachment_id/download", attachmentHandler.DownloadAttachment) // 下载附件
+					allUsers.GET("/attachments/:attachment_id/preview", attachmentHandler.PreviewAttachment)   // 预览附件
 				}
 
 				// 活动创建者、参与者和管理员可以访问的路由
-				participantsOrAdmin := participants.Group("")
+				participantsOrAdmin := attachments.Group("")
 				participantsOrAdmin.Use(permissionMiddleware.AllUsers()) // 这里需要在handler中检查权限
 				{
 					participantsOrAdmin.POST("/attachments", attachmentHandler.UploadAttachment)             // 上传单个附件
@@ -179,7 +191,7 @@ func main() {
 				}
 
 				// 上传者和管理员可以访问的路由
-				uploaderOrAdmin := participants.Group("")
+				uploaderOrAdmin := attachments.Group("")
 				uploaderOrAdmin.Use(permissionMiddleware.AllUsers()) // 这里需要在handler中检查权限
 				{
 					uploaderOrAdmin.PUT("/attachments/:attachment_id", attachmentHandler.UpdateAttachment)    // 更新附件信息
@@ -290,7 +302,7 @@ func createTriggers(db *gorm.DB) error {
 	BEGIN
 		-- 只有当状态从非approved变为approved时才触发
 		IF OLD.status != 'approved' AND NEW.status = 'approved' THEN
-			-- 为所有参与者生成申请
+			-- 为所有参与者生成申请（只插入不存在的记录）
 			INSERT INTO applications (id, activity_id, user_id, status, applied_credits, awarded_credits, submitted_at, created_at, updated_at)
 			SELECT 
 				gen_random_uuid(),
@@ -303,7 +315,14 @@ func createTriggers(db *gorm.DB) error {
 				NOW(),
 				NOW()
 			FROM activity_participants ap
-			WHERE ap.activity_id = NEW.id;
+			WHERE ap.activity_id = NEW.id 
+			AND ap.deleted_at IS NULL
+			AND NOT EXISTS (
+				SELECT 1 FROM applications 
+				WHERE activity_id = ap.activity_id 
+				AND user_id = ap.user_id 
+				AND deleted_at IS NULL
+			);
 		END IF;
 		
 		RETURN NEW;
@@ -341,4 +360,20 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// createDirectories 创建必要的目录
+func createDirectories() error {
+	dirs := []string{
+		"uploads",
+		"uploads/attachments",
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	return nil
 }

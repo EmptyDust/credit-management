@@ -109,8 +109,6 @@ export default function ActivityParticipants({
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
-  const isTeacherOrAdmin =
-    user && (user.userType === "teacher" || user.userType === "admin");
 
   // 获取参与者列表
   const fetchParticipants = async () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -63,6 +55,10 @@ interface Attachment {
   description?: string;
   download_count: number;
   download_url: string;
+  uploader?: {
+    name: string;
+    username: string;
+  };
 }
 
 // 获取文件类型图标
@@ -127,7 +123,6 @@ const getFileCategory = (fileName: string): string => {
 
 export default function ActivityAttachments({
   activity,
-  onRefresh,
 }: ActivityAttachmentsProps) {
   const { user } = useAuth();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -140,14 +135,13 @@ export default function ActivityAttachments({
   const [uploading, setUploading] = useState(false);
   const [selectedAttachment, setSelectedAttachment] =
     useState<Attachment | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragFiles, setDragFiles] = useState<File[]>([]);
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
-  const canUpload =
-    user &&
-    (user.userType === "teacher" ||
-      user.userType === "admin" ||
-      user.user_id === activity.owner_id);
+  const canUpload = isOwner;
+  const canDelete = isOwner && user.user_id === activity.owner_id;
 
   // 获取附件列表
   const fetchAttachments = async () => {
@@ -167,7 +161,8 @@ export default function ActivityAttachments({
 
   // 上传附件
   const uploadAttachment = async () => {
-    if (!selectedFile) {
+    const fileToUpload = dragFiles.length > 0 ? dragFiles[0] : selectedFile;
+    if (!fileToUpload) {
       toast.error("请选择要上传的文件");
       return;
     }
@@ -175,7 +170,7 @@ export default function ActivityAttachments({
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", fileToUpload);
       formData.append("description", uploadDescription);
 
       await apiClient.post(`/activities/${activity.id}/attachments`, formData, {
@@ -187,6 +182,7 @@ export default function ActivityAttachments({
       toast.success("附件上传成功");
       setShowUploadDialog(false);
       setSelectedFile(null);
+      setDragFiles([]);
       setUploadDescription("");
       fetchAttachments();
     } catch (error) {
@@ -242,6 +238,74 @@ export default function ActivityAttachments({
   const previewAttachment = (attachment: Attachment) => {
     setSelectedAttachment(attachment);
     setShowPreviewDialog(true);
+  };
+
+  // 拖拽事件处理
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      setDragFiles(files);
+      setShowUploadDialog(true);
+    }
+  };
+
+  // 批量上传附件
+  const uploadMultipleAttachments = async () => {
+    if (dragFiles.length === 0) {
+      toast.error("请选择要上传的文件");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      dragFiles.forEach((file) => {
+        formData.append("files", file);
+      });
+      formData.append("description", uploadDescription);
+
+      await apiClient.post(
+        `/activities/${activity.id}/attachments/batch`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      toast.success("附件上传成功");
+      setShowUploadDialog(false);
+      setDragFiles([]);
+      setUploadDescription("");
+      fetchAttachments();
+    } catch (error) {
+      console.error("Failed to upload attachments:", error);
+      toast.error("附件上传失败");
+    } finally {
+      setUploading(false);
+    }
   };
 
   // 获取带认证的预览URL
@@ -362,7 +426,10 @@ export default function ActivityAttachments({
                 {filteredAttachments.map((attachment) => (
                   <TableRow key={attachment.id}>
                     <TableCell>
-                      <div className="flex items-center gap-3">
+                      <div
+                        className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+                        onClick={() => previewAttachment(attachment)}
+                      >
                         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                           {getFileIcon(attachment.file_category)}
                         </div>
@@ -382,54 +449,66 @@ export default function ActivityAttachments({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
+                      <div
+                        className="text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+                        onClick={() => previewAttachment(attachment)}
+                      >
                         {formatFileSize(attachment.file_size)}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">{attachment.uploaded_by}</div>
+                      <div
+                        className="text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+                        onClick={() => previewAttachment(attachment)}
+                      >
+                        {attachment.uploader?.name ||
+                          attachment.uploader?.username ||
+                          attachment.uploaded_by}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(attachment.uploaded_at).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(attachment.uploaded_at).toLocaleTimeString()}
+                      <div
+                        className="cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
+                        onClick={() => previewAttachment(attachment)}
+                      >
+                        <div className="text-sm text-muted-foreground">
+                          {new Date(
+                            attachment.uploaded_at
+                          ).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(
+                            attachment.uploaded_at
+                          ).toLocaleTimeString()}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <FileText className="h-4 w-4" />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadAttachment(attachment);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteAttachment(attachment.id);
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>操作</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => previewAttachment(attachment)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            预览
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => downloadAttachment(attachment)}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            下载
-                          </DropdownMenuItem>
-                          {isOwner && (
-                            <DropdownMenuItem
-                              onClick={() => deleteAttachment(attachment.id)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              删除
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -445,56 +524,134 @@ export default function ActivityAttachments({
 
       {/* 上传对话框 */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl rounded-2xl shadow-2xl border-0 bg-white dark:bg-zinc-900">
           <DialogHeader>
-            <DialogTitle>上传附件</DialogTitle>
-            <DialogDescription>
-              选择要上传的文件，支持图片、文档、视频等格式
+            <DialogTitle className="text-2xl font-bold">上传附件</DialogTitle>
+            <DialogDescription className="text-base text-muted-foreground">
+              选择要上传的文件，支持图片、文档、视频等格式，也可以拖拽文件到下方区域
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* 拖拽上传区域 */}
+            {(() => {
+              const fileInputRef = useRef<HTMLInputElement>(null);
+              return (
+                <div
+                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 ${
+                    isDragOver
+                      ? "border-blue-500 bg-blue-50 scale-105 shadow-lg"
+                      : "border-zinc-200 hover:border-blue-400"
+                  }`}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className="flex flex-col items-center gap-4">
+                    <FolderOpen className="h-16 w-16 text-blue-400" />
+                    <div>
+                      <p className="text-xl font-semibold text-blue-700">
+                        {isDragOver ? "释放文件以上传" : "拖拽或点击上传文件"}
+                      </p>
+                      <p className="text-sm text-zinc-400 mt-1">
+                        支持图片、文档、视频等格式，最大文件大小 50MB
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 my-2">
+                      <div className="h-px bg-zinc-200 flex-1"></div>
+                      <span className="text-xs text-zinc-400"></span>
+                      <div className="h-px bg-zinc-200 flex-1"></div>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setDragFiles([file]);
+                        }
+                      }}
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 文件列表 */}
+            {dragFiles.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-600">
+                  待上传文件
+                </label>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {dragFiles.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-100 dark:border-zinc-700"
+                    >
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                        {getFileIcon(getFileCategory(file.name))}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{file.name}</div>
+                        <div className="text-xs text-zinc-400">
+                          {formatFileSize(file.size)}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setDragFiles(dragFiles.filter((_, i) => i !== index));
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
-              <label className="text-sm font-medium">选择文件</label>
-              <Input
-                type="file"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">文件描述（可选）</label>
+              <label className="text-sm font-medium text-zinc-600">
+                文件描述（可选）
+              </label>
               <Input
                 value={uploadDescription}
                 onChange={(e) => setUploadDescription(e.target.value)}
                 placeholder="请输入文件描述"
+                className="mt-2 rounded-lg border-zinc-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </div>
-            {selectedFile && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  {getFileIcon(getFileCategory(selectedFile.name))}
-                  <div>
-                    <div className="font-medium">{selectedFile.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {formatFileSize(selectedFile.size)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowUploadDialog(false)}
+              className="rounded-lg border-zinc-200"
+              onClick={() => {
+                setShowUploadDialog(false);
+                setDragFiles([]);
+                setUploadDescription("");
+              }}
             >
               取消
             </Button>
             <Button
-              onClick={uploadAttachment}
-              disabled={!selectedFile || uploading}
+              className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow"
+              onClick={
+                dragFiles.length > 1
+                  ? uploadMultipleAttachments
+                  : uploadAttachment
+              }
+              disabled={(dragFiles.length === 0 && !selectedFile) || uploading}
             >
               {uploading ? "上传中..." : "上传"}
             </Button>

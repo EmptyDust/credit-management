@@ -5,6 +5,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -164,6 +165,7 @@ func main() {
 		api.POST("/activities/:id/attachments", createProxyHandler(config.CreditActivityServiceURL))
 		api.POST("/activities/:id/attachments/batch", createProxyHandler(config.CreditActivityServiceURL))
 		api.GET("/activities/:id/attachments/:attachment_id/download", createProxyHandler(config.CreditActivityServiceURL))
+		api.GET("/activities/:id/attachments/:attachment_id/preview", createProxyHandler(config.CreditActivityServiceURL))
 		api.PUT("/activities/:id/attachments/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
 		api.DELETE("/activities/:id/attachments/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
 
@@ -237,6 +239,20 @@ func createProxyHandler(targetURL string) gin.HandlerFunc {
 
 		// 创建反向代理
 		proxy := httputil.NewSingleHostReverseProxy(target)
+
+		// 特殊处理：为预览和下载路由添加认证支持
+		path := c.Request.URL.Path
+		if strings.Contains(path, "/attachments/") && (strings.Contains(path, "/preview") || strings.Contains(path, "/download")) {
+			// 检查是否有Authorization头
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				// 尝试从URL参数获取token
+				token := c.Query("token")
+				if token != "" {
+					c.Request.Header.Set("Authorization", "Bearer "+token)
+				}
+			}
+		}
 
 		// 修改请求路径 - 保持原始路径
 		c.Request.URL.Host = target.Host

@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
-  Users,
   FileText,
   Clock,
   AlertCircle,
@@ -10,6 +9,9 @@ import {
   Edit3,
   Send,
   Trash2,
+  RotateCcw,
+  Eye,
+  Paperclip,
 } from "lucide-react";
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
@@ -28,7 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -85,7 +86,7 @@ export default function ActivityDetailPage() {
     activity &&
     (user.user_id === activity.owner_id || user.userType === "admin");
   const canEdit = isOwner && activity?.status === "draft";
-  const canWithdraw = isOwner && activity?.status === "pending_review";
+  const canWithdraw = isOwner && activity?.status !== "draft";
   const canReview =
     (user?.userType === "teacher" || user?.userType === "admin") &&
     activity?.status === "pending_review";
@@ -285,7 +286,7 @@ export default function ActivityDetailPage() {
     try {
       await apiClient.post(`/activities/${activity.id}/review`, {
         status: reviewStatus,
-        comment: reviewComment,
+        review_comments: reviewComment,
       });
       toast.success("审核完成");
       setReviewComment("");
@@ -315,7 +316,7 @@ export default function ActivityDetailPage() {
   // 调试输出
   console.log("user:", user);
   console.log("activity:", activity);
-  console.log("user.id:", user && user.id);
+  console.log("user.id:", user && user.user_id);
   console.log("activity.owner_id:", activity && activity.owner_id);
   console.log("activity.status:", activity && activity.status);
   console.log("user.userType:", user && user.userType);
@@ -408,6 +409,7 @@ export default function ActivityDetailPage() {
               撤回活动
             </Button>
           )}
+
           {canReview && (
             <Button
               onClick={() => setShowReviewDialog(true)}

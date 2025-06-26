@@ -77,24 +77,7 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 	}
 
 	// 构建响应数据
-	response := models.ActivityResponse{
-		ID:             newActivity.ID,
-		Title:          newActivity.Title,
-		Description:    newActivity.Description,
-		StartDate:      newActivity.StartDate,
-		EndDate:        newActivity.EndDate,
-		Status:         newActivity.Status,
-		Category:       newActivity.Category,
-		Requirements:   newActivity.Requirements,
-		OwnerID:        newActivity.OwnerID,
-		ReviewerID:     newActivity.ReviewerID,
-		ReviewComments: newActivity.ReviewComments,
-		ReviewedAt:     newActivity.ReviewedAt,
-		CreatedAt:      newActivity.CreatedAt,
-		UpdatedAt:      newActivity.UpdatedAt,
-		Participants:   []models.ParticipantResponse{},
-		Applications:   []models.ApplicationResponse{},
-	}
+	response := h.enrichActivityResponse(newActivity, "")
 
 	c.JSON(http.StatusCreated, gin.H{
 		"code":    0,
@@ -505,4 +488,4 @@ func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
 			return
 		}
 	}
-} 
+}

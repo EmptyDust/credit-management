@@ -1,4 +1,4 @@
--- 学分管理系统数据库初始化脚本（优化版）
+-- 双创分申请平台数据库初始化脚本（优化版）
 -- 整合所有约束定义和改进，确保数据库、后端、前端约束一致性
 
 -- ========================================
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     uploaded_by UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     download_count INTEGER NOT NULL DEFAULT 0 CHECK (download_count >= 0),
-    md5_hash VARCHAR(32) UNIQUE,
+    md5_hash VARCHAR(32),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMPTZ
@@ -353,7 +353,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- 只有当状态从非approved变为approved时才触发
     IF OLD.status != 'approved' AND NEW.status = 'approved' THEN
-        -- 为所有参与者生成申请
+        -- 为所有参与者生成申请（只插入不存在的记录）
         INSERT INTO applications (id, activity_id, user_id, status, applied_credits, awarded_credits, submitted_at, created_at, updated_at)
         SELECT 
             gen_random_uuid(),
@@ -366,7 +366,14 @@ BEGIN
             NOW(),
             NOW()
         FROM activity_participants ap
-        WHERE ap.activity_id = NEW.id AND ap.deleted_at IS NULL;
+        WHERE ap.activity_id = NEW.id 
+        AND ap.deleted_at IS NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM applications 
+            WHERE activity_id = ap.activity_id 
+            AND user_id = ap.user_id 
+            AND deleted_at IS NULL
+        );
     END IF;
     
     RETURN NEW;

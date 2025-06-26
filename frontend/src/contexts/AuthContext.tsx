@@ -70,6 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             ...userData,
             userType: userData.userType || userData.user_type,
             user_id: userData.user_id || userData.id,
+            id: userData.user_id || userData.id, // 确保id字段也存在
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -89,13 +90,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const login = (token: string, refreshToken: string, user: User) => {
+    // 标准化用户对象
+    const normalizedUser = {
+      ...user,
+      userType: user.userType || user.user_type,
+      user_id: user.user_id || user.id,
+      id: user.user_id || user.id, // 确保id字段也存在
+    };
+
     localStorage.setItem("token", token);
     localStorage.setItem("refreshToken", refreshToken);
-    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
     apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     setIsAuthenticated(true);
-    setUser(user);
-    toast.success(`欢迎回来，${user.fullName || user.username}！`);
+    setUser(normalizedUser);
+    toast.success(
+      `欢迎回来，${normalizedUser.fullName || normalizedUser.username}！`
+    );
   };
 
   const logout = async () => {
@@ -121,12 +132,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await apiClient.get("/users/profile");
       const userData = response.data.data || response.data;
-      setUser({
+      const normalizedUser = {
         ...userData,
         userType: userData.userType || userData.user_type,
         user_id: userData.user_id || userData.id,
-      });
-      localStorage.setItem("user", JSON.stringify(userData));
+        id: userData.user_id || userData.id, // 确保id字段也存在
+      };
+      setUser(normalizedUser);
+      localStorage.setItem("user", JSON.stringify(normalizedUser));
     } catch (error) {
       console.error("Failed to refresh user data:", error);
       // If refresh fails, logout user

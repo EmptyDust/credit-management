@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -34,6 +35,9 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		})
 		return
 	}
+
+	// 获取认证令牌
+	authToken := c.GetHeader("Authorization")
 
 	// 获取查询参数
 	status := c.Query("status")
@@ -86,6 +90,12 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 				EndDate:     app.Activity.EndDate,
 			},
 		}
+
+		// 获取用户信息
+		if userInfo, err := utils.GetUserInfo(app.UserID, authToken); err == nil {
+			response.UserInfo = userInfo
+		}
+
 		responses = append(responses, response)
 	}
 
@@ -126,6 +136,9 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		})
 		return
 	}
+
+	// 获取认证令牌
+	authToken := c.GetHeader("Authorization")
 
 	userType, _ := c.Get("user_type")
 
@@ -177,6 +190,11 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		},
 	}
 
+	// 获取用户信息
+	if userInfo, err := utils.GetUserInfo(application.UserID, authToken); err == nil {
+		response.UserInfo = userInfo
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "success",
@@ -186,6 +204,9 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 
 // GetAllApplications 获取所有申请（教师/管理员）
 func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
+	// 获取认证令牌
+	authToken := c.GetHeader("Authorization")
+
 	// 获取查询参数
 	activityID := c.Query("activity_id")
 	userID := c.Query("user_id")
@@ -222,6 +243,11 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 	// 构建响应数据
 	var responses []models.ApplicationResponse
 	for _, app := range applications {
+		var userInfo *models.UserInfo
+		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
+		if err != nil {
+			userInfo = nil // 记录日志可选
+		}
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
@@ -240,6 +266,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 				StartDate:   app.Activity.StartDate,
 				EndDate:     app.Activity.EndDate,
 			},
+			UserInfo: userInfo,
 		}
 		responses = append(responses, response)
 	}

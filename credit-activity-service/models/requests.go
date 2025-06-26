@@ -71,6 +71,7 @@ type ActivityResponse struct {
 	Category       string                `json:"category"`
 	Requirements   string                `json:"requirements"`
 	OwnerID        string                `json:"owner_id"`
+	OwnerInfo      *UserInfo             `json:"owner_info,omitempty"`
 	ReviewerID     *string               `json:"reviewer_id"`
 	ReviewComments string                `json:"review_comments"`
 	ReviewedAt     *time.Time            `json:"reviewed_at"`
@@ -98,6 +99,7 @@ type ApplicationResponse struct {
 	CreatedAt      time.Time    `json:"created_at"`
 	UpdatedAt      time.Time    `json:"updated_at"`
 	Activity       ActivityInfo `json:"activity"`
+	UserInfo       *UserInfo    `json:"user_info,omitempty"`
 }
 
 // ActivityInfo 活动信息
