@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"credit-management/user-service/models"
 	"fmt"
 	"regexp"
 	"strings"
@@ -47,29 +46,5 @@ func (h *UserHandler) validateStudentID(studentID string) error {
 	if !studentIDRegex.MatchString(studentID) {
 		return fmt.Errorf("学号格式不正确，请输入8位数字学号")
 	}
-	return nil
-}
-
-// validateUserRequest 验证用户请求数据
-func (h *UserHandler) validateUserRequest(req *models.UserRequest) error {
-	// 验证密码强度
-	if err := h.validatePassword(req.Password); err != nil {
-		return err
-	}
-
-	// 验证手机号格式（如果提供）
-	if req.Phone != "" {
-		if err := h.validatePhone(req.Phone); err != nil {
-			return err
-		}
-	}
-
-	// 验证学号格式（如果提供）
-	if req.StudentID != "" {
-		if err := h.validateStudentID(req.StudentID); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }

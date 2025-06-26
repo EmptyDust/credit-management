@@ -55,17 +55,15 @@ const studentRegisterSchema = z.object({
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "密码必须包含大小写字母和数字"),
   email: z.string().email("请输入有效的邮箱地址"),
   phone: z.string()
-    .min(11, "手机号必须是11位数字")
-    .max(11, "手机号必须是11位数字")
+    .length(11, "手机号必须是11位数字")
     .regex(/^1[3-9]\d{9}$/, "请输入有效的手机号"),
   real_name: z.string().min(2, "真实姓名至少2个字符").max(50, "真实姓名最多50个字符"),
   student_id: z.string()
-    .min(8, "学号必须是8位数字")
-    .max(8, "学号必须是8位数字")
+    .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字"),
-  college: z.string().min(1, "请选择学院"),
-  major: z.string().min(1, "请选择专业"),
-  class: z.string().min(1, "请选择班级"),
+  college: z.string().min(1, "请选择学院").max(100, "学院名称最多100个字符"),
+  major: z.string().min(1, "请选择专业").max(100, "专业名称最多100个字符"),
+  class: z.string().min(1, "请选择班级").max(50, "班级名称最多50个字符"),
   grade: z.string().length(4, "年级必须是4位数字").regex(/^\d{4}$/, "年级必须是4位数字"),
 });
 
