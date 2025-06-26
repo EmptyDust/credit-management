@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,42 @@ type InnovationActivityDetail struct {
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+}
+
+// UnmarshalJSON 自定义JSON反序列化方法
+func (i *InnovationActivityDetail) UnmarshalJSON(data []byte) error {
+	// 创建一个临时结构体来处理JSON反序列化
+	type Alias InnovationActivityDetail
+	aux := &struct {
+		Date string `json:"date"`
+		*Alias
+	}{
+		Alias: (*Alias)(i),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// 处理Date字段
+	if aux.Date != "" && aux.Date != "0001-01-01T00:00:00Z" {
+		// 尝试解析日期字符串
+		dateFormats := []string{
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05",
+			"2006-01-02 15:04:05",
+			"2006-01-02",
+		}
+
+		for _, format := range dateFormats {
+			if parsedDate, err := time.Parse(format, aux.Date); err == nil {
+				i.Date = parsedDate
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // BeforeCreate 在创建前自动生成UUID

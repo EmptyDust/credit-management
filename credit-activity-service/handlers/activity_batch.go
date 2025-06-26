@@ -202,7 +202,7 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 		}
 		// 创建详情表
 		switch activityReq.Category {
-		case "创新创业":
+		case "创新创业实践活动":
 			if activityReq.InnovationDetail != nil {
 				detail := activityReq.InnovationDetail
 				detail.ActivityID = activity.ID
@@ -374,7 +374,7 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 
 		// 详情表字段更新
 		switch activity.Category {
-		case "创新创业":
+		case "创新创业实践活动":
 			if upd.Main.InnovationDetail != nil {
 				var detail models.InnovationActivityDetail
 				tx.Where("activity_id = ?", activity.ID).First(&detail)

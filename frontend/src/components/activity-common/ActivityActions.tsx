@@ -118,17 +118,6 @@ export default function ActivityActions({
     <div className="flex items-center justify-end">
       {/* 操作按钮 */}
       <div className="flex items-center gap-2">
-        {/* 提交审核按钮 - 只有草稿状态的活动创建者可以看到 */}
-        {isOwner && activity.status === "draft" && (
-          <Button
-            onClick={handleSubmitForReview}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            提交审核
-          </Button>
-        )}
-
         {/* 审批按钮 - 只有审核者可以看到待审核的活动 */}
         {isReviewer && activity.status === "pending_review" && (
           <Button
@@ -137,6 +126,16 @@ export default function ActivityActions({
           >
             <CheckCircle className="h-4 w-4 mr-2" />
             审批
+          </Button>
+        )}
+        {/* 提交审核按钮 - 只有草稿状态的活动创建者可以看到 */}
+        {isOwner && activity.status === "draft" && (
+          <Button
+            onClick={handleSubmitForReview}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Send className="h-4 w-4 mr-2" />
+            提交审核
           </Button>
         )}
 
@@ -156,22 +155,6 @@ export default function ActivityActions({
           <Button onClick={handleEdit} variant="outline">
             <Edit className="h-4 w-4 mr-2" />
             编辑
-          </Button>
-        )}
-
-        {/* 参与者管理按钮 - 活动创建者和管理员可以管理参与者 */}
-        {(isOwner || isReviewer) && (
-          <Button onClick={handleManageParticipants} variant="outline">
-            <Users className="h-4 w-4 mr-2" />
-            参与者
-          </Button>
-        )}
-
-        {/* 附件管理按钮 - 活动创建者和管理员可以管理附件 */}
-        {(isOwner || isReviewer) && (
-          <Button onClick={handleManageAttachments} variant="outline">
-            <Paperclip className="h-4 w-4 mr-2" />
-            附件
           </Button>
         )}
 
