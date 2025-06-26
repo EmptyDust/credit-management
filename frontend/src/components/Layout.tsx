@@ -71,7 +71,7 @@ export default function Layout() {
       <aside className="fixed left-0 top-0 h-screen w-64 bg-background border-r flex flex-col justify-between z-30">
         <div>
           <div className="p-6 text-2xl font-bold tracking-tight">
-            学分管理系统
+            双创分申请平台
           </div>
           <nav className="flex flex-col gap-1 mt-4">
             {menuItems.map((item) => (
@@ -114,7 +114,7 @@ export default function Layout() {
               <Menu className="h-4 w-4" />
             </Button>
             <div className="hidden sm:block">
-              <h1 className="text-lg font-semibold">学分管理系统</h1>
+              <h1 className="text-lg font-semibold">双创分申请平台</h1>
             </div>
           </div>
 

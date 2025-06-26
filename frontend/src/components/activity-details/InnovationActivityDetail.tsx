@@ -8,6 +8,7 @@ import {
   ActivityActions,
   ActivityParticipants,
   ActivityApplications,
+  ActivityAttachments,
 } from "../activity-common";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -230,29 +231,14 @@ const InnovationActivityDetail: React.FC<InnovationActivityDetailProps> = ({
         </CardContent>
       </Card>
 
-      {/* 附件区域 */}
-      <div className="my-6">
-        {/* TODO: ActivityAttachments 组件，支持上传、预览、下载、删除 */}
-        <Card className="rounded-xl shadow border-dashed border-2 border-gray-300">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              附件
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-muted-foreground text-center py-8">
-              附件功能开发中
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* 参与者列表 */}
       <ActivityParticipants activity={activity} onRefresh={handleRefresh} />
 
+      {/* 附件 */}
+      <ActivityAttachments activity={activity} onRefresh={handleRefresh} />
+
       {/* 申请列表 */}
-      <ActivityApplications activity={activity} />
+      <ActivityApplications activity={activity} onRefresh={handleRefresh} />
     </div>
   );
 };

@@ -8,10 +8,11 @@ import {
   ActivityActions,
   ActivityParticipants,
   ActivityApplications,
+  ActivityAttachments,
 } from "../activity-common";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Trophy, Users, Award, Calendar, MapPin } from "lucide-react";
+import { Trophy, Users, Award } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 
@@ -34,7 +35,6 @@ const CompetitionActivityDetail: React.FC<CompetitionActivityDetailProps> = ({
   isEditing,
   onEditModeChange,
   onRefresh,
-  onSave,
   basicInfo,
   setBasicInfo,
   detailInfo,
@@ -193,8 +193,11 @@ const CompetitionActivityDetail: React.FC<CompetitionActivityDetailProps> = ({
       {/* 参与者列表 */}
       <ActivityParticipants activity={activity} onRefresh={handleRefresh} />
 
+      {/* 附件 */}
+      <ActivityAttachments activity={activity} onRefresh={handleRefresh} />
+
       {/* 申请列表 */}
-      <ActivityApplications activity={activity} />
+      <ActivityApplications activity={activity} onRefresh={handleRefresh} />
     </div>
   );
 };

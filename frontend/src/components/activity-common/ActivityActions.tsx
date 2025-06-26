@@ -1,14 +1,10 @@
 import { Button } from "@/components/ui/button";
 import {
-  ArrowLeft,
   Edit,
   Trash,
   Send,
   RotateCcw,
   CheckCircle,
-  XCircle,
-  Users,
-  Paperclip,
 } from "lucide-react";
 import type { Activity } from "@/types/activity";
 import { useNavigate } from "react-router-dom";

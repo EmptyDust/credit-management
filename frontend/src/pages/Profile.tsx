@@ -584,6 +584,7 @@ export default function ProfilePage() {
                                           : "password"
                                       }
                                       placeholder="请输入当前密码"
+                                      className="pr-10"
                                     />
                                     <Button
                                       type="button"
@@ -620,6 +621,7 @@ export default function ProfilePage() {
                                         showPassword.new ? "text" : "password"
                                       }
                                       placeholder="请输入新密码"
+                                      className="pr-10"
                                     />
                                     <Button
                                       type="button"
@@ -658,6 +660,7 @@ export default function ProfilePage() {
                                           : "password"
                                       }
                                       placeholder="请再次输入新密码"
+                                      className="pr-10"
                                     />
                                     <Button
                                       type="button"
