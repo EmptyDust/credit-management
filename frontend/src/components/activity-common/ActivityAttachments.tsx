@@ -137,6 +137,8 @@ export default function ActivityAttachments({
     useState<Attachment | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragFiles, setDragFiles] = useState<File[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const isOwner =
     user && (user.user_id === activity.owner_id || user.userType === "admin");
@@ -235,10 +237,46 @@ export default function ActivityAttachments({
     }
   };
 
+  // 获取预览URL
+  const getPreviewUrl = async (
+    attachmentId: string,
+    fileType: string
+  ): Promise<string> => {
+    try {
+      const response = await apiClient.get(
+        `/activities/${activity.id}/attachments/${attachmentId}/preview`,
+        {
+          responseType: "blob",
+        }
+      );
+      // 强制指定 PDF 类型，其他类型保持默认
+      const blob =
+        fileType === ".pdf"
+          ? new Blob([response.data], { type: "application/pdf" })
+          : new Blob([response.data]);
+      return window.URL.createObjectURL(blob);
+    } catch (error) {
+      console.error("Failed to get preview URL:", error);
+      throw error;
+    }
+  };
+
   // 预览附件
-  const previewAttachment = (attachment: Attachment) => {
+  const previewAttachment = async (attachment: Attachment) => {
     setSelectedAttachment(attachment);
     setShowPreviewDialog(true);
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+
+    try {
+      const url = await getPreviewUrl(attachment.id, attachment.file_type);
+      setPreviewUrl(url);
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+      toast.error("预览加载失败");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   // 拖拽事件处理
@@ -307,12 +345,6 @@ export default function ActivityAttachments({
     } finally {
       setUploading(false);
     }
-  };
-
-  // 获取带认证的预览URL
-  const getPreviewUrl = (attachmentId: string) => {
-    const token = localStorage.getItem("token");
-    return `/api/activities/${activity.id}/attachments/${attachmentId}/preview?token=${token}`;
   };
 
   // 过滤附件
@@ -666,7 +698,21 @@ export default function ActivityAttachments({
       </Dialog>
 
       {/* 预览对话框 */}
-      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+      <Dialog
+        open={showPreviewDialog}
+        onOpenChange={(open) => {
+          setShowPreviewDialog(open);
+          if (!open) {
+            // 清理预览URL
+            if (previewUrl) {
+              window.URL.revokeObjectURL(previewUrl);
+              setPreviewUrl(null);
+            }
+            setSelectedAttachment(null);
+            setPreviewLoading(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-[1200px] min-h-[700px]">
           <DialogHeader>
             <DialogTitle>文件预览</DialogTitle>
@@ -679,46 +725,64 @@ export default function ActivityAttachments({
             <div className="space-y-4">
               {/* 移除文件基本信息，仅保留预览区域 */}
               <div className="border rounded-lg p-4 min-h-[600px] flex items-center justify-center">
-                {selectedAttachment.file_category === "image" ? (
-                  <img
-                    src={getPreviewUrl(selectedAttachment.id)}
-                    alt={selectedAttachment.original_name}
-                    className="max-w-full max-h-[650px] object-contain"
-                  />
-                ) : selectedAttachment.file_category === "video" ? (
-                  <video
-                    src={getPreviewUrl(selectedAttachment.id)}
-                    controls
-                    className="max-w-full max-h-[650px]"
-                  >
-                    您的浏览器不支持视频播放
-                  </video>
-                ) : selectedAttachment.file_category === "audio" ? (
-                  <audio
-                    src={getPreviewUrl(selectedAttachment.id)}
-                    controls
-                    className="w-full"
-                  >
-                    您的浏览器不支持音频播放
-                  </audio>
-                ) : selectedAttachment.file_category === "document" &&
-                  selectedAttachment.file_type === ".pdf" ? (
-                  <iframe
-                    src={getPreviewUrl(selectedAttachment.id)}
-                    className="w-full h-[650px] border-0"
-                    title={selectedAttachment.original_name}
-                  />
-                ) : selectedAttachment.file_category === "document" &&
-                  selectedAttachment.file_type === ".txt" ? (
-                  <iframe
-                    src={getPreviewUrl(selectedAttachment.id)}
-                    className="w-full h-[650px] border-0 bg-white"
-                    title={selectedAttachment.original_name}
-                  />
+                {previewLoading ? (
+                  <div className="text-center text-muted-foreground">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p>加载预览中...</p>
+                  </div>
+                ) : previewUrl ? (
+                  <>
+                    {selectedAttachment.file_category === "image" ? (
+                      <img
+                        src={previewUrl}
+                        alt={selectedAttachment.original_name}
+                        className="max-w-full max-h-[650px] object-contain"
+                      />
+                    ) : selectedAttachment.file_category === "video" ? (
+                      <video
+                        src={previewUrl}
+                        controls
+                        className="max-w-full max-h-[650px]"
+                      >
+                        您的浏览器不支持视频播放
+                      </video>
+                    ) : selectedAttachment.file_category === "audio" ? (
+                      <audio src={previewUrl} controls className="w-full">
+                        您的浏览器不支持音频播放
+                      </audio>
+                    ) : selectedAttachment.file_category === "document" &&
+                      selectedAttachment.file_type === ".pdf" ? (
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-[650px] border-0"
+                        title={selectedAttachment.original_name}
+                      />
+                    ) : selectedAttachment.file_category === "document" &&
+                      selectedAttachment.file_type === ".txt" ? (
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-[650px] border-0 bg-white"
+                        title={selectedAttachment.original_name}
+                      />
+                    ) : (
+                      <div className="text-center text-muted-foreground">
+                        <FileText className="h-12 w-12 mx-auto mb-2" />
+                        <p>此文件类型不支持预览</p>
+                        <Button
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => downloadAttachment(selectedAttachment)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          下载查看
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center text-muted-foreground">
                     <FileText className="h-12 w-12 mx-auto mb-2" />
-                    <p>此文件类型不支持预览</p>
+                    <p>预览加载失败</p>
                     <Button
                       variant="outline"
                       className="mt-2"

@@ -56,6 +56,7 @@ import {
   Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { colleges as collegeOptions } from "@/lib/colleges";
 
 // Updated Student type based on student.go
 export type Student = {
@@ -384,9 +385,6 @@ export default function StudentsPage() {
     return <Badge className={config.color}>{config.label}</Badge>;
   };
 
-  const colleges = Array.from(
-    new Set(students.map((s) => s.college).filter(Boolean))
-  );
   const canManageStudents = hasPermission("manage_students");
 
   const handleDeleteConfirm = async () => {
@@ -533,7 +531,7 @@ export default function StudentsPage() {
         />
         <StatCard
           title="学院数量"
-          value={colleges.length}
+          value={collegeOptions.length}
           icon={School}
           color="purple"
           subtitle="不同学院"
@@ -587,9 +585,9 @@ export default function StudentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部学院</SelectItem>
-                {colleges.map((college) => (
-                  <SelectItem key={college || "unknown"} value={college || ""}>
-                    {college || "未知学院"}
+                {collegeOptions.map((college) => (
+                  <SelectItem key={college.value} value={college.value}>
+                    {college.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -842,9 +840,9 @@ export default function StudentsPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {colleges.map((college) => (
-                          <SelectItem key={college} value={college ?? ""}>
-                            {college ?? "未知学院"}
+                        {collegeOptions.map((college) => (
+                          <SelectItem key={college.value} value={college.value}>
+                            {college.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
