@@ -144,24 +144,25 @@ func main() {
 				}
 			}
 
-			attachments := activities.Group(":id")
+			// 附件管理路由（单独抽出，保证所有认证用户都能访问预览/下载）
+			attachments := activities.Group(":id/attachments")
 			attachments.Use(authMiddleware.AuthRequired())
 			{
 				allUsers := attachments.Group("")
 				allUsers.Use(permissionMiddleware.AllUsers())
 				{
-					allUsers.GET("/attachments", attachmentHandler.GetAttachments)
-					allUsers.GET("/attachments/:attachment_id/download", attachmentHandler.DownloadAttachment)
-					allUsers.GET("/attachments/:attachment_id/preview", attachmentHandler.PreviewAttachment)
+					allUsers.GET("", attachmentHandler.GetAttachments)
+					allUsers.GET("/:attachment_id/download", attachmentHandler.DownloadAttachment)
+					allUsers.GET("/:attachment_id/preview", attachmentHandler.PreviewAttachment)
 				}
 
 				ownerOrTeacherOrAdmin := attachments.Group("")
 				ownerOrTeacherOrAdmin.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
 				{
-					ownerOrTeacherOrAdmin.POST("/attachments", attachmentHandler.UploadAttachment)
-					ownerOrTeacherOrAdmin.POST("/attachments/batch", attachmentHandler.BatchUploadAttachments)
-					ownerOrTeacherOrAdmin.PUT("/attachments/:attachment_id", attachmentHandler.UpdateAttachment)
-					ownerOrTeacherOrAdmin.DELETE("/attachments/:attachment_id", attachmentHandler.DeleteAttachment)
+					ownerOrTeacherOrAdmin.POST("", attachmentHandler.UploadAttachment)
+					ownerOrTeacherOrAdmin.POST("/batch", attachmentHandler.BatchUploadAttachments)
+					ownerOrTeacherOrAdmin.PUT("/:attachment_id", attachmentHandler.UpdateAttachment)
+					ownerOrTeacherOrAdmin.DELETE("/:attachment_id", attachmentHandler.DeleteAttachment)
 				}
 			}
 		}
