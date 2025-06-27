@@ -1,201 +1,223 @@
-# 双创分申请平台 - 微服务架构
+# 🎓 学分活动管理系统
 
-## 项目概述
+[![Go Version](https://img.shields.io/badge/Go-1.24+-blue.svg)](https://golang.org/)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-这是一个基于微服务架构的双创分申请平台，采用高聚合低耦合的设计原则，将系统拆分为多个独立的微服务。
+> 一个现代化的学分活动管理平台，采用微服务架构设计，支持学生和教师创建、管理学分活动，实现自动化的申请生成和学分分配。
 
-## 系统架构
+## ✨ 特性
+
+- 🏗️ **微服务架构** - 高聚合低耦合，易于扩展和维护
+- 🔐 **统一认证** - JWT 认证，完善的权限控制系统
+- 📊 **智能统计** - 实时数据统计和可视化
+- 🚀 **自动化流程** - 活动审核通过后自动生成申请
+- 📱 **响应式设计** - 现代化的前端界面，支持多设备访问
+- 🐳 **容器化部署** - Docker 一键部署，简化运维
+- 📈 **实时监控** - 完整的健康检查和性能监控
+
+## 🏗️ 系统架构
+
+```mermaid
+graph TB
+    subgraph "前端层"
+        A[React Frontend]
+    end
+    
+    subgraph "网关层"
+        B[API Gateway]
+    end
+    
+    subgraph "服务层"
+        C[Auth Service]
+        D[User Service]
+        E[Credit Activity Service]
+    end
+    
+    subgraph "数据层"
+        F[PostgreSQL]
+    end
+    
+    A --> B
+    B --> C
+    B --> D
+    B --> E
+    C --> F
+    D --> F
+    E --> F
+```
 
 ### 微服务组件
 
-1. **auth-service** (端口: 8081)
+| 服务 | 端口 | 功能描述 |
+|------|------|----------|
+| 🎨 **Frontend** | 3000 | React + TypeScript + Tailwind CSS |
+| 🌐 **API Gateway** | 8080 | 统一 API 入口，路由转发 |
+| 🔐 **Auth Service** | 8081 | 认证管理，JWT 验证 |
+| 👥 **User Service** | 8084 | 统一用户管理（学生/教师） |
+| 📚 **Credit Activity Service** | 8083 | 学分活动与申请管理 |
+| 🗄️ **PostgreSQL** | 5432 | 主数据库 |
 
-   - 认证管理：用户登录、token 验证、token 刷新
-   - 权限管理：角色管理、权限分配、权限验证
-
-2. **user-service** (端口: 8084)
-
-   - 统一用户管理：用户注册、用户信息维护
-   - 学生信息管理：学生基础信息维护
-   - 教师信息管理：教师基础信息维护
-
-3. **credit-activity-service** (端口: 8083)
-
-   - 学分活动管理：活动创建、状态管理、参与者管理
-   - 申请管理：自动申请生成、申请审核、学分分配
-   - 数据统计：活动统计、申请统计、学分统计
-
-4. **api-gateway** (端口: 8080)
-
-   - API 网关：统一入口、路由转发、负载均衡
-
-5. **frontend** (端口: 3000)
-
-   - 前端应用：React + TypeScript + Tailwind CSS
-
-6. **postgres** (端口: 5432)
-   - 数据库：PostgreSQL
-
-## 技术栈
-
-### 后端
-
-- **语言**: Go 1.24
-- **框架**: Gin
-- **ORM**: GORM
-- **数据库**: PostgreSQL
-- **认证**: JWT
-- **容器化**: Docker
-
-### 前端
-
-- **框架**: React 18
-- **语言**: TypeScript
-- **样式**: Tailwind CSS
-- **构建工具**: Vite
-- **UI 组件**: shadcn/ui
-
-## 快速开始
+## 🚀 快速开始
 
 ### 环境要求
 
-- Docker
-- Docker Compose
+- Docker & Docker Compose
+- Git
 
-### 启动步骤
-
-1. 克隆项目
+### 一键启动
 
 ```bash
+# 克隆项目
 git clone <repository-url>
 cd credit-management
-```
 
-2. 启动所有服务
-
-```bash
+# 启动所有服务
 docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
 ```
 
-3. 访问应用
+### 访问地址
 
-- 前端: http://localhost:3000
-- API 网关: http://localhost:8080
-- 健康检查: http://localhost:8080/health
+- 🌐 **前端应用**: http://localhost:3000
+- 🔌 **API 网关**: http://localhost:8080
+- 📊 **健康检查**: http://localhost:8080/health
 
-### 服务端口映射
+## 🛠️ 技术栈
 
-| 服务         | 端口 | 说明                     |
-| ------------ | ---- | ------------------------ |
-| API 网关     | 8080 | 统一 API 入口            |
-| 认证服务     | 8081 | 认证和权限               |
-| 学分活动服务 | 8083 | 活动和申请管理           |
-| 统一用户服务 | 8084 | 用户、学生、教师信息管理 |
-| 数据库       | 5432 | PostgreSQL               |
-| 前端         | 3000 | React 应用               |
+### 后端技术
 
-## API 接口
+<div align="center">
+
+![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Gin](https://img.shields.io/badge/Gin-Web%20Framework-00AC47?style=for-the-badge&logo=go&logoColor=white)
+![GORM](https://img.shields.io/badge/GORM-ORM-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-316192?style=for-the-badge&logo=postgresql&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-Authentication-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+
+</div>
+
+### 前端技术
+
+<div align="center">
+
+![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-Build%20Tool-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![shadcn/ui](https://img.shields.io/badge/shadcn/ui-Component%20Library-000000?style=for-the-badge&logo=shadcnui&logoColor=white)
+
+</div>
+
+## 📋 核心功能
+
+### 🎯 活动管理
+- **创建活动** - 学生和教师都可以创建学分活动
+- **状态管理** - 草稿 → 待审核 → 通过/拒绝的完整流程
+- **参与者管理** - 灵活的参与者添加和学分分配
+- **撤回机制** - 支持活动撤回和重新提交
+
+### 👥 用户管理
+- **统一用户系统** - 学生和教师信息统一管理
+- **角色权限** - 细粒度的权限控制
+- **搜索功能** - 强大的用户搜索和筛选
+
+### 📊 申请系统
+- **自动生成** - 活动通过后自动生成申请
+- **批量处理** - 支持批量学分设置
+- **数据导出** - 灵活的申请数据导出功能
+
+### 🔍 统计分析
+- **实时统计** - 活动、申请、用户数据统计
+- **可视化展示** - 直观的数据图表
+- **趋势分析** - 历史数据趋势分析
+
+## 🔌 API 接口
 
 ### 认证相关
-
-- `POST /api/auth/login` - 用户登录
-- `POST /api/auth/validate-token` - 验证 token
-- `POST /api/auth/refresh-token` - 刷新 token
-- `POST /api/auth/logout` - 用户登出
-
-### 权限管理
-
-- `GET /api/permissions/roles` - 获取角色列表
-- `POST /api/permissions/roles` - 创建角色
-- `GET /api/permissions` - 获取权限列表
-- `POST /api/permissions/users/{userID}/roles` - 分配角色
+```http
+POST /api/auth/login          # 用户登录
+POST /api/auth/validate-token # 验证 token
+POST /api/auth/refresh-token  # 刷新 token
+POST /api/auth/logout         # 用户登出
+```
 
 ### 用户管理
+```http
+POST /api/users/register      # 用户注册
+GET  /api/users/profile       # 获取用户信息
+PUT  /api/users/profile       # 更新用户信息
+GET  /api/users/stats         # 获取用户统计
+```
 
-- `POST /api/users/register` - 用户注册
-- `GET /api/users/profile` - 获取用户信息
-- `PUT /api/users/profile` - 更新用户信息
-- `GET /api/users/stats` - 获取用户统计
-- `POST /api/users/teachers` - 创建教师
-- `POST /api/users/students` - 创建学生
-
-### 学生管理
-
-- `GET /api/students` - 获取学生列表
-- `GET /api/students/search` - 搜索学生
-- `GET /api/students/stats` - 获取学生统计
-- `GET /api/students/college/{college}` - 按学院获取学生
-- `GET /api/students/major/{major}` - 按专业获取学生
-- `GET /api/students/class/{class}` - 按班级获取学生
-
-### 教师管理
-
-- `GET /api/teachers` - 获取教师列表
-- `GET /api/teachers/search` - 搜索教师
-- `GET /api/teachers/stats` - 获取教师统计
-- `GET /api/teachers/department/{department}` - 按部门获取教师
-- `GET /api/teachers/title/{title}` - 按职称获取教师
-- `GET /api/teachers/active` - 获取活跃教师
-
-### 搜索功能
-
-- `GET /api/search/users` - 通用用户搜索
-
-### 学分活动管理
-
-- `GET /api/activities/categories` - 获取活动类别
-- `POST /api/activities` - 创建活动
-- `GET /api/activities` - 获取活动列表
-- `GET /api/activities/{id}` - 获取活动详情
-- `PUT /api/activities/{id}` - 更新活动
-- `DELETE /api/activities/{id}` - 删除活动
-- `POST /api/activities/{id}/submit` - 提交活动审核
-- `POST /api/activities/{id}/withdraw` - 撤回活动
-- `POST /api/activities/{id}/review` - 审核活动
-
-### 参与者管理
-
-- `POST /api/activities/{id}/participants` - 添加参与者
-- `GET /api/activities/{id}/participants` - 获取参与者列表
-- `PUT /api/activities/{id}/participants/batch-credits` - 批量设置学分
-- `PUT /api/activities/{id}/participants/{user_id}/credits` - 设置单个学分
-- `DELETE /api/activities/{id}/participants/{user_id}` - 删除参与者
-- `POST /api/activities/{id}/leave` - 退出活动
+### 活动管理
+```http
+POST /api/activities                    # 创建活动
+GET  /api/activities                    # 获取活动列表
+GET  /api/activities/{id}               # 获取活动详情
+PUT  /api/activities/{id}               # 更新活动
+POST /api/activities/{id}/submit        # 提交活动审核
+POST /api/activities/{id}/withdraw      # 撤回活动
+POST /api/activities/{id}/review        # 审核活动
+```
 
 ### 申请管理
+```http
+GET  /api/applications                  # 获取申请列表
+GET  /api/applications/{id}             # 获取申请详情
+GET  /api/applications/stats            # 获取申请统计
+GET  /api/applications/export           # 导出申请数据
+```
 
-- `GET /api/applications` - 获取申请列表
-- `GET /api/applications/{id}` - 获取申请详情
-- `GET /api/applications/stats` - 获取申请统计
-- `GET /api/applications/export` - 导出申请数据
-
-## 数据库设计
+## 🗄️ 数据库设计
 
 ### 核心表结构
 
-#### 用户相关
+```sql
+-- 用户表
+users (id, username, email, role, created_at, updated_at)
 
-- `users` - 统一用户表（包含学生和教师信息）
-- `roles` - 角色定义
-- `permissions` - 权限定义
-- `user_roles` - 用户角色关联
-- `user_permissions` - 用户权限关联
-- `role_permissions` - 角色权限关联
+-- 学分活动表
+credit_activities (id, title, description, status, owner_id, reviewer_id, ...)
 
-#### 学分活动相关
+-- 活动参与者表
+activity_participants (activity_id, user_id, credits, joined_at, ...)
 
-- `activities` - 学分活动
-- `participants` - 活动参与者
-- `applications` - 申请记录（自动生成）
+-- 申请表（自动生成）
+applications (id, activity_id, user_id, status, applied_credits, ...)
+```
 
-## 开发指南
+### 自动化触发器
 
-### 本地开发
+- **申请自动生成** - 活动审核通过后自动为参与者生成申请
+- **申请自动删除** - 活动撤回时自动删除相关申请
 
-1. 安装 Go 1.24+
-2. 安装 PostgreSQL
-3. 配置环境变量
-4. 运行服务
+## 🧪 测试
+
+### 自动化测试脚本
+
+```bash
+# 测试认证服务
+cd tester && .\test-auth-service.ps1
+
+# 测试用户服务
+cd tester && .\test-user-service.ps1
+
+# 测试学分活动服务
+cd tester && .\test-credit-activity-service.ps1
+
+# 综合测试
+cd tester && .\test-all-services.ps1
+```
+
+## 🚀 部署
+
+### 开发环境
 
 ```bash
 # 启动数据库
@@ -207,59 +229,11 @@ cd user-service && go run main.go
 cd credit-activity-service && go run main.go
 ```
 
-### 代码结构
-
-每个微服务都遵循相同的目录结构：
-
-```
-service-name/
-├── main.go          # 服务入口
-├── go.mod           # Go模块
-├── Dockerfile       # 容器配置
-├── handlers/        # 处理器
-├── models/          # 数据模型
-└── utils/           # 工具函数
-```
-
-### 环境变量
-
-| 变量名      | 说明         | 默认值            |
-| ----------- | ------------ | ----------------- |
-| DB_HOST     | 数据库主机   | localhost         |
-| DB_PORT     | 数据库端口   | 5432              |
-| DB_USER     | 数据库用户名 | postgres          |
-| DB_PASSWORD | 数据库密码   | password          |
-| DB_NAME     | 数据库名称   | credit_management |
-| JWT_SECRET  | JWT 密钥     | your-secret-key   |
-| PORT        | 服务端口     | 8080-8084         |
-
-## 测试
-
-### 自动化测试
-
-项目包含完整的自动化测试脚本：
-
-```bash
-# 测试认证服务
-cd tester && .\test-auth-service.ps1
-
-# 测试统一用户服务
-cd tester && .\test-user-service.ps1
-
-# 测试学分活动服务
-cd tester && .\test-credit-activity-service.ps1
-
-# 综合测试
-cd tester && .\test-all-services.ps1
-```
-
-## 部署
-
-### Docker 部署
+### 生产环境
 
 ```bash
 # 构建并启动所有服务
-docker-compose up -d
+docker-compose -f docker-compose.prod.yml up -d
 
 # 查看服务状态
 docker-compose ps
@@ -268,36 +242,62 @@ docker-compose ps
 docker-compose logs -f
 ```
 
-### 生产环境
+## 📁 项目结构
 
-- 使用环境变量配置敏感信息
-- 配置 HTTPS
-- 设置数据库备份
-- 配置监控和日志
+```
+credit-management/
+├── 📁 api-gateway/          # API 网关服务
+├── 📁 auth-service/         # 认证服务
+├── 📁 user-service/         # 统一用户服务
+├── 📁 credit-activity-service/  # 学分活动服务
+├── 📁 frontend/             # React 前端应用
+├── 📁 database/             # 数据库脚本和配置
+├── 📁 docs/                 # 项目文档
+├── 📁 tester/               # 测试脚本
+├── 🐳 docker-compose.yml    # Docker 编排配置
+└── 📖 README.md             # 项目说明文档
+```
 
-## 服务合并说明
+## 🔧 环境变量
 
-### v2.0.0 更新
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `DB_HOST` | 数据库主机 | `localhost` |
+| `DB_PORT` | 数据库端口 | `5432` |
+| `DB_USER` | 数据库用户名 | `postgres` |
+| `DB_PASSWORD` | 数据库密码 | `password` |
+| `DB_NAME` | 数据库名称 | `credit_management` |
+| `JWT_SECRET` | JWT 密钥 | `your-secret-key` |
+| `PORT` | 服务端口 | `8080-8084` |
 
-- 合并用户管理、学生信息、教师信息服务为统一用户服务
-- 简化系统架构，减少服务间通信
-- 优化 API 接口，提供更好的数据一致性
-- 更新 Docker 配置和测试脚本
+## 🤝 贡献指南
 
-详细迁移说明请参考：[USER_SERVICE_MERGE_SUMMARY.md](USER_SERVICE_MERGE_SUMMARY.md)
+我们欢迎所有形式的贡献！
 
-## 贡献指南
+1. 🍴 Fork 项目
+2. 🌿 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 💾 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 📤 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 🔄 创建 Pull Request
 
-1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 推送到分支
-5. 创建 Pull Request
+## 📄 许可证
 
-## 许可证
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-MIT License
+## 📞 联系我们
 
-## 联系方式
+- 🐛 **问题反馈**: [GitHub Issues](https://github.com/your-repo/issues)
+- 💬 **讨论交流**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- 📧 **邮件联系**: your-email@example.com
 
-如有问题，请提交 Issue 或联系开发团队。
+## 🙏 致谢
+
+感谢所有为这个项目做出贡献的开发者和用户！
+
+---
+
+<div align="center">
+
+**如果这个项目对你有帮助，请给我们一个 ⭐️**
+
+</div>
