@@ -286,9 +286,9 @@ credit-management/
 
 ## 📞 联系我们
 
-- 🐛 **问题反馈**: [GitHub Issues](https://github.com/your-repo/issues)
-- 💬 **讨论交流**: [GitHub Discussions](https://github.com/your-repo/discussions)
-- 📧 **邮件联系**: your-email@example.com
+- 🐛 **问题反馈**: [GitHub Issues](https://github.com/EmptyDust/credit-management/issues)
+- 💬 **讨论交流**: [GitHub Discussions](https://github.com/EmptyDust/credit-management/discussions)
+- 📧 **邮件联系**: baiyuxiu@emptydust.com
 
 ## 🙏 致谢
 
