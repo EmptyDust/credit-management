@@ -40,7 +40,7 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -49,8 +49,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
@@ -68,20 +66,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 			})
 		}
 		return
-	}
-
-	if userType == "student" {
-		if activity.OwnerID != userID {
-			var participant models.ActivityParticipant
-			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-				c.JSON(http.StatusForbidden, gin.H{
-					"code":    403,
-					"message": "无权限查看此活动的附件",
-					"data":    nil,
-				})
-				return
-			}
-		}
 	}
 
 	category := c.Query("category")
@@ -172,7 +156,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -181,8 +165,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
@@ -199,15 +181,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 				"data":    nil,
 			})
 		}
-		return
-	}
-
-	if userType != "admin" && activity.OwnerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限上传附件到此活动",
-			"data":    nil,
-		})
 		return
 	}
 
@@ -270,6 +243,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 			return
 		}
 	}
+	userID, _ := c.Get("user_id")
 
 	attachment := models.Attachment{
 		ActivityID:   activityID,
@@ -326,7 +300,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -335,8 +309,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
@@ -353,15 +325,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 				"data":    nil,
 			})
 		}
-		return
-	}
-
-	if userType != "admin" && activity.OwnerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限上传附件到此活动",
-			"data":    nil,
-		})
 		return
 	}
 
@@ -477,6 +440,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 			continue
 		}
 
+		userID, _ := c.Get("user_id")
 		// 创建附件记录
 		attachment := models.Attachment{
 			ActivityID:   activityID,
@@ -546,7 +510,7 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	}
 
 	// 获取当前用户信息
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -555,7 +519,6 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		})
 		return
 	}
-
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
@@ -573,22 +536,6 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 			})
 		}
 		return
-	}
-
-	userType, _ := c.Get("user_type")
-
-	if userType == "student" {
-		if activity.OwnerID != userID {
-			var participant models.ActivityParticipant
-			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-				c.JSON(http.StatusForbidden, gin.H{
-					"code":    403,
-					"message": "无权限下载此活动的附件",
-					"data":    nil,
-				})
-				return
-			}
-		}
 	}
 
 	var attachment models.Attachment
@@ -668,7 +615,7 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -677,8 +624,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
@@ -696,20 +641,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 			})
 		}
 		return
-	}
-
-	if userType == "student" {
-		if activity.OwnerID != userID {
-			var participant models.ActivityParticipant
-			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-				c.JSON(http.StatusForbidden, gin.H{
-					"code":    403,
-					"message": "无权限预览此活动的附件",
-					"data":    nil,
-				})
-				return
-			}
-		}
 	}
 
 	var attachment models.Attachment
@@ -740,42 +671,38 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
+	// 检查文件类型是否支持预览
+	previewableTypes := map[string]bool{
+		".pdf":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".gif":  true,
+		".txt":  true,
+	}
+
+	if !previewableTypes[strings.ToLower(attachment.FileType)] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "不支持预览此类型的文件",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 设置适当的Content-Type
 	contentType := "application/octet-stream"
-	if attachment.FileType != "" {
-		switch strings.ToLower(attachment.FileType) {
-		case ".pdf":
-			contentType = "application/pdf"
-		case ".txt":
-			contentType = "text/plain; charset=utf-8"
-		case ".jpg", ".jpeg":
-			contentType = "image/jpeg"
-		case ".png":
-			contentType = "image/png"
-		case ".gif":
-			contentType = "image/gif"
-		case ".bmp":
-			contentType = "image/bmp"
-		case ".webp":
-			contentType = "image/webp"
-		case ".mp4":
-			contentType = "video/mp4"
-		case ".avi":
-			contentType = "video/x-msvideo"
-		case ".mov":
-			contentType = "video/quicktime"
-		case ".wmv":
-			contentType = "video/x-ms-wmv"
-		case ".flv":
-			contentType = "video/x-flv"
-		case ".mp3":
-			contentType = "audio/mpeg"
-		case ".wav":
-			contentType = "audio/wav"
-		case ".ogg":
-			contentType = "audio/ogg"
-		case ".aac":
-			contentType = "audio/aac"
-		}
+	switch strings.ToLower(attachment.FileType) {
+	case ".pdf":
+		contentType = "application/pdf"
+	case ".jpg", ".jpeg":
+		contentType = "image/jpeg"
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
+		contentType = "image/gif"
+	case ".txt":
+		contentType = "text/plain"
 	}
 
 	c.Header("Content-Type", contentType)
@@ -798,7 +725,7 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -807,8 +734,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
@@ -825,15 +750,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 				"data":    nil,
 			})
 		}
-		return
-	}
-
-	if userType != "admin" && attachment.UploadedBy != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限更新此附件",
-			"data":    nil,
-		})
 		return
 	}
 
@@ -892,7 +808,7 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	_, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
@@ -901,8 +817,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		})
 		return
 	}
-
-	userType, _ := c.Get("user_type")
 
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
@@ -921,16 +835,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		}
 		return
 	}
-
-	if userType != "admin" && attachment.UploadedBy != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限删除此附件",
-			"data":    nil,
-		})
-		return
-	}
-
 	var otherAttachmentsCount int64
 	h.db.Model(&models.Attachment{}).
 		Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).

@@ -41,7 +41,7 @@ func main() {
 	attachmentHandler := handlers.NewAttachmentHandler(db)
 	searchHandler := handlers.NewSearchHandler(db)
 
-	authMiddleware := utils.NewAuthMiddleware()
+	authMiddleware := utils.NewHeaderAuthMiddleware()
 	permissionMiddleware := utils.NewPermissionMiddleware()
 
 	log.Println("正在创建路由...")
@@ -60,7 +60,7 @@ func main() {
 
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-User-ID, X-Username, X-User-Type")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -83,64 +83,64 @@ func main() {
 				{
 					allUsers.GET("", activityHandler.GetActivities)
 					allUsers.GET("/stats", activityHandler.GetActivityStats)
-					allUsers.POST("", activityHandler.CreateActivity)
-					allUsers.POST("/batch", activityHandler.BatchCreateActivities)
-					allUsers.PUT("/batch", activityHandler.BatchUpdateActivities)
 					allUsers.GET("/:id", activityHandler.GetActivity)
-					allUsers.PUT("/:id", activityHandler.UpdateActivity)
-					allUsers.DELETE("/:id", activityHandler.DeleteActivity)
 					allUsers.POST("/:id/submit", activityHandler.SubmitActivity)
 					allUsers.POST("/:id/withdraw", activityHandler.WithdrawActivity)
 					allUsers.GET("/deletable", activityHandler.GetDeletableActivities)
-
 					allUsers.POST("/:id/copy", activityHandler.CopyActivity)
 					allUsers.POST("/:id/save-template", activityHandler.SaveAsTemplate)
-
-					allUsers.POST("/import-csv", activityHandler.ImportActivitiesFromCSV)
 					allUsers.POST("/import", activityHandler.ImportActivities)
 					allUsers.GET("/csv-template", activityHandler.GetCSVTemplate)
 					allUsers.GET("/excel-template", activityHandler.GetExcelTemplate)
+					allUsers.POST("", activityHandler.CreateActivity)
+					allUsers.PUT("/:id", activityHandler.UpdateActivity)
 				}
 
 				teacherOrAdmin := auth.Group("")
 				teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
 				{
+					teacherOrAdmin.POST("/batch", activityHandler.BatchCreateActivities)
+					teacherOrAdmin.PUT("/batch", activityHandler.BatchUpdateActivities)
 					teacherOrAdmin.POST("/:id/review", activityHandler.ReviewActivity)
 					teacherOrAdmin.GET("/pending", activityHandler.GetPendingActivities)
 					teacherOrAdmin.POST("/batch-delete", activityHandler.BatchDeleteActivities)
-
 					teacherOrAdmin.GET("/export", activityHandler.ExportActivities)
 					teacherOrAdmin.GET("/report", activityHandler.GetActivityReport)
+				}
+
+				admin := auth.Group("")
+				admin.Use(permissionMiddleware.AdminOnly())
+				{
+					admin.DELETE("/:id", activityHandler.DeleteActivity)
 				}
 			}
 
 			participants := activities.Group(":id")
 			participants.Use(authMiddleware.AuthRequired())
 			{
-				ownerOrAdmin := participants.Group("")
-				ownerOrAdmin.Use(permissionMiddleware.AllUsers())
+				allUsers := participants.Group("")
+				allUsers.Use(permissionMiddleware.AllUsers())
 				{
-					ownerOrAdmin.POST("/participants", participantHandler.AddParticipants)
-					ownerOrAdmin.PUT("/participants/batch-credits", participantHandler.BatchSetCredits)
-					ownerOrAdmin.PUT("/participants/:user_id/credits", participantHandler.SetSingleCredits)
-					ownerOrAdmin.DELETE("/participants/:user_id", participantHandler.RemoveParticipant)
-					ownerOrAdmin.GET("/participants", participantHandler.GetActivityParticipants)
+					allUsers.GET("/participants", participantHandler.GetActivityParticipants)
+					allUsers.GET("/participants/stats", participantHandler.GetParticipantStats)
+					allUsers.GET("/participants/export", participantHandler.ExportParticipants)
+					allUsers.GET("/my-activities", participantHandler.GetUserParticipatedActivities)
+				}
 
-					ownerOrAdmin.POST("/participants/batch-remove", participantHandler.BatchRemoveParticipants)
-					ownerOrAdmin.GET("/participants/stats", participantHandler.GetParticipantStats)
-					ownerOrAdmin.GET("/participants/export", participantHandler.ExportParticipants)
+				ownerOrTeacherOrAdmin := participants.Group("")
+				ownerOrTeacherOrAdmin.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
+				{
+					ownerOrTeacherOrAdmin.POST("/participants", participantHandler.AddParticipants)
+					ownerOrTeacherOrAdmin.PUT("/participants/batch-credits", participantHandler.BatchSetCredits)
+					ownerOrTeacherOrAdmin.PUT("/participants/:user_id/credits", participantHandler.SetSingleCredits)
+					ownerOrTeacherOrAdmin.DELETE("/participants/:user_id", participantHandler.RemoveParticipant)
+					ownerOrTeacherOrAdmin.POST("/participants/batch-remove", participantHandler.BatchRemoveParticipants)
 				}
 
 				studentOnly := participants.Group("")
 				studentOnly.Use(permissionMiddleware.StudentOnly())
 				{
-					studentOnly.POST("/leave", participantHandler.LeaveActivity)
-				}
-
-				allUsers := participants.Group("")
-				allUsers.Use(permissionMiddleware.AllUsers())
-				{
-					allUsers.GET("/my-activities", participantHandler.GetUserParticipatedActivities)
+					studentOnly.POST("/participants/leave", participantHandler.LeaveActivity)
 				}
 			}
 
@@ -155,18 +155,13 @@ func main() {
 					allUsers.GET("/attachments/:attachment_id/preview", attachmentHandler.PreviewAttachment)
 				}
 
-				participantsOrAdmin := attachments.Group("")
-				participantsOrAdmin.Use(permissionMiddleware.AllUsers())
+				ownerOrTeacherOrAdmin := attachments.Group("")
+				ownerOrTeacherOrAdmin.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
 				{
-					participantsOrAdmin.POST("/attachments", attachmentHandler.UploadAttachment)
-					participantsOrAdmin.POST("/attachments/batch", attachmentHandler.BatchUploadAttachments)
-				}
-
-				uploaderOrAdmin := attachments.Group("")
-				uploaderOrAdmin.Use(permissionMiddleware.AllUsers())
-				{
-					uploaderOrAdmin.PUT("/attachments/:attachment_id", attachmentHandler.UpdateAttachment)
-					uploaderOrAdmin.DELETE("/attachments/:attachment_id", attachmentHandler.DeleteAttachment)
+					ownerOrTeacherOrAdmin.POST("/attachments", attachmentHandler.UploadAttachment)
+					ownerOrTeacherOrAdmin.POST("/attachments/batch", attachmentHandler.BatchUploadAttachments)
+					ownerOrTeacherOrAdmin.PUT("/attachments/:attachment_id", attachmentHandler.UpdateAttachment)
+					ownerOrTeacherOrAdmin.DELETE("/attachments/:attachment_id", attachmentHandler.DeleteAttachment)
 				}
 			}
 		}

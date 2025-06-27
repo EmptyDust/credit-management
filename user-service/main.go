@@ -58,12 +58,9 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// 获取auth服务URL
-	authServiceURL := getEnv("AUTH_SERVICE_URL", "http://auth-service:8081")
-
 	userHandler := handlers.NewUserHandler(db)
 
-	authMiddleware := utils.NewRemoteAuthMiddleware(authServiceURL)
+	authMiddleware := utils.NewHeaderAuthMiddleware()
 	permissionMiddleware := utils.NewPermissionMiddleware()
 
 	r := gin.Default()
@@ -72,7 +69,7 @@ func main() {
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-User-ID, X-Username, X-User-Type")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

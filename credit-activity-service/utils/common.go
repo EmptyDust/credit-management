@@ -53,9 +53,12 @@ func searchUserByType(client *http.Client, apiURL string, authToken ...string) (
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	if len(authToken) > 0 && authToken[0] != "" {
-		req.Header.Set("Authorization", authToken[0])
-	}
+	// 总是使用内部服务通信，不传递JWT token
+	req.Header.Set("X-Internal-Service", "credit-activity-service")
+	req.Header.Set("X-User-ID", "system")
+	req.Header.Set("X-Username", "system")
+	req.Header.Set("X-User-Type", "admin")
+	fmt.Printf("使用内部服务通信，URL: %s\n", apiURL)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -68,6 +71,8 @@ func searchUserByType(client *http.Client, apiURL string, authToken ...string) (
 		return nil, fmt.Errorf("读取响应失败: %v", err)
 	}
 
+	fmt.Printf("用户服务响应状态码: %d, 响应体: %s\n", resp.StatusCode, string(body))
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("用户服务返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
 	}
@@ -76,21 +81,8 @@ func searchUserByType(client *http.Client, apiURL string, authToken ...string) (
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
-			Users []struct {
-				UserID     string `json:"user_id"`
-				Username   string `json:"username"`
-				RealName   string `json:"real_name"`
-				UserType   string `json:"user_type,omitempty"`
-				Status     string `json:"status,omitempty"`
-				StudentID  string `json:"student_id,omitempty"`
-				College    string `json:"college,omitempty"`
-				Major      string `json:"major,omitempty"`
-				Class      string `json:"class,omitempty"`
-				Grade      string `json:"grade,omitempty"`
-				Department string `json:"department,omitempty"`
-				Title      string `json:"title,omitempty"`
-			} `json:"users"`
-			Total int64 `json:"total"`
+			Users []map[string]interface{} `json:"users"`
+			Total int64                    `json:"total"`
 		} `json:"data"`
 	}
 
@@ -108,27 +100,47 @@ func searchUserByType(client *http.Client, apiURL string, authToken ...string) (
 
 	user := response.Data.Users[0]
 
-	userType := "student"
-	if strings.Contains(apiURL, "user_type=teacher") {
-		userType = "teacher"
+	// 从 map[string]interface{} 中提取用户信息
+	userID, _ := user["user_id"].(string)
+	username, _ := user["username"].(string)
+	realName, _ := user["real_name"].(string)
+	userType, _ := user["user_type"].(string)
+	status, _ := user["status"].(string)
+	studentID, _ := user["student_id"].(string)
+	college, _ := user["college"].(string)
+	major, _ := user["major"].(string)
+	class, _ := user["class"].(string)
+	grade, _ := user["grade"].(string)
+	department, _ := user["department"].(string)
+	title, _ := user["title"].(string)
+
+	// 如果 userType 为空，根据 URL 判断
+	if userType == "" {
+		if strings.Contains(apiURL, "user_type=teacher") {
+			userType = "teacher"
+		} else {
+			userType = "student"
+		}
 	}
 
+	fmt.Printf("成功获取用户信息: %s (%s)\n", username, userType)
+
 	return &models.UserInfo{
-		UserID:     user.UserID,
-		Username:   user.Username,
-		RealName:   user.RealName,
+		UserID:     userID,
+		Username:   username,
+		RealName:   realName,
 		UserType:   userType,
-		Status:     user.Status,
-		StudentID:  user.StudentID,
-		College:    user.College,
-		Major:      user.Major,
-		Class:      user.Class,
-		Grade:      user.Grade,
-		Department: user.Department,
-		Title:      user.Title,
+		Status:     status,
+		StudentID:  studentID,
+		College:    college,
+		Major:      major,
+		Class:      class,
+		Grade:      grade,
+		Department: department,
+		Title:      title,
 		// 向后兼容字段
-		ID:   user.UserID,
-		Name: user.RealName,
+		ID:   userID,
+		Name: realName,
 		Role: userType,
 	}, nil
 }
