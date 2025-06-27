@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// User 统一用户模型（合并用户、学生、教师信息）
+// User 统一用户模型
 type User struct {
 	// 基础用户信息
 	UserID       string         `json:"user_id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
@@ -35,10 +35,9 @@ type User struct {
 	// 教师特有字段（可选）
 	Department *string `json:"department,omitempty" gorm:"size:100"`
 	Title      *string `json:"title,omitempty" gorm:"size:50"`
-	Specialty  *string `json:"specialty,omitempty" gorm:"size:200"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
+
 func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if u.UserID == "" {
 		u.UserID = uuid.New().String()
@@ -65,7 +64,6 @@ type UserRequest struct {
 	// 教师特有字段
 	Department string `json:"department" binding:"omitempty,max=100"`
 	Title      string `json:"title" binding:"omitempty,max=50"`
-	Specialty  string `json:"specialty" binding:"omitempty,max=200"`
 }
 
 // StudentRegisterRequest 学生注册请求（更严格的验证）
@@ -91,7 +89,6 @@ type TeacherRegisterRequest struct {
 	RealName   string `json:"real_name" binding:"required,min=2,max=50"`
 	Department string `json:"department" binding:"required,max=100"`
 	Title      string `json:"title" binding:"required,max=50"`
-	Specialty  string `json:"specialty" binding:"omitempty,max=200"`
 }
 
 // UserUpdateRequest 用户更新请求
@@ -113,7 +110,6 @@ type UserUpdateRequest struct {
 	// 教师特有字段
 	Department *string `json:"department" binding:"omitempty,max=100"`
 	Title      *string `json:"title" binding:"omitempty,max=50"`
-	Specialty  *string `json:"specialty" binding:"omitempty,max=200"`
 }
 
 // UserResponse 用户响应
@@ -141,39 +137,6 @@ type UserResponse struct {
 	// 教师特有字段
 	Department *string `json:"department,omitempty"`
 	Title      *string `json:"title,omitempty"`
-	Specialty  *string `json:"specialty,omitempty"`
-}
-
-// UserStats 用户统计信息
-type UserStats struct {
-	TotalUsers     int64 `json:"total_users"`
-	ActiveUsers    int64 `json:"active_users"`
-	SuspendedUsers int64 `json:"suspended_users"`
-	StudentUsers   int64 `json:"student_users"`
-	TeacherUsers   int64 `json:"teacher_users"`
-	AdminUsers     int64 `json:"admin_users"`
-	NewUsersToday  int64 `json:"new_users_today"`
-	NewUsersWeek   int64 `json:"new_users_week"`
-	NewUsersMonth  int64 `json:"new_users_month"`
-}
-
-// StudentStats 学生统计信息
-type StudentStats struct {
-	TotalStudents     int64            `json:"total_students"`
-	ActiveStudents    int64            `json:"active_students"`
-	GraduatedStudents int64            `json:"graduated_students"`
-	StudentsByCollege map[string]int64 `json:"students_by_college"`
-	StudentsByMajor   map[string]int64 `json:"students_by_major"`
-	StudentsByGrade   map[string]int64 `json:"students_by_grade"`
-}
-
-// TeacherStats 教师统计信息
-type TeacherStats struct {
-	TotalTeachers        int64            `json:"total_teachers"`
-	ActiveTeachers       int64            `json:"active_teachers"`
-	RetiredTeachers      int64            `json:"retired_teachers"`
-	TeachersByDepartment map[string]int64 `json:"teachers_by_department"`
-	TeachersByTitle      map[string]int64 `json:"teachers_by_title"`
 }
 
 // SearchRequest 搜索请求

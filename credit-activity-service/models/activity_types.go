@@ -26,9 +26,7 @@ type InnovationActivityDetail struct {
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// UnmarshalJSON 自定义JSON反序列化方法
 func (i *InnovationActivityDetail) UnmarshalJSON(data []byte) error {
-	// 创建一个临时结构体来处理JSON反序列化
 	type Alias InnovationActivityDetail
 	aux := &struct {
 		Date string `json:"date"`
@@ -41,9 +39,7 @@ func (i *InnovationActivityDetail) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// 处理Date字段
 	if aux.Date != "" && aux.Date != "0001-01-01T00:00:00Z" {
-		// 尝试解析日期字符串
 		dateFormats := []string{
 			"2006-01-02T15:04:05Z",
 			"2006-01-02T15:04:05",
@@ -62,7 +58,6 @@ func (i *InnovationActivityDetail) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (i *InnovationActivityDetail) BeforeCreate(tx *gorm.DB) error {
 	if i.ID == "" {
 		i.ID = uuid.New().String()
@@ -70,7 +65,6 @@ func (i *InnovationActivityDetail) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (InnovationActivityDetail) TableName() string {
 	return "innovation_activity_details"
 }
@@ -91,7 +85,6 @@ type CompetitionActivityDetail struct {
 	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (c *CompetitionActivityDetail) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
 		c.ID = uuid.New().String()
@@ -99,7 +92,6 @@ func (c *CompetitionActivityDetail) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (CompetitionActivityDetail) TableName() string {
 	return "competition_activity_details"
 }
@@ -119,7 +111,6 @@ type EntrepreneurshipProjectDetail struct {
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (e *EntrepreneurshipProjectDetail) BeforeCreate(tx *gorm.DB) error {
 	if e.ID == "" {
 		e.ID = uuid.New().String()
@@ -127,7 +118,6 @@ func (e *EntrepreneurshipProjectDetail) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (EntrepreneurshipProjectDetail) TableName() string {
 	return "entrepreneurship_project_details"
 }
@@ -147,7 +137,6 @@ type EntrepreneurshipPracticeDetail struct {
 	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (e *EntrepreneurshipPracticeDetail) BeforeCreate(tx *gorm.DB) error {
 	if e.ID == "" {
 		e.ID = uuid.New().String()
@@ -155,7 +144,6 @@ func (e *EntrepreneurshipPracticeDetail) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (EntrepreneurshipPracticeDetail) TableName() string {
 	return "entrepreneurship_practice_details"
 }
@@ -175,7 +163,6 @@ type PaperPatentDetail struct {
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (p *PaperPatentDetail) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
 		p.ID = uuid.New().String()
@@ -183,7 +170,6 @@ func (p *PaperPatentDetail) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (PaperPatentDetail) TableName() string {
 	return "paper_patent_details"
 }

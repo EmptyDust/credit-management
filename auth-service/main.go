@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"credit-management/auth-service/handlers"
-	"credit-management/auth-service/models"
 )
 
 // 连接数据库，带重试机制
@@ -62,23 +61,6 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// 检查数据库表是否已存在（通过初始化脚本创建）
-	log.Println("Checking database tables...")
-	var tableExists bool
-	db.Raw("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')").Scan(&tableExists)
-
-	if !tableExists {
-		log.Println("Tables not found, creating database tables...")
-		err = db.AutoMigrate(
-			&models.User{},
-		)
-		if err != nil {
-			log.Fatal("Failed to migrate database:", err)
-		}
-	} else {
-		log.Println("Database tables already exist, skipping AutoMigrate")
-	}
-
 	// 初始化管理员用户
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if err := handlers.InitializeAdminUser(tx); err != nil {
@@ -121,6 +103,7 @@ func main() {
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/validate-token", authHandler.ValidateToken)
+			auth.POST("/validate-token-with-claims", authHandler.ValidateTokenWithClaims)
 			auth.POST("/refresh-token", authHandler.RefreshToken)
 			auth.POST("/logout", authHandler.Logout)
 		}

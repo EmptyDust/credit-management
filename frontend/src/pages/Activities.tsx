@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient from "@/lib/api";
+import apiClient, { apiHelpers } from "@/lib/api";
 import {
   PlusCircle,
   Edit,
@@ -70,8 +70,8 @@ interface Activity {
   category?: string;
   created_at: string;
   updated_at: string;
-  participants_count?: number;
-  applications_count?: number;
+  participants?: any[];
+  applications?: any[];
   owner_id: string;
   owner_info?: {
     name: string;
@@ -338,6 +338,19 @@ export default function ActivitiesPage() {
   const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // 验证文件类型
+      const allowedTypes = [
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv",
+      ];
+      if (
+        !allowedTypes.includes(file.type) &&
+        !file.name.toLowerCase().endsWith(".csv")
+      ) {
+        toast.error("请选择Excel或CSV文件");
+        return;
+      }
       setImportFile(file);
     }
   };
@@ -345,22 +358,30 @@ export default function ActivitiesPage() {
   const handleImport = async () => {
     if (!importFile) return;
 
-    const formData = new FormData();
-    formData.append("file", importFile);
-
     try {
       setImporting(true);
-      await apiClient.post("/activities/import", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+
+      // Create FormData manually to ensure proper file upload
+      const formData = new FormData();
+      formData.append("file", importFile);
+
+      // Debug: Log the FormData contents
+      console.log("Import file:", importFile);
+      console.log("FormData entries:");
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+      }
+
+      // Use axios directly for file upload to ensure proper handling
+      const response = await apiClient.post("/activities/import", formData);
+
       toast.success("批量导入成功");
       setIsImportDialogOpen(false);
       setImportFile(null);
       fetchActivities();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to import activities:", error);
+      console.error("Error details:", error.response?.data);
       toast.error("批量导入失败");
     } finally {
       setImporting(false);
@@ -514,7 +535,7 @@ export default function ActivitiesPage() {
         <StatCard
           title="参与学生"
           value={activities.reduce(
-            (sum, activity) => sum + (activity.participants_count || 0),
+            (sum, activity) => sum + (activity.participants?.length || 0),
             0
           )}
           icon={Users}
@@ -524,7 +545,7 @@ export default function ActivitiesPage() {
         <StatCard
           title="申请数量"
           value={activities.reduce(
-            (sum, activity) => sum + (activity.applications_count || 0),
+            (sum, activity) => sum + (activity.applications?.length || 0),
             0
           )}
           icon={FileText}
@@ -617,7 +638,6 @@ export default function ActivitiesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
-                  <TableHead>描述</TableHead>
                   <TableHead>类别</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>参与人数</TableHead>
@@ -629,7 +649,7 @@ export default function ActivitiesPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
                         <RefreshCw className="h-4 w-4 animate-spin" />
                         加载中...
@@ -638,7 +658,7 @@ export default function ActivitiesPage() {
                   </TableRow>
                 ) : activities.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <AlertCircle className="w-8 h-8" />
                         <p>暂无活动记录</p>
@@ -651,14 +671,9 @@ export default function ActivitiesPage() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{activity.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            ID: {activity.id}
+                          <div className="text-sm text-muted-foreground max-w-xs truncate">
+                            {activity.description || "暂无描述"}
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-xs truncate">
-                          {activity.description || "-"}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -678,12 +693,12 @@ export default function ActivitiesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-blue-600">
-                          {activity.participants_count || 0}
+                          {activity.participants?.length || 0}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-green-600">
-                          {activity.applications_count || 0}
+                          {activity.applications?.length || 0}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -846,6 +861,38 @@ export default function ActivitiesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/activities/csv-template";
+                  link.download = "activity_template.csv";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载CSV模板
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/activities/excel-template";
+                  link.download = "activity_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载Excel模板
+              </Button>
+            </div>
             <div>
               <label className="text-sm font-medium">选择文件</label>
               <Input

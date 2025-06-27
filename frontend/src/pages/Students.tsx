@@ -62,18 +62,17 @@ export type Student = {
   user_id?: string;
   username: string;
   real_name: string;
-  student_id?: string;
-  college?: string;
-  major?: string;
-  class?: string;
-  grade?: string;
+  student_id?: string | null;
+  college?: string | null;
+  major?: string | null;
+  class?: string | null;
+  grade?: string | null;
   email?: string;
-  phone?: string;
-  status: "active" | "inactive";
+  phone?: string | null;
+  status: "active" | "inactive" | "suspended";
   avatar?: string;
+  last_login_at?: string | null;
   register_time?: string;
-  created_at?: string;
-  updated_at?: string;
 };
 
 // Form schema for validation
@@ -94,7 +93,8 @@ const formSchema = z.object({
     .string()
     .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字")
-    .optional(),
+    .optional()
+    .or(z.literal("")),
   real_name: z.string().min(2, "姓名至少2个字符").max(50, "姓名最多50个字符"),
   college: z.string().min(1, "学院不能为空").max(100, "学院名称最多100个字符"),
   major: z.string().min(1, "专业不能为空").max(100, "专业名称最多100个字符"),
@@ -113,7 +113,7 @@ const formSchema = z.object({
     .string()
     .length(4, "年级必须是4位数字")
     .regex(/^\d{4}$/, "年级必须是4位数字"),
-  status: z.enum(["active", "inactive"]),
+  status: z.enum(["active", "inactive", "suspended"]),
   user_type: z.literal("student"),
 });
 
@@ -248,22 +248,6 @@ export default function StudentsPage() {
           page_size: response.data.data.page_size || 10,
           total_pages: response.data.data.total_pages || 0,
         };
-      } else if (response.data?.students) {
-        studentsData = response.data.students;
-        paginationData = {
-          total: studentsData.length,
-          page: 1,
-          page_size: studentsData.length,
-          total_pages: 1,
-        };
-      } else if (Array.isArray(response.data)) {
-        studentsData = response.data;
-        paginationData = {
-          total: studentsData.length,
-          page: 1,
-          page_size: studentsData.length,
-          total_pages: 1,
-        };
       } else {
         studentsData = [];
         paginationData = {
@@ -280,8 +264,6 @@ export default function StudentsPage() {
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
       setCurrentPage(paginationData.page);
-      // 不要从API响应更新pageSize，保持用户设置的值
-      // setPageSize(paginationData.page_size);
 
       console.log("Students loaded:", studentsData.length);
     } catch (err: any) {
@@ -325,7 +307,18 @@ export default function StudentsPage() {
   const handleDialogOpen = (student: Student | null) => {
     setEditingStudent(student);
     if (student) {
-      form.reset(student);
+      // 转换null值为空字符串以匹配表单schema
+      const formData = {
+        ...student,
+        student_id: student.student_id || "",
+        college: student.college || "",
+        major: student.major || "",
+        class: student.class || "",
+        grade: student.grade || "",
+        phone: student.phone || "",
+        email: student.email || "",
+      };
+      form.reset(formData);
     } else {
       form.reset({
         username: "",
@@ -382,6 +375,7 @@ export default function StudentsPage() {
     const statusConfig = {
       active: { label: "活跃", color: "bg-green-100 text-green-800" },
       inactive: { label: "停用", color: "bg-gray-100 text-gray-800" },
+      suspended: { label: "暂停", color: "bg-red-100 text-red-800" },
     };
 
     const config =
@@ -413,12 +407,16 @@ export default function StudentsPage() {
   const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // 验证文件类型
       const allowedTypes = [
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "text/csv",
       ];
-      if (!allowedTypes.includes(file.type)) {
+      if (
+        !allowedTypes.includes(file.type) &&
+        !file.name.toLowerCase().endsWith(".csv")
+      ) {
         toast.error("请选择Excel或CSV文件");
         return;
       }
@@ -435,9 +433,9 @@ export default function StudentsPage() {
       formData.append("file", importFile);
       formData.append("user_type", "student");
 
-      const response = await apiClient.post("/users/import-csv", formData, {
+      const response = await apiClient.post("/users/import", formData, {
         headers: {
-          "Content-Type": "multipart/form-data",
+          // Remove Content-Type header to let browser set it with boundary
         },
       });
 
@@ -604,6 +602,7 @@ export default function StudentsPage() {
                 <SelectItem value="all">全部状态</SelectItem>
                 <SelectItem value="active">活跃</SelectItem>
                 <SelectItem value="inactive">停用</SelectItem>
+                <SelectItem value="suspended">暂停</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -927,6 +926,7 @@ export default function StudentsPage() {
                       <SelectContent>
                         <SelectItem value="active">活跃</SelectItem>
                         <SelectItem value="inactive">停用</SelectItem>
+                        <SelectItem value="suspended">暂停</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -980,6 +980,38 @@ export default function StudentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/users/csv-template?user_type=student";
+                  link.download = "student_template.csv";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载CSV模板
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/users/excel-template?user_type=student";
+                  link.download = "student_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载Excel模板
+              </Button>
+            </div>
             <div>
               <label className="text-sm font-medium">选择文件</label>
               <Input

@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
+import userService from "@/lib/userService";
 import toast from "react-hot-toast";
 import type { Activity, Participant, UserInfo } from "@/types/activity";
 
@@ -142,15 +143,15 @@ export default function ActivityParticipants({
 
     setUserSearchLoading(true);
     try {
-      const response = await apiClient.get(`/search/users`, {
-        params: {
-          query,
-          user_type: "student",
-          page_size: 20,
-        },
+      // 使用userService的searchUsers方法
+      const response = await userService.searchUsers({
+        query: query.trim(),
+        user_type: "student",
+        page: 1,
+        page_size: 20,
       });
 
-      const users = response.data.data?.users || [];
+      const users = response.users || [];
       // 过滤掉已经是参与者的用户
       const filteredUsers = users.filter(
         (user: UserSearchResult) =>
@@ -339,7 +340,7 @@ export default function ActivityParticipants({
     if (!searchQuery) return true;
     const userInfo = participant.user_info;
     return (
-      userInfo?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      userInfo?.real_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       userInfo?.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       userInfo?.username?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -539,54 +540,36 @@ export default function ActivityParticipants({
       </CardHeader>
 
       <CardContent>
-        {/* 搜索和批量操作 */}
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索参与者..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          {canEditParticipants && selectedParticipants.length > 0 && (
+        <div className="space-y-4">
+          {/* 搜索和批量操作 */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">
-                已选择 {selectedParticipants.length} 人
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowBatchDialog(true)}
-              >
-                批量操作
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedParticipants([])}
-              >
-                取消选择
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* 参与者表格 */}
-        <div className="space-y-2">
-          {canEditParticipants && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                点击行选择参与者，或使用 Ctrl+A 全选
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="搜索参与者..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 w-64"
+                />
               </div>
-              {selectedParticipants.length > 0 && (
-                <div className="text-sm font-medium text-primary">
-                  已选择 {selectedParticipants.length} 人
-                </div>
-              )}
             </div>
-          )}
+            {canEditParticipants && filteredParticipants.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBatchDialog(true)}
+                  disabled={selectedParticipants.length === 0}
+                >
+                  <MoreHorizontal className="h-4 w-4 mr-1" />
+                  批量操作 ({selectedParticipants.length})
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* 参与者表格 */}
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -615,7 +598,7 @@ export default function ActivityParticipants({
                   <TableHead>学分</TableHead>
                   <TableHead>加入时间</TableHead>
                   {canEditParticipants && (
-                    <TableHead className="w-20">操作</TableHead>
+                    <TableHead className="w-12">操作</TableHead>
                   )}
                 </TableRow>
               </TableHeader>
@@ -623,44 +606,11 @@ export default function ActivityParticipants({
                 {filteredParticipants.map((participant) => (
                   <TableRow
                     key={participant.user_id}
-                    className={`cursor-pointer hover:bg-muted/50 transition-colors ${
-                      selectedParticipants.includes(participant.user_id)
-                        ? "bg-primary/10 border-primary/20"
-                        : ""
-                    }`}
-                    onClick={(e) => {
-                      // 如果点击的不是checkbox本身，则切换选择状态
-                      if (
-                        !(e.target as HTMLElement).closest(
-                          'input[type="checkbox"]'
-                        ) &&
-                        canEditParticipants
-                      ) {
-                        const isSelected = selectedParticipants.includes(
-                          participant.user_id
-                        );
-                        if (isSelected) {
-                          setSelectedParticipants((prev) =>
-                            prev.filter((id) => id !== participant.user_id)
-                          );
-                        } else {
-                          setSelectedParticipants((prev) => [
-                            ...prev,
-                            participant.user_id,
-                          ]);
-                        }
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (
-                        (e.key === "Enter" || e.key === " ") &&
-                        canEditParticipants
-                      ) {
-                        e.preventDefault();
-                        const isSelected = selectedParticipants.includes(
-                          participant.user_id
-                        );
-                        if (isSelected) {
+                    onClick={() => {
+                      if (canEditParticipants) {
+                        if (
+                          selectedParticipants.includes(participant.user_id)
+                        ) {
                           setSelectedParticipants((prev) =>
                             prev.filter((id) => id !== participant.user_id)
                           );
@@ -675,7 +625,7 @@ export default function ActivityParticipants({
                     tabIndex={0}
                     role="button"
                     aria-label={`选择参与者 ${
-                      participant.user_info?.name || participant.user_id
+                      participant.user_info?.real_name || participant.user_id
                     }`}
                     data-participant-id={participant.user_id}
                   >
@@ -707,19 +657,13 @@ export default function ActivityParticipants({
                         </div>
                         <div>
                           <div className="font-medium">
-                            {participant.user_info?.name ||
-                              `用户 ${participant.user_id}`}
+                            {participant.user_info?.real_name ||
+                              participant.user_info?.username ||
+                              "未知用户"}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {participant.user_info?.student_id ||
-                              participant.user_id}
+                            {participant.user_info?.username}
                           </div>
-                          {participant.user_info?.college && (
-                            <div className="text-xs text-muted-foreground">
-                              {participant.user_info.college} -{" "}
-                              {participant.user_info.major}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </TableCell>
@@ -870,47 +814,31 @@ export default function ActivityParticipants({
             <div>
               <Label htmlFor="user-search">搜索用户</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="user-search"
-                  placeholder="输入姓名、学号或用户名搜索..."
+                  placeholder="输入用户名、真实姓名、学号或UUID进行搜索..."
                   value={userSearchQuery}
                   onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-8"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="default-credits">默认学分</Label>
+              <Label htmlFor="credits">学分</Label>
               <Input
-                id="default-credits"
+                id="credits"
                 type="number"
                 step="0.1"
                 min="0"
                 max="10"
                 value={addDialogCredits}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "") {
-                    setAddDialogCredits(0);
-                  } else {
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue) && numValue >= 0) {
-                      setAddDialogCredits(numValue);
-                    }
-                  }
-                }}
-                placeholder="请输入学分"
+                onChange={(e) =>
+                  setAddDialogCredits(parseFloat(e.target.value) || 0)
+                }
               />
             </div>
-
-            {userSearchLoading && (
-              <div className="text-center py-4">
-                <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
-                <p className="text-sm text-muted-foreground mt-2">搜索中...</p>
-              </div>
-            )}
 
             {userSearchResults.length > 0 && (
               <div className="space-y-2">
@@ -953,51 +881,19 @@ export default function ActivityParticipants({
                       {userSearchResults.map((user) => (
                         <TableRow
                           key={user.user_id}
-                          className={`cursor-pointer hover:bg-muted/50 transition-colors ${
-                            selectedUsers.includes(user.user_id)
-                              ? "bg-primary/10 border-primary/20"
-                              : ""
-                          }`}
-                          onClick={(e) => {
-                            // 如果点击的不是checkbox本身，则切换选择状态
-                            if (
-                              !(e.target as HTMLElement).closest(
-                                'input[type="checkbox"]'
-                              )
-                            ) {
-                              const isSelected = selectedUsers.includes(
-                                user.user_id
+                          onClick={() => {
+                            if (selectedUsers.includes(user.user_id)) {
+                              setSelectedUsers((prev) =>
+                                prev.filter((id) => id !== user.user_id)
                               );
-                              if (isSelected) {
-                                setSelectedUsers((prev) =>
-                                  prev.filter((id) => id !== user.user_id)
-                                );
-                              } else {
-                                setSelectedUsers((prev) => [
-                                  ...prev,
-                                  user.user_id,
-                                ]);
-                              }
+                            } else {
+                              setSelectedUsers((prev) => [
+                                ...prev,
+                                user.user_id,
+                              ]);
                             }
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              const isSelected = selectedUsers.includes(
-                                user.user_id
-                              );
-                              if (isSelected) {
-                                setSelectedUsers((prev) =>
-                                  prev.filter((id) => id !== user.user_id)
-                                );
-                              } else {
-                                setSelectedUsers((prev) => [
-                                  ...prev,
-                                  user.user_id,
-                                ]);
-                              }
-                            }
-                          }}
+                          className="cursor-pointer hover:bg-muted/50"
                           tabIndex={0}
                           role="button"
                           aria-label={`选择用户 ${user.real_name}`}
@@ -1021,7 +917,7 @@ export default function ActivityParticipants({
                             />
                           </TableCell>
                           <TableCell>
-                            <div>
+                            <div className="flex flex-col">
                               <div className="font-medium">
                                 {user.real_name}
                               </div>
@@ -1034,7 +930,7 @@ export default function ActivityParticipants({
                           <TableCell>
                             {user.college && user.major
                               ? `${user.college} - ${user.major}`
-                              : "-"}
+                              : user.college || user.major || "-"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1044,8 +940,14 @@ export default function ActivityParticipants({
               </div>
             )}
 
-            {userSearchQuery &&
-              !userSearchLoading &&
+            {userSearchLoading && (
+              <div className="text-center py-4 text-muted-foreground">
+                搜索中...
+              </div>
+            )}
+
+            {!userSearchLoading &&
+              userSearchQuery &&
               userSearchResults.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground">
                   没有找到匹配的用户
@@ -1054,25 +956,15 @@ export default function ActivityParticipants({
           </div>
 
           <DialogFooter>
-            <div className="flex items-center justify-between w-full">
-              <div className="text-xs text-muted-foreground">
-                快捷键: Ctrl+A 全选 | Enter 确认 | Esc 取消 | Tab 导航
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddDialog(false)}
-                >
-                  取消
-                </Button>
-                <Button
-                  onClick={addParticipants}
-                  disabled={selectedUsers.length === 0}
-                >
-                  添加 ({selectedUsers.length})
-                </Button>
-              </div>
-            </div>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={addParticipants}
+              disabled={selectedUsers.length === 0}
+            >
+              添加参与者
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1083,13 +975,13 @@ export default function ActivityParticipants({
           <DialogHeader>
             <DialogTitle>批量操作</DialogTitle>
             <DialogDescription>
-              对选中的 {selectedParticipants.length} 名参与者进行批量操作
+              对选中的 {selectedParticipants.length} 名参与者进行操作
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="batch-credits">设置学分</Label>
+              <Label htmlFor="batch-credits">批量设置学分</Label>
               <Input
                 id="batch-credits"
                 type="number"
@@ -1097,40 +989,21 @@ export default function ActivityParticipants({
                 min="0"
                 max="10"
                 value={batchDialogCredits}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "") {
-                    setBatchDialogCredits(0);
-                  } else {
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue) && numValue >= 0) {
-                      setBatchDialogCredits(numValue);
-                    }
-                  }
-                }}
-                placeholder="请输入学分"
+                onChange={(e) =>
+                  setBatchDialogCredits(parseFloat(e.target.value) || 0)
+                }
               />
             </div>
           </div>
 
           <DialogFooter>
-            <div className="flex items-center justify-between w-full">
-              <div className="text-xs text-muted-foreground">
-                快捷键: Ctrl+A 全选 | Enter 确认 | Esc 取消 | Tab 导航
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBatchDialog(false)}
-                >
-                  取消
-                </Button>
-                <Button variant="destructive" onClick={batchRemoveParticipants}>
-                  批量删除
-                </Button>
-                <Button onClick={batchSetCredits}>批量设置学分</Button>
-              </div>
-            </div>
+            <Button variant="outline" onClick={() => setShowBatchDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={batchSetCredits}>设置学分</Button>
+            <Button variant="destructive" onClick={batchRemoveParticipants}>
+              删除参与者
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1140,45 +1013,34 @@ export default function ActivityParticipants({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>参与者统计</DialogTitle>
-            <DialogDescription>活动的参与者统计信息</DialogDescription>
           </DialogHeader>
 
           {stats && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="text-sm font-medium">总参与者</div>
-                <div className="text-2xl font-bold text-primary">
-                  {stats.total_participants}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {stats.total_participants}
+                  </div>
+                  <div className="text-sm text-muted-foreground">总参与者</div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">总学分</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.total_credits}
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {stats.total_credits}
+                  </div>
+                  <div className="text-sm text-muted-foreground">总学分</div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">平均学分</div>
-                <div className="text-lg font-semibold">
-                  {stats.avg_credits?.toFixed(1) || 0}
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {stats.avg_credits?.toFixed(1) || "0"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">平均学分</div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">最近加入</div>
-                <div className="text-lg font-semibold">
-                  {stats.recent_participants} 人
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">最高学分</div>
-                <div className="text-lg font-semibold text-orange-600">
-                  {stats.max_credits || 0}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm font-medium">最低学分</div>
-                <div className="text-lg font-semibold text-blue-600">
-                  {stats.min_credits || 0}
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold text-primary">
+                    {stats.recent_participants}
+                  </div>
+                  <div className="text-sm text-muted-foreground">最近加入</div>
                 </div>
               </div>
             </div>

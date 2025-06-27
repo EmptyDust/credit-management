@@ -12,18 +12,37 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetUser 获取指定用户信息（基于角色的权限控制）
 func (h *UserHandler) GetUser(c *gin.Context) {
-	// 获取当前用户角色
-	currentUserRole := getCurrentUserRole(c)
-	if currentUserRole == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证", "data": nil})
+	userID := c.Param("id")
+	currentUserID := getCurrentUserID(c)
+	if userID == "" {
+		userID = currentUserID
+	}
+
+	var userType string
+	err := h.db.Table("users").Select("user_type").Where("user_id = ?", userID).Scan(&userType).Error
+	if err != nil || userType == "" {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
 		return
 	}
 
-	userID := c.Param("id")
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
+	if userID == currentUserID {
+		var result map[string]interface{}
+		var viewName string
+		switch userType {
+		case "student":
+			viewName = "student_complete_info"
+		case "teacher":
+			viewName = "teacher_complete_info"
+		default:
+
+			// 管理员等其他类型直接查users表所有字段
+			h.db.Table("users").Where("user_id = ?", userID).Find(&result)
+			c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": result})
+			return
+		}
+		h.db.Table(viewName).Where("user_id = ?", userID).Find(&result)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": result})
 		return
 	}
 
@@ -37,15 +56,13 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-	// 检查权限
+	currentUserRole := getCurrentUserRole(c)
 	if !canViewUserDetails(currentUserRole, user.UserType) {
 		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "权限不足", "data": nil})
 		return
 	}
 
-	// 根据角色转换响应
-	response := h.convertToRoleBasedResponse(user, currentUserRole, true)
-
+	response := h.convertToUserResponse(user)
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "success",
@@ -53,11 +70,9 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	})
 }
 
-// UpdateUser 更新用户信息
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
 
-	// 如果没有提供用户ID，则更新当前用户信息
 	if userID == "" {
 		claims, exists := c.Get("claims")
 		if !exists {
@@ -88,9 +103,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 更新基本信息
 	if req.Email != "" {
-		// 检查邮箱是否已被其他用户使用
 		var existingUser models.User
 		if err := h.db.Where("email = ? AND user_id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
 			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
@@ -111,9 +124,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		user.Status = req.Status
 	}
 
-	// 更新学生特有字段
 	if req.StudentID != nil {
-		// 检查学号是否已被其他用户使用
 		var existingUser models.User
 		if err := h.db.Where("student_id = ? AND user_id != ?", *req.StudentID, userID).First(&existingUser).Error; err == nil {
 			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
@@ -134,15 +145,11 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		user.Grade = req.Grade
 	}
 
-	// 更新教师特有字段
 	if req.Department != nil {
 		user.Department = req.Department
 	}
 	if req.Title != nil {
 		user.Title = req.Title
-	}
-	if req.Specialty != nil {
-		user.Specialty = req.Specialty
 	}
 
 	if err := h.db.Save(&user).Error; err != nil {
@@ -158,7 +165,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	})
 }
 
-// DeleteUser 删除用户
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
@@ -166,7 +172,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// 检查用户是否存在
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -177,7 +182,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// 软删除用户
 	if err := h.db.Delete(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除用户失败", "data": nil})
 		return
@@ -190,7 +194,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	})
 }
 
-// BatchDeleteUsers 批量删除用户
 func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 	var req struct {
 		UserIDs []string `json:"user_ids" binding:"required,min=1"`
@@ -201,7 +204,6 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 		return
 	}
 
-	// 检查用户是否存在
 	var users []models.User
 	if err := h.db.Where("user_id IN ?", req.UserIDs).Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
@@ -213,7 +215,6 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 		return
 	}
 
-	// 批量软删除用户
 	if err := h.db.Delete(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除用户失败", "data": nil})
 		return
@@ -226,7 +227,6 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 	})
 }
 
-// BatchUpdateUserStatus 批量更新用户状态
 func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 	var req struct {
 		UserIDs []string `json:"user_ids" binding:"required,min=1"`
@@ -238,7 +238,6 @@ func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 		return
 	}
 
-	// 批量更新用户状态
 	if err := h.db.Model(&models.User{}).Where("user_id IN ?", req.UserIDs).Update("status", req.Status).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量更新用户状态失败", "data": nil})
 		return
@@ -251,7 +250,6 @@ func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 	})
 }
 
-// ResetPassword 重置用户密码
 func (h *UserHandler) ResetPassword(c *gin.Context) {
 	var req struct {
 		UserID      string `json:"user_id" binding:"required"`
@@ -263,13 +261,11 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// 验证密码强度
-	if err := h.validatePassword(req.NewPassword); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error(), "data": nil})
+	if !models.ValidatePasswordComplexity(req.NewPassword) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
 		return
 	}
 
-	// 检查用户是否存在
 	var user models.User
 	if err := h.db.Where("user_id = ?", req.UserID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -280,14 +276,12 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// 加密新密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
 		return
 	}
 
-	// 更新密码
 	if err := h.db.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码重置失败", "data": nil})
 		return
@@ -300,7 +294,6 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	})
 }
 
-// ChangePassword 用户修改自己的密码
 func (h *UserHandler) ChangePassword(c *gin.Context) {
 	var req struct {
 		OldPassword string `json:"old_password" binding:"required"`
@@ -312,40 +305,34 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
 	userID := getCurrentUserID(c)
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证", "data": nil})
 		return
 	}
 
-	// 获取用户信息
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
 		return
 	}
 
-	// 验证旧密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "原密码错误", "data": nil})
 		return
 	}
 
-	// 验证新密码强度
-	if err := h.validatePassword(req.NewPassword); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error(), "data": nil})
+	if !models.ValidatePasswordComplexity(req.NewPassword) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
 		return
 	}
 
-	// 加密新密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
 		return
 	}
 
-	// 更新密码
 	if err := h.db.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码修改失败", "data": nil})
 		return
@@ -358,7 +345,6 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	})
 }
 
-// GetUserActivity 获取用户活动记录
 func (h *UserHandler) GetUserActivity(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
@@ -399,13 +385,11 @@ func (h *UserHandler) GetUserActivity(c *gin.Context) {
 	})
 }
 
-// ExportUsers 导出用户数据
 func (h *UserHandler) ExportUsers(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
 	userType := c.Query("user_type")
 	status := c.Query("status")
 
-	// 构建查询
 	query := h.db.Model(&models.User{})
 
 	if userType != "" {
@@ -429,7 +413,6 @@ func (h *UserHandler) ExportUsers(c *gin.Context) {
 			"data":    users,
 		})
 	case "csv":
-		// 这里可以实现CSV导出功能
 		c.JSON(http.StatusOK, gin.H{
 			"code":    0,
 			"message": "success",

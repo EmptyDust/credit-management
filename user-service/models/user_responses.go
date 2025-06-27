@@ -1,87 +1,43 @@
 package models
 
-import (
-	"time"
-)
-
-// StudentBasicResponse 学生基本信息响应（学生可查看其他学生的基本信息）
-type StudentBasicResponse struct {
-	UserID       string    `json:"user_id"`
-	Username     string    `json:"username"`
-	RealName     string    `json:"real_name"`
-	UserType     string    `json:"user_type"`
-	StudentID    *string   `json:"student_id,omitempty"`
-	College      *string   `json:"college,omitempty"`
-	Major        *string   `json:"major,omitempty"`
-	Class        *string   `json:"class,omitempty"`
-	Grade        *string   `json:"grade,omitempty"`
-	Status       string    `json:"status"`
-	Avatar       string    `json:"avatar"`
-	RegisterTime time.Time `json:"register_time"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+// ViewBasedSearchResponse 基于视图的搜索响应
+type ViewBasedSearchResponse struct {
+	Users      []map[string]interface{} `json:"users"`
+	Total      int64                    `json:"total"`
+	Page       int                      `json:"page"`
+	PageSize   int                      `json:"page_size"`
+	TotalPages int                      `json:"total_pages"`
+	ViewType   string                   `json:"view_type"`
 }
 
-// TeacherBasicResponse 教师基本信息响应（学生和教师可查看教师的基本信息）
-type TeacherBasicResponse struct {
-	UserID       string    `json:"user_id"`
-	Username     string    `json:"username"`
-	RealName     string    `json:"real_name"`
-	UserType     string    `json:"user_type"`
-	Department   *string   `json:"department,omitempty"`
-	Title        *string   `json:"title,omitempty"`
-	Status       string    `json:"status"`
-	Avatar       string    `json:"avatar"`
-	RegisterTime time.Time `json:"register_time"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+// UserStats 用户统计信息
+type UserStats struct {
+	TotalUsers     int64 `json:"total_users"`
+	ActiveUsers    int64 `json:"active_users"`
+	SuspendedUsers int64 `json:"suspended_users"`
+	StudentUsers   int64 `json:"student_users"`
+	TeacherUsers   int64 `json:"teacher_users"`
+	AdminUsers     int64 `json:"admin_users"`
+	NewUsersToday  int64 `json:"new_users_today"`
+	NewUsersWeek   int64 `json:"new_users_week"`
+	NewUsersMonth  int64 `json:"new_users_month"`
 }
 
-// StudentDetailResponse 学生详细信息响应（教师可查看学生的详细信息）
-type StudentDetailResponse struct {
-	UserID       string     `json:"user_id"`
-	Username     string     `json:"username"`
-	Email        string     `json:"email"`
-	Phone        string     `json:"phone"`
-	RealName     string     `json:"real_name"`
-	UserType     string     `json:"user_type"`
-	StudentID    *string    `json:"student_id,omitempty"`
-	College      *string    `json:"college,omitempty"`
-	Major        *string    `json:"major,omitempty"`
-	Class        *string    `json:"class,omitempty"`
-	Grade        *string    `json:"grade,omitempty"`
-	Status       string     `json:"status"`
-	Avatar       string     `json:"avatar"`
-	LastLoginAt  *time.Time `json:"last_login_at"`
-	RegisterTime time.Time  `json:"register_time"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+// StudentStats 学生统计信息
+type StudentStats struct {
+	TotalStudents     int64            `json:"total_students"`
+	ActiveStudents    int64            `json:"active_students"`
+	GraduatedStudents int64            `json:"graduated_students"`
+	StudentsByCollege map[string]int64 `json:"students_by_college"`
+	StudentsByMajor   map[string]int64 `json:"students_by_major"`
+	StudentsByGrade   map[string]int64 `json:"students_by_grade"`
 }
 
-// TeacherDetailResponse 教师详细信息响应（管理员可查看教师的详细信息）
-type TeacherDetailResponse struct {
-	UserID       string     `json:"user_id"`
-	Username     string     `json:"username"`
-	Email        string     `json:"email"`
-	Phone        string     `json:"phone"`
-	RealName     string     `json:"real_name"`
-	UserType     string     `json:"user_type"`
-	Department   *string    `json:"department,omitempty"`
-	Title        *string    `json:"title,omitempty"`
-	Specialty    *string    `json:"specialty,omitempty"`
-	Status       string     `json:"status"`
-	Avatar       string     `json:"avatar"`
-	LastLoginAt  *time.Time `json:"last_login_at"`
-	RegisterTime time.Time  `json:"register_time"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-}
-
-// RoleBasedSearchResponse 基于角色的搜索响应
-type RoleBasedSearchResponse struct {
-	Users      []interface{} `json:"users"`
-	Total      int64         `json:"total"`
-	Page       int           `json:"page"`
-	PageSize   int           `json:"page_size"`
-	TotalPages int           `json:"total_pages"`
+// TeacherStats 教师统计信息
+type TeacherStats struct {
+	TotalTeachers        int64            `json:"total_teachers"`
+	ActiveTeachers       int64            `json:"active_teachers"`
+	RetiredTeachers      int64            `json:"retired_teachers"`
+	TeachersByDepartment map[string]int64 `json:"teachers_by_department"`
+	TeachersByTitle      map[string]int64 `json:"teachers_by_title"`
 }

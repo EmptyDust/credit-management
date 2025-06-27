@@ -84,3 +84,10 @@ type RefreshTokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 	Message      string `json:"message"`
 }
+
+// TokenValidationWithClaimsResponse 带claims的Token验证响应
+type TokenValidationWithClaimsResponse struct {
+	Valid   bool                   `json:"valid"`
+	Claims  map[string]interface{} `json:"claims,omitempty"`
+	Message string                 `json:"message"`
+}

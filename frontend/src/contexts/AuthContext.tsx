@@ -93,7 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // 标准化用户对象
     const normalizedUser = {
       ...user,
-      userType: user.userType || user.user_type,
+      userType: user.userType,
       user_id: user.user_id || user.id,
       id: user.user_id || user.id, // 确保id字段也存在
     };

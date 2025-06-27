@@ -31,7 +31,6 @@ export interface Activity {
   end_date: string;
   status: ActivityStatus;
   category: ActivityCategory;
-  requirements: string;
   owner_id: string;
   owner_info?: UserInfo;
   reviewer_id?: string;
@@ -127,6 +126,7 @@ export interface Application {
   created_at: string;
   updated_at: string;
   activity?: ActivityInfo;
+  user_info?: UserInfo;
 }
 
 // 活动信息（用于申请）
@@ -139,13 +139,22 @@ export interface ActivityInfo {
   end_date: string;
 }
 
-// 用户信息
+// 用户信息（简化版，用于活动相关组件）
 export interface UserInfo {
   id: string;
   username: string;
-  name: string;
-  role: string;
+  real_name: string;
+  user_type?: 'student' | 'teacher' | 'admin';
   student_id?: string;
+  college?: string;
+  major?: string;
+  class?: string;
+  grade?: string;
+  department?: string;
+  title?: string;
+  // 向后兼容字段
+  name?: string;
+  role?: string;
 }
 
 // 活动统计

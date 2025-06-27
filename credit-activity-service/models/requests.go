@@ -4,12 +4,11 @@ import "time"
 
 // ActivityRequest 创建活动请求
 type ActivityRequest struct {
-	Title        string `json:"title" binding:"required"`
-	Description  string `json:"description"`
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	Category     string `json:"category"`
-	Requirements string `json:"requirements"`
+	Title       string `json:"title" binding:"required"`
+	Description string `json:"description"`
+	StartDate   string `json:"start_date"`
+	EndDate     string `json:"end_date"`
+	Category    string `json:"category"`
 
 	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
 	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
@@ -25,27 +24,25 @@ type BatchActivityRequest struct {
 
 // ActivityCreateResponse 活动创建响应
 type ActivityCreateResponse struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	StartDate    time.Time `json:"start_date"`
-	EndDate      time.Time `json:"end_date"`
-	Status       string    `json:"status"`
-	Category     string    `json:"category"`
-	Requirements string    `json:"requirements"`
-	OwnerID      string    `json:"owner_id"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	StartDate   time.Time `json:"start_date"`
+	EndDate     time.Time `json:"end_date"`
+	Status      string    `json:"status"`
+	Category    string    `json:"category"`
+	OwnerID     string    `json:"owner_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // ActivityUpdateRequest 活动更新请求
 type ActivityUpdateRequest struct {
-	Title        *string `json:"title"`
-	Description  *string `json:"description"`
-	StartDate    *string `json:"start_date"`
-	EndDate      *string `json:"end_date"`
-	Category     *string `json:"category"`
-	Requirements *string `json:"requirements"`
+	Title       *string `json:"title"`
+	Description *string `json:"description"`
+	StartDate   *string `json:"start_date"`
+	EndDate     *string `json:"end_date"`
+	Category    *string `json:"category"`
 
 	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
 	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
@@ -69,7 +66,6 @@ type ActivityResponse struct {
 	EndDate        time.Time             `json:"end_date"`
 	Status         string                `json:"status"`
 	Category       string                `json:"category"`
-	Requirements   string                `json:"requirements"`
 	OwnerID        string                `json:"owner_id"`
 	OwnerInfo      *UserInfo             `json:"owner_info,omitempty"`
 	ReviewerID     *string               `json:"reviewer_id"`
@@ -144,9 +140,21 @@ type ParticipantResponse struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Name      string `json:"name"`
-	Role      string `json:"role"`
-	StudentID string `json:"student_id"`
+	UserID     string `json:"user_id"`
+	Username   string `json:"username"`
+	RealName   string `json:"real_name"`
+	UserType   string `json:"user_type"`
+	Status     string `json:"status"`
+	StudentID  string `json:"student_id,omitempty"`
+	College    string `json:"college,omitempty"`
+	Major      string `json:"major,omitempty"`
+	Class      string `json:"class,omitempty"`
+	Grade      string `json:"grade,omitempty"`
+	Department string `json:"department,omitempty"`
+	Title      string `json:"title,omitempty"`
+
+	// 向后兼容的字段
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+	Role string `json:"role,omitempty"`
 }

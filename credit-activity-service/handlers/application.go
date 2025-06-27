@@ -13,19 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// ApplicationHandler 申请处理器
 type ApplicationHandler struct {
 	db *gorm.DB
 }
 
-// NewApplicationHandler 创建申请处理器
 func NewApplicationHandler(db *gorm.DB) *ApplicationHandler {
 	return &ApplicationHandler{db: db}
 }
 
-// GetUserApplications 获取用户申请列表
 func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -36,10 +32,8 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		return
 	}
 
-	// 获取认证令牌
 	authToken := c.GetHeader("Authorization")
 
-	// 获取查询参数
 	status := c.Query("status")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
@@ -50,15 +44,12 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 
 	query := h.db.Model(&models.Application{}).Where("user_id = ?", userID)
 
-	// 应用筛选条件
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
 
-	// 统计总数
 	query.Count(&total)
 
-	// 获取分页数据
 	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -68,9 +59,13 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.ApplicationResponse
 	for _, app := range applications {
+		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
@@ -89,11 +84,7 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 				StartDate:   app.Activity.StartDate,
 				EndDate:     app.Activity.EndDate,
 			},
-		}
-
-		// 获取用户信息
-		if userInfo, err := utils.GetUserInfo(app.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 
 		responses = append(responses, response)
@@ -106,7 +97,7 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		"message": "success",
 		"data": models.PaginatedResponse{
 			Data:       responses,
-			Total:      total,
+			Total:      int64(len(responses)), // 使用实际返回的记录数
 			Page:       page,
 			Limit:      limit,
 			TotalPages: totalPages,
@@ -114,7 +105,6 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 	})
 }
 
-// GetApplication 获取申请详情
 func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -126,7 +116,6 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -137,7 +126,6 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	// 获取认证令牌
 	authToken := c.GetHeader("Authorization")
 
 	userType, _ := c.Get("user_type")
@@ -160,11 +148,20 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：学生只能查看自己的申请
 	if userType == "student" && application.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
 			"message": "无权限查看此申请",
+			"data":    nil,
+		})
+		return
+	}
+
+	userInfo, err := utils.GetUserInfo(application.UserID, authToken)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "申请关联的用户不存在",
 			"data":    nil,
 		})
 		return
@@ -188,11 +185,7 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 			StartDate:   application.Activity.StartDate,
 			EndDate:     application.Activity.EndDate,
 		},
-	}
-
-	// 获取用户信息
-	if userInfo, err := utils.GetUserInfo(application.UserID, authToken); err == nil {
-		response.UserInfo = userInfo
+		UserInfo: userInfo,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -202,12 +195,9 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	})
 }
 
-// GetAllApplications 获取所有申请（教师/管理员）
 func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
-	// 获取认证令牌
 	authToken := c.GetHeader("Authorization")
 
-	// 获取查询参数
 	activityID := c.Query("activity_id")
 	userID := c.Query("user_id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -219,7 +209,6 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 
 	query := h.db.Model(&models.Application{})
 
-	// 应用筛选条件
 	if activityID != "" {
 		query = query.Where("activity_id = ?", activityID)
 	}
@@ -227,10 +216,8 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		query = query.Where("user_id = ?", userID)
 	}
 
-	// 统计总数
 	query.Count(&total)
 
-	// 获取分页数据
 	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -240,14 +227,13 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.ApplicationResponse
 	for _, app := range applications {
-		var userInfo *models.UserInfo
 		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
 		if err != nil {
-			userInfo = nil // 记录日志可选
+			continue
 		}
+
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
@@ -278,7 +264,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		"message": "success",
 		"data": models.PaginatedResponse{
 			Data:       responses,
-			Total:      total,
+			Total:      int64(len(responses)), // 使用实际返回的记录数
 			Page:       page,
 			Limit:      limit,
 			TotalPages: totalPages,
@@ -286,9 +272,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 	})
 }
 
-// GetApplicationStats 获取申请统计
 func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -301,7 +285,6 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 
 	var stats models.ApplicationStats
 
-	// 统计申请数量和学分
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Count(&stats.TotalApplications)
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(applied_credits), 0)").Scan(&stats.TotalCredits)
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.AwardedCredits)
@@ -313,12 +296,10 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 	})
 }
 
-// ExportApplications 导出申请数据
 func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userType, _ := c.Get("user_type")
 
-	// 获取查询参数
 	format := c.DefaultQuery("format", "csv")
 	activityID := c.Query("activity_id")
 	status := c.Query("status")
@@ -327,12 +308,10 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 
 	query := h.db.Model(&models.Application{})
 
-	// 权限过滤：学生只能导出自己的申请，教师/管理员可以导出所有申请
 	if userType == "student" {
 		query = query.Where("user_id = ?", userID)
 	}
 
-	// 应用筛选条件
 	if activityID != "" {
 		query = query.Where("activity_id = ?", activityID)
 	}
@@ -360,7 +339,6 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 		return
 	}
 
-	// 根据格式生成导出文件
 	switch format {
 	case "csv":
 		h.exportToCSV(c, applications)
@@ -375,16 +353,12 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 	}
 }
 
-// exportToCSV 导出为CSV格式
 func (h *ApplicationHandler) exportToCSV(c *gin.Context, applications []models.Application) {
-	// 设置响应头
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=applications.csv")
 
-	// 写入CSV头部
 	c.Writer.WriteString("申请ID,活动ID,用户ID,状态,申请学分,获得学分,提交时间,创建时间\n")
 
-	// 写入数据
 	for _, app := range applications {
 		line := fmt.Sprintf("%s,%s,%s,%s,%.2f,%.2f,%s,%s\n",
 			app.ID,
@@ -400,7 +374,6 @@ func (h *ApplicationHandler) exportToCSV(c *gin.Context, applications []models.A
 	}
 }
 
-// exportToExcel 导出为Excel格式
 func (h *ApplicationHandler) exportToExcel(c *gin.Context, applications []models.Application) {
 	// 这里应该使用Excel库生成Excel文件
 	// 暂时返回CSV格式

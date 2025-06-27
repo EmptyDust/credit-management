@@ -16,6 +16,16 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Handle FormData requests properly
+    if (config.data instanceof FormData) {
+      // Don't set Content-Type for FormData - let browser set it with boundary
+      delete config.headers['Content-Type'];
+    } else if (config.headers['Content-Type'] === 'multipart/form-data') {
+      // If explicitly set to multipart/form-data, remove it to let browser handle it
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -125,7 +135,7 @@ export const apiHelpers = {
     
     return apiClient.post(url, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Remove Content-Type header to let browser set it with boundary
       },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {

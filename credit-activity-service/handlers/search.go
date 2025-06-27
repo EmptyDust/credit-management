@@ -12,19 +12,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// SearchHandler 搜索处理器
 type SearchHandler struct {
 	db *gorm.DB
 }
 
-// NewSearchHandler 创建搜索处理器
 func NewSearchHandler(db *gorm.DB) *SearchHandler {
 	return &SearchHandler{db: db}
 }
 
-// SearchActivities 统一活动搜索API
 func (h *SearchHandler) SearchActivities(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -36,10 +32,8 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	}
 	userType, _ := c.Get("user_type")
 
-	// 构建搜索请求
 	var req models.ActivitySearchRequest
 
-	// 从查询参数获取搜索条件
 	req.Query = c.Query("query")
 	req.Category = c.Query("category")
 	req.Status = c.Query("status")
@@ -47,17 +41,14 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	req.StartDate = c.Query("start_date")
 	req.EndDate = c.Query("end_date")
 
-	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	req.Page = page
 	req.PageSize = pageSize
 
-	// 排序参数
 	req.SortBy = c.DefaultQuery("sort_by", "created_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
-	// 参数验证
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -65,7 +56,6 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		req.PageSize = 10
 	}
 
-	// 构建查询
 	dbQuery := h.db.Model(&models.CreditActivity{})
 
 	// 权限过滤：学生只能看到自己创建或参与的活动
@@ -73,12 +63,11 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
 	}
 
-	// 应用搜索条件
 	if req.Query != "" {
 		searchQuery := "%" + req.Query + "%"
 		dbQuery = dbQuery.Where(
-			"title ILIKE ? OR description ILIKE ? OR category ILIKE ? OR requirements ILIKE ?",
-			searchQuery, searchQuery, searchQuery, searchQuery,
+			"title ILIKE ? OR description ILIKE ? OR category ILIKE ?",
+			searchQuery, searchQuery, searchQuery,
 		)
 	}
 
@@ -106,11 +95,9 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		}
 	}
 
-	// 获取总数
 	var total int64
 	dbQuery.Count(&total)
 
-	// 排序
 	orderClause := req.SortBy
 	if req.SortOrder == "desc" {
 		orderClause += " DESC"
@@ -118,7 +105,6 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		orderClause += " ASC"
 	}
 
-	// 获取分页数据
 	offset := (req.Page - 1) * req.PageSize
 	var activities []models.CreditActivity
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&activities).Error; err != nil {
@@ -130,7 +116,6 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.ActivityResponse
 	for _, activity := range activities {
 		response := models.ActivityResponse{
@@ -141,7 +126,6 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 			EndDate:        activity.EndDate,
 			Status:         activity.Status,
 			Category:       activity.Category,
-			Requirements:   activity.Requirements,
 			OwnerID:        activity.OwnerID,
 			ReviewerID:     activity.ReviewerID,
 			ReviewComments: activity.ReviewComments,
@@ -170,9 +154,7 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	})
 }
 
-// SearchApplications 统一申请搜索API
 func (h *SearchHandler) SearchApplications(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -184,13 +166,10 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	}
 	userType, _ := c.Get("user_type")
 
-	// 获取认证令牌
 	authToken := c.GetHeader("Authorization")
 
-	// 构建搜索请求
 	var req models.ApplicationSearchRequest
 
-	// 从查询参数获取搜索条件
 	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
 	req.UserID = c.Query("user_id")
@@ -200,17 +179,14 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
-	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	req.Page = page
 	req.PageSize = pageSize
 
-	// 排序参数
 	req.SortBy = c.DefaultQuery("sort_by", "submitted_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
-	// 参数验证
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -218,17 +194,13 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		req.PageSize = 10
 	}
 
-	// 构建查询
 	dbQuery := h.db.Model(&models.Application{}).Preload("Activity")
 
-	// 权限过滤：学生只能看到自己的申请
 	if userType == "student" {
 		dbQuery = dbQuery.Where("user_id = ?", userID)
 	}
 
-	// 应用搜索条件
 	if req.Query != "" {
-		// 通过活动信息搜索
 		searchQuery := "%" + req.Query + "%"
 		dbQuery = dbQuery.Joins("JOIN credit_activities ON applications.activity_id = credit_activities.id").
 			Where("credit_activities.title ILIKE ? OR credit_activities.description ILIKE ? OR credit_activities.category ILIKE ?",
@@ -271,11 +243,9 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		}
 	}
 
-	// 获取总数
 	var total int64
 	dbQuery.Count(&total)
 
-	// 排序
 	orderClause := req.SortBy
 	if req.SortOrder == "desc" {
 		orderClause += " DESC"
@@ -283,7 +253,6 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		orderClause += " ASC"
 	}
 
-	// 获取分页数据
 	offset := (req.Page - 1) * req.PageSize
 	var applications []models.Application
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&applications).Error; err != nil {
@@ -295,9 +264,13 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.ApplicationResponse
 	for _, app := range applications {
+		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
@@ -308,6 +281,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 			SubmittedAt:    app.SubmittedAt,
 			CreatedAt:      app.CreatedAt,
 			UpdatedAt:      app.UpdatedAt,
+			UserInfo:       userInfo,
 			Activity: models.ActivityInfo{
 				ID:          app.Activity.ID,
 				Title:       app.Activity.Title,
@@ -316,11 +290,6 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 				StartDate:   app.Activity.StartDate,
 				EndDate:     app.Activity.EndDate,
 			},
-		}
-
-		// 获取用户信息
-		if userInfo, err := utils.GetUserInfo(app.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
 		}
 
 		responses = append(responses, response)
@@ -342,9 +311,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	})
 }
 
-// SearchParticipants 统一参与者搜索API
 func (h *SearchHandler) SearchParticipants(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -356,30 +323,24 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	}
 	userType, _ := c.Get("user_type")
 
-	// 获取认证令牌
 	authToken := c.GetHeader("Authorization")
 
-	// 构建搜索请求
 	var req models.ParticipantSearchRequest
 
-	// 从查询参数获取搜索条件
 	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
 	req.UserID = c.Query("user_id")
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
-	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	req.Page = page
 	req.PageSize = pageSize
 
-	// 排序参数
 	req.SortBy = c.DefaultQuery("sort_by", "joined_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
-	// 参数验证
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -387,15 +348,12 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		req.PageSize = 10
 	}
 
-	// 构建查询
 	dbQuery := h.db.Model(&models.ActivityParticipant{})
 
-	// 权限过滤：学生只能看到自己参与的活动
 	if userType == "student" {
 		dbQuery = dbQuery.Where("user_id = ?", userID)
 	}
 
-	// 应用搜索条件
 	if req.ActivityID != "" {
 		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
 	}
@@ -416,11 +374,9 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		}
 	}
 
-	// 获取总数
 	var total int64
 	dbQuery.Count(&total)
 
-	// 排序
 	orderClause := req.SortBy
 	if req.SortOrder == "desc" {
 		orderClause += " DESC"
@@ -428,7 +384,6 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		orderClause += " ASC"
 	}
 
-	// 获取分页数据
 	offset := (req.Page - 1) * req.PageSize
 	var participants []models.ActivityParticipant
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&participants).Error; err != nil {
@@ -440,18 +395,18 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.ParticipantResponse
 	for _, participant := range participants {
+		userInfo, err := utils.GetUserInfo(participant.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ParticipantResponse{
 			UserID:   participant.UserID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
-		}
-
-		// 获取用户信息
-		if userInfo, err := utils.GetUserInfo(participant.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 
 		responses = append(responses, response)
@@ -473,9 +428,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	})
 }
 
-// SearchAttachments 统一附件搜索API
 func (h *SearchHandler) SearchAttachments(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -487,10 +440,8 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	}
 	userType, _ := c.Get("user_type")
 
-	// 构建搜索请求
 	var req models.AttachmentSearchRequest
 
-	// 从查询参数获取搜索条件
 	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
 	req.UploaderID = c.Query("uploader_id")
@@ -499,17 +450,14 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	req.MinSize = c.Query("min_size")
 	req.MaxSize = c.Query("max_size")
 
-	// 分页参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	req.Page = page
 	req.PageSize = pageSize
 
-	// 排序参数
 	req.SortBy = c.DefaultQuery("sort_by", "uploaded_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
-	// 参数验证
 	if req.Page < 1 {
 		req.Page = 1
 	}
@@ -517,7 +465,6 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		req.PageSize = 10
 	}
 
-	// 构建查询
 	dbQuery := h.db.Model(&models.Attachment{})
 
 	// 权限过滤：学生只能看到自己创建或参与活动的附件
@@ -525,7 +472,6 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		dbQuery = dbQuery.Where("uploaded_by = ? OR activity_id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
 	}
 
-	// 应用搜索条件
 	if req.Query != "" {
 		searchQuery := "%" + req.Query + "%"
 		dbQuery = dbQuery.Where("file_name ILIKE ? OR original_name ILIKE ? OR description ILIKE ?",
@@ -560,11 +506,9 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		}
 	}
 
-	// 获取总数
 	var total int64
 	dbQuery.Count(&total)
 
-	// 排序
 	orderClause := req.SortBy
 	if req.SortOrder == "desc" {
 		orderClause += " DESC"
@@ -572,7 +516,6 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		orderClause += " ASC"
 	}
 
-	// 获取分页数据
 	offset := (req.Page - 1) * req.PageSize
 	var attachments []models.Attachment
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&attachments).Error; err != nil {
@@ -584,10 +527,8 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		return
 	}
 
-	// 构建响应数据
 	var responses []models.AttachmentResponse
 
-	// 获取认证令牌用于调用用户服务
 	authToken := c.GetHeader("Authorization")
 
 	for _, attachment := range attachments {
@@ -629,7 +570,6 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	})
 }
 
-// convertToInterfaceSlice 将任意类型的切片转换为interface{}切片
 func (h *SearchHandler) convertToInterfaceSlice(slice interface{}) []interface{} {
 	switch v := slice.(type) {
 	case []models.ActivityResponse:

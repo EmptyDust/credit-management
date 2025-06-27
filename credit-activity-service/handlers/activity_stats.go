@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetActivityStats 获取活动统计
 func (h *ActivityHandler) GetActivityStats(c *gin.Context) {
 	var stats models.ActivityStats
 
@@ -33,7 +32,6 @@ func (h *ActivityHandler) GetActivityStats(c *gin.Context) {
 	})
 }
 
-// GetActivityCategories 获取活动类别
 func (h *ActivityHandler) GetActivityCategories(c *gin.Context) {
 	categories := models.GetActivityCategories()
 
@@ -48,43 +46,37 @@ func (h *ActivityHandler) GetActivityCategories(c *gin.Context) {
 	})
 }
 
-// GetActivityTemplates 获取活动模板
 func (h *ActivityHandler) GetActivityTemplates(c *gin.Context) {
 	templates := []gin.H{
 		{
-			"name":         "创新创业实践活动",
-			"category":     models.CategoryInnovation,
-			"title":        "创新创业实践活动",
-			"description":  "参与创新创业项目，提升创新能力和实践技能",
-			"requirements": "需要提交项目计划书和成果展示",
+			"name":        "创新创业实践活动",
+			"category":    models.CategoryInnovation,
+			"title":       "创新创业实践活动",
+			"description": "参与创新创业项目，提升创新能力和实践技能",
 		},
 		{
-			"name":         "学科竞赛",
-			"category":     models.CategoryCompetition,
-			"title":        "学科竞赛活动",
-			"description":  "参加各类学科竞赛，提升专业能力和竞争意识",
-			"requirements": "需要获得竞赛证书或奖项证明",
+			"name":        "学科竞赛",
+			"category":    models.CategoryCompetition,
+			"title":       "学科竞赛活动",
+			"description": "参加各类学科竞赛，提升专业能力和竞争意识",
 		},
 		{
-			"name":         "大学生创业项目",
-			"category":     models.CategoryEntrepreneurship,
-			"title":        "大学生创业项目",
-			"description":  "参与大学生创业项目，培养创业精神和实践能力",
-			"requirements": "需要提交创业项目计划和成果",
+			"name":        "大学生创业项目",
+			"category":    models.CategoryEntrepreneurship,
+			"title":       "大学生创业项目",
+			"description": "参与大学生创业项目，培养创业精神和实践能力",
 		},
 		{
-			"name":         "创业实践项目",
-			"category":     models.CategoryPractice,
-			"title":        "创业实践项目",
-			"description":  "参与创业实践项目，积累创业经验和实践技能",
-			"requirements": "需要提交实践报告和成果展示",
+			"name":        "创业实践项目",
+			"category":    models.CategoryPractice,
+			"title":       "创业实践项目",
+			"description": "参与创业实践项目，积累创业经验和实践技能",
 		},
 		{
-			"name":         "论文专利",
-			"category":     models.CategoryPaperPatent,
-			"title":        "论文专利活动",
-			"description":  "发表论文或申请专利，提升学术研究能力",
-			"requirements": "需要提交论文或专利证书",
+			"name":        "论文专利",
+			"category":    models.CategoryPaperPatent,
+			"title":       "论文专利活动",
+			"description": "发表论文或申请专利，提升学术研究能力",
 		},
 	}
 
@@ -95,7 +87,6 @@ func (h *ActivityHandler) GetActivityTemplates(c *gin.Context) {
 	})
 }
 
-// GetActivityReport 获取活动统计报表
 func (h *ActivityHandler) GetActivityReport(c *gin.Context) {
 	reportType := c.DefaultQuery("type", "monthly")
 	startDate := c.Query("start_date")
@@ -125,7 +116,6 @@ func (h *ActivityHandler) GetActivityReport(c *gin.Context) {
 			return
 		}
 	} else {
-		// 默认查询最近30天
 		end = time.Now()
 		start = end.AddDate(0, 0, -30)
 	}

@@ -12,6 +12,7 @@ import {
   Settings,
   Menu,
   Award,
+  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// 定义菜单项配置
 const getMenuItems = (userType: string) => {
   const baseItems = [
     { label: "仪表板", icon: Home, path: "/dashboard" },
@@ -30,12 +30,10 @@ const getMenuItems = (userType: string) => {
     { label: "申请列表", icon: FileText, path: "/applications" },
   ];
 
-  // 只有教师和管理员可以看到学生管理
   if (userType === "teacher" || userType === "admin") {
     baseItems.push({ label: "学生列表", icon: Users, path: "/students" });
   }
 
-  // 只有管理员可以看到教师管理
   if (userType === "admin") {
     baseItems.push({ label: "教师列表", icon: BookUser, path: "/teachers" });
   }

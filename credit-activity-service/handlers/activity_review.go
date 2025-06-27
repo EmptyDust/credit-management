@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// SubmitActivity 提交活动审核
 func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -23,7 +22,6 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -52,7 +50,6 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者可以提交审核
 	if activity.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -62,7 +59,6 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	// 只有草稿状态的活动可以提交审核
 	if activity.Status != models.StatusDraft {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -72,7 +68,6 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	// 更新状态为待审核
 	if err := h.db.Model(&activity).Update("status", models.StatusPendingReview).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -92,7 +87,6 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 	})
 }
 
-// ReviewActivity 审核活动
 func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -104,7 +98,6 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -143,8 +136,6 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	// 允许审核待审核、已通过、已拒绝状态的活动
-	// 教师可以修改审核状态，包括将已通过改为拒绝，或将已拒绝改为通过
 	if activity.Status != models.StatusPendingReview &&
 		activity.Status != models.StatusApproved &&
 		activity.Status != models.StatusRejected {
@@ -156,7 +147,6 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	// 更新审核信息
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":          req.Status,
@@ -187,9 +177,7 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	})
 }
 
-// GetPendingActivities 获取待审核活动
 func (h *ActivityHandler) GetPendingActivities(c *gin.Context) {
-	// 获取查询参数
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	offset := (page - 1) * limit
@@ -199,10 +187,8 @@ func (h *ActivityHandler) GetPendingActivities(c *gin.Context) {
 
 	query := h.db.Where("status = ?", models.StatusPendingReview)
 
-	// 统计总数
 	query.Model(&models.CreditActivity{}).Count(&total)
 
-	// 获取分页数据
 	if err := query.Offset(offset).Limit(limit).Order("created_at DESC").Find(&activities).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -227,7 +213,6 @@ func (h *ActivityHandler) GetPendingActivities(c *gin.Context) {
 	})
 }
 
-// WithdrawActivity 撤回活动
 func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 	id := c.Param("id")
 	userID, _ := c.Get("user_id")
@@ -250,7 +235,6 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者可以撤回
 	if activity.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -260,7 +244,6 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	// 检查活动状态：只有非草稿状态的活动可以撤回
 	if activity.Status == models.StatusDraft {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -270,7 +253,6 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	// 撤回活动到草稿状态
 	activity.Status = models.StatusDraft
 	activity.ReviewerID = nil
 	activity.ReviewComments = ""

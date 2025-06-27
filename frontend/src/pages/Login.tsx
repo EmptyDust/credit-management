@@ -52,11 +52,11 @@ export default function Login() {
     setLoginError("");
     try {
       const response = await apiClient.post("/auth/login", values);
-      
+
       // 检查响应格式
       if (response.data && response.data.code === 0 && response.data.data) {
         const { token, refresh_token, user } = response.data.data;
-        
+
         if (token && user) {
           // 转换用户数据格式以匹配前端接口
           const normalizedUser = {
@@ -74,8 +74,8 @@ export default function Login() {
             createdAt: user.created_at,
             updatedAt: user.updated_at,
           };
-          
-          login(token, refresh_token || '', normalizedUser);
+
+          login(token, refresh_token || "", normalizedUser);
           navigate("/dashboard");
         } else {
           setLoginError("登录响应格式错误");
@@ -85,11 +85,11 @@ export default function Login() {
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      
+
       // 处理不同类型的错误
       if (err.response) {
         const { status, data } = err.response;
-        
+
         switch (status) {
           case 401:
             setLoginError("用户名或密码错误");
@@ -100,10 +100,12 @@ export default function Login() {
           case 422:
             // 验证错误
             if (data.errors && Array.isArray(data.errors)) {
-              const errorMessages = data.errors.map((err: any) => err.message || err.field).join(', ');
+              const errorMessages = data.errors
+                .map((err: any) => err.message || err.field)
+                .join(", ");
               setLoginError(`数据验证失败: ${errorMessages}`);
             } else {
-              setLoginError(data.message || data.error || '数据验证失败');
+              setLoginError(data.message || data.error || "数据验证失败");
             }
             break;
           case 500:
@@ -208,12 +210,6 @@ export default function Login() {
                 >
                   创建新账号
                 </Link>
-                <Link
-                  to="#"
-                  className="text-primary hover:underline transition-colors"
-                >
-                  忘记密码？
-                </Link>
               </div>
             </CardContent>
             <CardFooter>
@@ -240,4 +236,4 @@ export default function Login() {
       </Card>
     </div>
   );
-} 
+}

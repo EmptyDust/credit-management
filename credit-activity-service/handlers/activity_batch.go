@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BatchDeleteActivities 批量删除活动
 func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 	var req struct {
 		ActivityIDs []string `json:"activity_ids" binding:"required"`
@@ -27,7 +26,6 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -40,7 +38,6 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 使用存储过程批量删除活动
 	var deletedCount int
 	err := h.db.Raw("SELECT batch_delete_activities(?, ?, ?)", req.ActivityIDs, userID, userType).Scan(&deletedCount).Error
 
@@ -53,18 +50,15 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		return
 	}
 
-	// 删除活动相关的物理文件
 	for _, activityID := range req.ActivityIDs {
 		var attachments []models.Attachment
 		if err := h.db.Where("activity_id = ? AND deleted_at IS NOT NULL", activityID).Find(&attachments).Error; err == nil {
 			for _, attachment := range attachments {
-				// 检查是否有其他活动使用相同的文件
 				var otherAttachmentsCount int64
 				h.db.Model(&models.Attachment{}).
 					Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).
 					Count(&otherAttachmentsCount)
 
-				// 如果没有其他活动使用该文件，则删除物理文件
 				if otherAttachmentsCount == 0 {
 					filePath := filepath.Join("uploads/attachments", attachment.FileName)
 					if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
@@ -88,7 +82,6 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 	})
 }
 
-// GetDeletableActivities 获取用户可删除的活动列表
 func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -102,7 +95,6 @@ func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 使用存储过程获取可删除的活动列表
 	var activities []struct {
 		ActivityID  string    `json:"activity_id"`
 		Title       string    `json:"title"`
@@ -135,7 +127,6 @@ func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
 	})
 }
 
-// BatchCreateActivities 批量创建活动
 func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 	var req models.BatchActivityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -187,14 +178,13 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 			continue
 		}
 		activity := models.CreditActivity{
-			Title:        activityReq.Title,
-			Description:  activityReq.Description,
-			StartDate:    startDate,
-			EndDate:      endDate,
-			Status:       models.StatusDraft,
-			Category:     activityReq.Category,
-			Requirements: activityReq.Requirements,
-			OwnerID:      userID.(string),
+			Title:       activityReq.Title,
+			Description: activityReq.Description,
+			StartDate:   startDate,
+			EndDate:     endDate,
+			Status:      models.StatusDraft,
+			Category:    activityReq.Category,
+			OwnerID:     userID.(string),
 		}
 		if err := tx.Create(&activity).Error; err != nil {
 			errors = append(errors, fmt.Sprintf("第%d个活动创建失败: %s", i+1, err.Error()))
@@ -234,17 +224,16 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 			}
 		}
 		response := models.ActivityCreateResponse{
-			ID:           activity.ID,
-			Title:        activity.Title,
-			Description:  activity.Description,
-			StartDate:    activity.StartDate,
-			EndDate:      activity.EndDate,
-			Status:       activity.Status,
-			Category:     activity.Category,
-			Requirements: activity.Requirements,
-			OwnerID:      activity.OwnerID,
-			CreatedAt:    activity.CreatedAt,
-			UpdatedAt:    activity.UpdatedAt,
+			ID:          activity.ID,
+			Title:       activity.Title,
+			Description: activity.Description,
+			StartDate:   activity.StartDate,
+			EndDate:     activity.EndDate,
+			Status:      activity.Status,
+			Category:    activity.Category,
+			OwnerID:     activity.OwnerID,
+			CreatedAt:   activity.CreatedAt,
+			UpdatedAt:   activity.UpdatedAt,
 		}
 		createdActivities = append(createdActivities, response)
 	}
@@ -284,9 +273,7 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 	})
 }
 
-// BatchUpdateActivities 新增BatchUpdateActivities，支持主表和详情表的批量更新
 func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -324,47 +311,78 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 			continue
 		}
 
-		// 权限检查：只有活动创建者和管理员可以更新活动
 		if activity.OwnerID != userID && userType != "admin" {
 			errors = append(errors, fmt.Sprintf("第%d个活动无权限更新", i+1))
 			continue
 		}
 
-		// 状态检查：只有草稿状态的活动可以修改（管理员除外）
 		if activity.Status != models.StatusDraft && userType != "admin" {
 			errors = append(errors, fmt.Sprintf("第%d个活动状态不允许修改", i+1))
 			continue
 		}
 
-		// 主表字段更新
 		if upd.Main.Title != nil {
 			activity.Title = *upd.Main.Title
 		}
 		if upd.Main.Description != nil {
 			activity.Description = *upd.Main.Description
 		}
+
+		var newStartDate, newEndDate time.Time
+		var err error
+
 		if upd.Main.StartDate != nil {
-			if t, err := h.parseSingleDate(*upd.Main.StartDate); err == nil {
-				activity.StartDate = t
+			newStartDate, err = h.parseSingleDate(*upd.Main.StartDate)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("第%d个活动开始日期格式错误: %s", i+1, err.Error()))
+				continue
 			}
+		}
+
+		if upd.Main.EndDate != nil {
+			newEndDate, err = h.parseSingleDate(*upd.Main.EndDate)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("第%d个活动结束日期格式错误: %s", i+1, err.Error()))
+				continue
+			}
+		}
+
+		var compareStartDate, compareEndDate time.Time
+
+		if upd.Main.StartDate != nil {
+			compareStartDate = newStartDate
+		} else {
+			compareStartDate = activity.StartDate
+		}
+
+		if upd.Main.EndDate != nil {
+			compareEndDate = newEndDate
+		} else {
+			compareEndDate = activity.EndDate
+		}
+
+		if !compareStartDate.IsZero() && !compareEndDate.IsZero() && compareStartDate.After(compareEndDate) {
+			errors = append(errors, fmt.Sprintf("第%d个活动开始日期不能晚于结束日期", i+1))
+			continue
+		}
+
+		// 更新日期字段
+		if upd.Main.StartDate != nil {
+			activity.StartDate = newStartDate
 		}
 		if upd.Main.EndDate != nil {
-			if t, err := h.parseSingleDate(*upd.Main.EndDate); err == nil {
-				activity.EndDate = t
-			}
+			activity.EndDate = newEndDate
 		}
+
 		if upd.Main.Category != nil {
 			activity.Category = *upd.Main.Category
 		}
-		if upd.Main.Requirements != nil {
-			activity.Requirements = *upd.Main.Requirements
-		}
+
 		if err := tx.Save(&activity).Error; err != nil {
 			errors = append(errors, fmt.Sprintf("第%d个活动主表更新失败", i+1))
 			continue
 		}
 
-		// 记录成功更新的活动
 		updatedActivities = append(updatedActivities, models.ActivityCreateResponse{
 			ID:        activity.ID,
 			Title:     activity.Title,
@@ -372,7 +390,6 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 			CreatedAt: activity.CreatedAt,
 		})
 
-		// 详情表字段更新
 		switch activity.Category {
 		case "创新创业实践活动":
 			if upd.Main.InnovationDetail != nil {

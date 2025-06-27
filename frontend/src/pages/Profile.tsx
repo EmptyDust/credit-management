@@ -121,26 +121,17 @@ const majors: Record<string, { value: string; label: string }[]> = {
 };
 
 const profileSchema = z.object({
-  username: z.string().min(1, "用户名不能为空").max(50, "用户名最多50个字符"),
-  email: z.string().email("请输入有效的邮箱地址"),
+  username: z.string().optional(),
+  email: z.string().email("请输入有效的邮箱地址").optional(),
   phone: z.string().optional(),
-  real_name: z
-    .string()
-    .min(1, "真实姓名不能为空")
-    .max(50, "真实姓名最多50个字符"),
-  student_id: z
-    .string()
-    .min(8, "学号必须是8位数字")
-    .max(8, "学号必须是8位数字")
-    .regex(/^\d{8}$/, "学号必须是8位数字")
-    .optional(),
+  real_name: z.string().optional(),
+  student_id: z.string().optional(),
   college: z.string().optional(),
   major: z.string().optional(),
   class: z.string().optional(),
   grade: z.string().optional(),
   department: z.string().optional(),
   title: z.string().optional(),
-  specialty: z.string().optional(),
 });
 
 const passwordSchema = z
@@ -175,7 +166,6 @@ type UserProfile = {
   // Teacher specific fields
   department?: string;
   title?: string;
-  specialty?: string;
 };
 
 export default function ProfilePage() {
@@ -205,7 +195,6 @@ export default function ProfilePage() {
       grade: "",
       department: "",
       title: "",
-      specialty: "",
     },
   });
 
@@ -237,7 +226,6 @@ export default function ProfilePage() {
           grade: profileData.grade || "",
           department: profileData.department || "",
           title: profileData.title || "",
-          specialty: profileData.specialty || "",
           student_id: profileData.student_id || "",
         });
       } catch (err) {
@@ -289,7 +277,6 @@ export default function ProfilePage() {
         grade: profile.grade || "",
         department: profile.department || "",
         title: profile.title || "",
-        specialty: profile.specialty || "",
         student_id: profile.student_id || "",
       });
     }
@@ -904,28 +891,6 @@ export default function ProfilePage() {
                           <Award className="h-5 w-5 text-muted-foreground" />
                           <div className="flex-1">
                             <FormLabel>职称</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                disabled={!isEditing}
-                                className="mt-1"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </div>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="specialty"
-                    render={({ field }) => (
-                      <FormItem className="md:col-span-2">
-                        <div className="flex items-center gap-4">
-                          <GraduationCap className="h-5 w-5 text-muted-foreground" />
-                          <div className="flex-1">
-                            <FormLabel>专业领域</FormLabel>
                             <FormControl>
                               <Input
                                 {...field}

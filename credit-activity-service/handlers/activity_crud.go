@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateActivity 创建活动
 func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 	var req models.ActivityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -26,7 +25,6 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -37,7 +35,6 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	// 业务验证
 	if req.Title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -56,7 +53,6 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	// 验证活动类别
 	if req.Category != "" {
 		validCategories := models.GetActivityCategories()
 		categoryValid := false
@@ -76,12 +72,10 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		}
 	}
 
-	// 解析日期 - 支持多种格式
 	var startDate, endDate time.Time
 	var err error
 
 	if req.StartDate != "" {
-		// 尝试多种日期格式
 		dateFormats := []string{
 			"2006-01-02T15:04:05Z",
 			"2006-01-02T15:04:05",
@@ -108,7 +102,6 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 	}
 
 	if req.EndDate != "" {
-		// 尝试多种日期格式
 		dateFormats := []string{
 			"2006-01-02T15:04:05Z",
 			"2006-01-02T15:04:05",
@@ -134,7 +127,6 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		}
 	}
 
-	// 验证日期逻辑
 	if !startDate.IsZero() && !endDate.IsZero() && startDate.After(endDate) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -144,16 +136,14 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	// 创建活动
 	activity := models.CreditActivity{
-		Title:        req.Title,
-		Description:  req.Description,
-		StartDate:    startDate,
-		EndDate:      endDate,
-		Status:       models.StatusDraft,
-		Category:     req.Category,
-		Requirements: req.Requirements,
-		OwnerID:      userID.(string),
+		Title:       req.Title,
+		Description: req.Description,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Status:      models.StatusDraft,
+		Category:    req.Category,
+		OwnerID:     userID.(string),
 	}
 
 	if err := h.db.Create(&activity).Error; err != nil {
@@ -216,18 +206,15 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 	})
 }
 
-// GetActivities 获取活动列表
 func (h *ActivityHandler) GetActivities(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userType, _ := c.Get("user_type")
 
-	// 获取查询参数
 	query := c.Query("query")
 	status := c.Query("status")
 	category := c.Query("category")
 	ownerID := c.Query("owner_id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	// 修复：优先使用page_size参数，如果没有则兼容limit参数
 	pageSizeStr := c.DefaultQuery("page_size", "")
 	limit := 10
 	if pageSizeStr != "" {
@@ -244,17 +231,15 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 
 	// 权限过滤：学生只能看到自己创建或参与的活动，教师可以看到所有活动
 	if userType == "student" {
-		// 学生只能看到自己创建的活动或参与的活动
 		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
 	}
 
-	// 应用筛选条件
 	if query != "" {
-		// 关键词搜索：支持标题、描述、类别、要求的模糊搜索
+		// 关键词搜索：支持标题、描述、类别的模糊搜索
 		searchQuery := "%" + query + "%"
 		dbQuery = dbQuery.Where(
-			"title ILIKE ? OR description ILIKE ? OR category ILIKE ? OR requirements ILIKE ?",
-			searchQuery, searchQuery, searchQuery, searchQuery,
+			"title ILIKE ? OR description ILIKE ? OR category ILIKE ?",
+			searchQuery, searchQuery, searchQuery,
 		)
 	}
 	if status != "" {
@@ -279,10 +264,8 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 		return
 	}
 
-	// 构建响应
 	var responses []models.ActivityResponse
 
-	// 获取当前用户的认证令牌
 	authToken := ""
 	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 		authToken = authHeader
@@ -306,7 +289,6 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 	})
 }
 
-// GetActivity 获取活动详情
 func (h *ActivityHandler) GetActivity(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -318,7 +300,6 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -349,10 +330,8 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：学生只能查看自己创建或参与的活动
 	if userType == "student" {
 		if activity.OwnerID != userID {
-			// 检查是否为参与者
 			var participant models.ActivityParticipant
 			if err := h.db.Where("activity_id = ? AND user_id = ?", id, userID).First(&participant).Error; err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -365,13 +344,11 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		}
 	}
 
-	// 获取当前用户的认证令牌
 	authToken := ""
 	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 		authToken = authHeader
 	}
 
-	// 使用 enrichActivityResponse 来添加详情字段
 	response := h.enrichActivityResponse(activity, authToken)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -381,7 +358,6 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 	})
 }
 
-// UpdateActivity 更新活动
 func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -393,7 +369,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -406,7 +381,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 获取活动信息
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", id).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -425,7 +399,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者和管理员可以更新
 	if activity.OwnerID != userID && userType != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -435,7 +408,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 状态检查：只有草稿状态的活动可以修改
 	if activity.Status != models.StatusDraft && userType != "admin" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -465,7 +437,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 解析日期
 	var startDate, endDate time.Time
 	var err error
 
@@ -493,8 +464,21 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		}
 	}
 
-	// 验证日期逻辑
-	if !startDate.IsZero() && !endDate.IsZero() && startDate.After(endDate) {
+	var compareStartDate, compareEndDate time.Time
+
+	if req.StartDate != nil {
+		compareStartDate = startDate
+	} else {
+		compareStartDate = activity.StartDate
+	}
+
+	if req.EndDate != nil {
+		compareEndDate = endDate
+	} else {
+		compareEndDate = activity.EndDate
+	}
+
+	if !compareStartDate.IsZero() && !compareEndDate.IsZero() && compareStartDate.After(compareEndDate) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": "开始日期不能晚于结束日期",
@@ -503,7 +487,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 更新活动信息
 	updateFields := make(map[string]interface{})
 
 	if req.Title != nil {
@@ -539,12 +522,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		updateFields["category"] = *req.Category
 	}
 
-	if req.Requirements != nil {
-		activity.Requirements = *req.Requirements
-		updateFields["requirements"] = *req.Requirements
-	}
-
-	// 如果没有要更新的字段，返回错误
 	if len(updateFields) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -554,7 +531,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 更新活动
 	if err := h.db.Save(&activity).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -564,7 +540,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	// 更新详情表
 	switch activity.Category {
 	case "创新创业实践活动":
 		if req.InnovationDetail != nil {
@@ -628,7 +603,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		}
 	}
 
-	// 构建响应数据
 	response := h.enrichActivityResponse(activity, "")
 
 	c.JSON(http.StatusOK, gin.H{
@@ -638,7 +612,6 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 	})
 }
 
-// DeleteActivity 删除活动
 func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
@@ -650,7 +623,6 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -663,7 +635,6 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 使用存储过程删除活动（包含权限检查和级联删除）
 	var result string
 	err := h.db.Raw("SELECT delete_activity_with_permission_check(?, ?, ?)", id, userID, userType).Scan(&result).Error
 
@@ -676,9 +647,7 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	// 检查存储过程的返回结果
 	if result != "活动删除成功" {
-		// 根据返回的错误信息设置相应的HTTP状态码
 		switch result {
 		case "活动不存在或已删除":
 			c.JSON(http.StatusNotFound, gin.H{
