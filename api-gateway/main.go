@@ -210,13 +210,40 @@ func (m *PermissionMiddleware) StudentOnly() gin.HandlerFunc {
 		if userType != "student" {
 			c.JSON(http.StatusForbidden, gin.H{
 				"code":    403,
-				"message": "需要学生权限",
+				"message": "权限不足",
 				"data":    nil,
 			})
 			c.Abort()
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// ActivityOwnerOrTeacherOrAdmin 活动所有者或教师或管理员权限
+func (m *PermissionMiddleware) ActivityOwnerOrTeacherOrAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userType, exists := c.Get("user_type")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code":    401,
+				"message": "未认证",
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
+
+		// 教师或管理员直接通过
+		if userType == "teacher" || userType == "admin" {
+			c.Next()
+			return
+		}
+
+		// 对于学生，需要检查是否为活动所有者
+		// 由于API网关无法直接访问数据库，我们将这个检查放在具体的handler中
+		// 这个中间件主要用于路由级别的权限控制
 		c.Next()
 	}
 }
@@ -354,7 +381,6 @@ func main() {
 		teachers.Use(permissionMiddleware.AdminOnly())
 		{
 			teachers.POST("", createProxyHandler(config.UserServiceURL))
-			teachers.GET("/:id", createProxyHandler(config.UserServiceURL))
 			teachers.PUT("/:id", createProxyHandler(config.UserServiceURL))
 			teachers.DELETE("/:id", createProxyHandler(config.UserServiceURL))
 		}
@@ -379,15 +405,15 @@ func main() {
 			activities.POST("/:id/submit", createProxyHandler(config.CreditActivityServiceURL))
 			activities.POST("/:id/withdraw", createProxyHandler(config.CreditActivityServiceURL))
 			activities.POST("/:id/copy", createProxyHandler(config.CreditActivityServiceURL))
-			activities.GET("/:id/my-activities", createProxyHandler(config.CreditActivityServiceURL))
+			activities.POST("", createProxyHandler(config.CreditActivityServiceURL))
+			activities.PUT("/:id", createProxyHandler(config.CreditActivityServiceURL))
 
 			// 教师或管理员路由
 			teacherOrAdmin := activities.Group("")
 			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
 			{
-				teacherOrAdmin.POST("", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
-				teacherOrAdmin.PUT("/:id", createProxyHandler(config.CreditActivityServiceURL))
+				teacherOrAdmin.PUT("/batch", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.POST("/:id/review", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.GET("/pending", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.POST("/:id/save-template", createProxyHandler(config.CreditActivityServiceURL))
@@ -398,7 +424,6 @@ func main() {
 				teacherOrAdmin.GET("/excel-template", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.GET("/export", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.GET("/report", createProxyHandler(config.CreditActivityServiceURL))
-				teacherOrAdmin.PUT("/batch", createProxyHandler(config.CreditActivityServiceURL))
 			}
 
 			// 管理员路由
@@ -414,35 +439,43 @@ func main() {
 				participants.GET("", createProxyHandler(config.CreditActivityServiceURL))
 				participants.GET("/stats", createProxyHandler(config.CreditActivityServiceURL))
 				participants.GET("/export", createProxyHandler(config.CreditActivityServiceURL))
-				participants.POST("/leave", createProxyHandler(config.CreditActivityServiceURL))
+				participants.GET("/my-activities", createProxyHandler(config.CreditActivityServiceURL))
 
-				// 教师或管理员路由
-				teacherOrAdminParticipants := participants.Group("")
-				teacherOrAdminParticipants.Use(permissionMiddleware.TeacherOrAdmin())
+				// 活动所有者或教师或管理员路由
+				ownerOrTeacherOrAdminParticipants := participants.Group("")
+				ownerOrTeacherOrAdminParticipants.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
 				{
-					teacherOrAdminParticipants.POST("", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminParticipants.PUT("/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminParticipants.PUT("/:user_id/credits", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminParticipants.DELETE("/:user_id", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminParticipants.POST("/batch-remove", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.POST("", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.PUT("/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.PUT("/:user_id/credits", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.DELETE("/:user_id", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.POST("/batch-remove", createProxyHandler(config.CreditActivityServiceURL))
+				}
+
+				// 学生路由
+				studentOnly := participants.Group("")
+				studentOnly.Use(permissionMiddleware.StudentOnly())
+				{
+					studentOnly.POST("/leave", createProxyHandler(config.CreditActivityServiceURL))
 				}
 			}
 
 			// 附件管理路由
 			attachments := activities.Group("/:id/attachments")
+			attachments.Use(authMiddleware.AuthRequired())
 			{
 				attachments.GET("", createProxyHandler(config.CreditActivityServiceURL))
 				attachments.GET("/:attachment_id/download", createProxyHandler(config.CreditActivityServiceURL))
 				attachments.GET("/:attachment_id/preview", createProxyHandler(config.CreditActivityServiceURL))
 
-				// 教师或管理员路由
-				teacherOrAdminAttachments := attachments.Group("")
-				teacherOrAdminAttachments.Use(permissionMiddleware.TeacherOrAdmin())
+				// 活动所有者或教师或管理员路由
+				ownerOrTeacherOrAdminAttachments := attachments.Group("")
+				ownerOrTeacherOrAdminAttachments.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
 				{
-					teacherOrAdminAttachments.POST("", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminAttachments.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminAttachments.PUT("/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
-					teacherOrAdminAttachments.DELETE("/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminAttachments.POST("", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminAttachments.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminAttachments.PUT("/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminAttachments.DELETE("/:attachment_id", createProxyHandler(config.CreditActivityServiceURL))
 				}
 			}
 		}
@@ -455,7 +488,13 @@ func main() {
 			applications.GET("/:id", createProxyHandler(config.CreditActivityServiceURL))
 			applications.GET("/stats", createProxyHandler(config.CreditActivityServiceURL))
 			applications.GET("/export", createProxyHandler(config.CreditActivityServiceURL))
-			applications.GET("/all", createProxyHandler(config.CreditActivityServiceURL))
+
+			// 教师或管理员路由
+			teacherOrAdmin := applications.Group("")
+			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
+			{
+				teacherOrAdmin.GET("/all", createProxyHandler(config.CreditActivityServiceURL))
+			}
 		}
 
 		// 统一检索API路由组（需要认证）

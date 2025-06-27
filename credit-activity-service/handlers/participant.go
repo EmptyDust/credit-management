@@ -53,10 +53,10 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		return
 	}
 
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "权限不足，只有活动创建者或管理员可以添加参与者",
+			"message": "权限不足，只有活动创建者、教师或管理员可以添加参与者",
 			"data":    nil,
 		})
 		return
@@ -163,10 +163,10 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 		return
 	}
 
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "权限不足，只有活动创建者或管理员可以设置学分",
+			"message": "权限不足，只有活动创建者、教师或管理员可以设置学分",
 			"data":    nil,
 		})
 		return
@@ -250,10 +250,10 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 		return
 	}
 
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "权限不足，只有活动创建者或管理员可以设置学分",
+			"message": "权限不足，只有活动创建者、教师或管理员可以设置学分",
 			"data":    nil,
 		})
 		return
@@ -331,10 +331,10 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "权限不足，只有活动创建者或管理员可以删除参与者",
+			"message": "权限不足，只有活动创建者、教师或管理员可以删除参与者",
 			"data":    nil,
 		})
 		return
@@ -489,10 +489,10 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 		return
 	}
 
-	if activity.OwnerID != userID && userType != "admin" {
+	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
-			"message": "权限不足，只有活动创建者或管理员可以批量删除参与者",
+			"message": "权限不足，只有活动创建者、教师或管理员可以批量删除参与者",
 			"data":    nil,
 		})
 		return

@@ -96,7 +96,6 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=credit_management
       - DB_SSLMODE=disable
-      - AUTH_SERVICE_URL=http://auth-service:8081
     depends_on:
       postgres:
         condition: service_healthy

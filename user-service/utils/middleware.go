@@ -1,108 +1,63 @@
 package utils
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type RemoteAuthMiddleware struct {
-	authServiceURL string
+type HeaderAuthMiddleware struct{}
+
+func NewHeaderAuthMiddleware() *HeaderAuthMiddleware {
+	return &HeaderAuthMiddleware{}
 }
 
-func NewRemoteAuthMiddleware(authServiceURL string) *RemoteAuthMiddleware {
-	return &RemoteAuthMiddleware{
-		authServiceURL: authServiceURL,
-	}
-}
-
-// AuthRequired 认证中间件（调用auth服务验证）
-func (m *RemoteAuthMiddleware) AuthRequired() gin.HandlerFunc {
+// AuthRequired 认证中间件（从请求头获取用户信息）
+func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "缺少认证令牌", "data": nil})
+		// 检查是否为内部服务通信
+		internalService := c.GetHeader("X-Internal-Service")
+		if internalService != "" {
+			// 内部服务通信，设置系统用户信息
+			c.Set("user_id", "system")
+			c.Set("username", "system")
+			c.Set("user_type", "admin")
+			c.Set("claims", jwt.MapClaims{
+				"user_id":   "system",
+				"username":  "system",
+				"user_type": "admin",
+			})
+			c.Next()
+			return
+		}
+
+		// 从请求头获取用户信息（由API网关传递）
+		userID := c.GetHeader("X-User-ID")
+		username := c.GetHeader("X-Username")
+		userType := c.GetHeader("X-User-Type")
+
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "缺少用户信息", "data": nil})
 			c.Abort()
 			return
 		}
 
-		// 检查Bearer前缀
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的认证格式", "data": nil})
-			c.Abort()
-			return
+		// 创建claims对象
+		claims := jwt.MapClaims{
+			"user_id":   userID,
+			"username":  username,
+			"user_type": userType,
 		}
 
-		// 调用auth服务验证token
-		claims, err := m.validateTokenWithAuthService(authHeader)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "认证失败: " + err.Error(), "data": nil})
-			c.Abort()
-			return
-		}
-
-		// 将claims存储到上下文中
+		// 将用户信息存储到上下文中
+		c.Set("user_id", userID)
+		c.Set("username", username)
+		c.Set("user_type", userType)
 		c.Set("claims", claims)
+
 		c.Next()
 	}
-}
-
-// validateTokenWithAuthService 调用auth服务验证token
-func (m *RemoteAuthMiddleware) validateTokenWithAuthService(authHeader string) (jwt.MapClaims, error) {
-	// 创建请求到auth服务
-	req, err := http.NewRequest("POST", m.authServiceURL+"/api/auth/validate-token-with-claims", nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %v", err)
-	}
-
-	// 设置请求头
-	req.Header.Set("Authorization", authHeader)
-	req.Header.Set("Content-Type", "application/json")
-
-	// 发送请求
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求auth服务失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// 解析响应
-	var response struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    struct {
-			Valid   bool                   `json:"valid"`
-			Claims  map[string]interface{} `json:"claims"`
-			Message string                 `json:"message"`
-		} `json:"data"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %v", err)
-	}
-
-	// 检查响应状态
-	if resp.StatusCode != http.StatusOK || response.Code != 0 {
-		return nil, fmt.Errorf("auth服务验证失败: %s", response.Message)
-	}
-
-	// 检查token是否有效
-	if !response.Data.Valid {
-		return nil, fmt.Errorf("token无效: %s", response.Data.Message)
-	}
-
-	// 将claims转换为jwt.MapClaims
-	claims := jwt.MapClaims{}
-	for key, value := range response.Data.Claims {
-		claims[key] = value
-	}
-
-	return claims, nil
 }
 
 type PermissionMiddleware struct{}
