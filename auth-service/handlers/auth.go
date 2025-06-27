@@ -26,7 +26,6 @@ func NewAuthHandler(db *gorm.DB, jwtSecret string) *AuthHandler {
 	}
 }
 
-// Login 用户登录
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.UserLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -34,26 +33,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 查找用户
 	var user models.User
 	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户名或密码错误", "data": nil})
 		return
 	}
 
-	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户名或密码错误", "data": nil})
 		return
 	}
 
-	// 检查用户状态
 	if user.Status != "active" {
 		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "账户未激活", "data": nil})
 		return
 	}
 
-	// 更新最后登录时间
 	now := time.Now()
 	h.db.Model(&user).Update("last_login_at", &now)
 
@@ -71,7 +66,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 构建响应
 	userResponse := models.UserResponse{
 		UserID:       user.UserID,
 		Username:     user.Username,
@@ -86,7 +80,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		UpdatedAt:    user.UpdatedAt,
 	}
 
-	// 安全地设置指针字段
 	if user.Phone != nil {
 		userResponse.Phone = *user.Phone
 	}
@@ -361,6 +354,72 @@ func (h *AuthHandler) ValidatePermission(c *gin.Context) {
 	})
 }
 
+// ValidateTokenWithClaims 验证token并返回claims信息（供其他服务调用）
+func (h *AuthHandler) ValidateTokenWithClaims(c *gin.Context) {
+	// 从请求头获取token
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未提供认证令牌", "data": nil})
+		return
+	}
+
+	// 检查Bearer前缀
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "认证令牌格式错误", "data": nil})
+		return
+	}
+
+	tokenString := authHeader[7:]
+
+	// 解析JWT token
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(h.jwtSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的认证令牌", "data": nil})
+		return
+	}
+
+	// 获取claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的token claims", "data": nil})
+		return
+	}
+
+	// 验证用户是否存在且状态正常
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token中的用户ID无效", "data": nil})
+		return
+	}
+
+	// 查找用户
+	var user models.User
+	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在", "data": nil})
+		return
+	}
+
+	// 检查用户状态
+	if user.Status != "active" {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "账户未激活", "data": nil})
+		return
+	}
+
+	// 返回验证成功和claims信息
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "success",
+		"data": models.TokenValidationWithClaimsResponse{
+			Valid:   true,
+			Claims:  claims,
+			Message: "token验证成功",
+		},
+	})
+}
+
 // generateToken 生成JWT token
 func (h *AuthHandler) generateToken(user models.User) (string, error) {
 	claims := jwt.MapClaims{
@@ -375,7 +434,6 @@ func (h *AuthHandler) generateToken(user models.User) (string, error) {
 	return token.SignedString([]byte(h.jwtSecret))
 }
 
-// generateRefreshToken 生成refresh token
 func (h *AuthHandler) generateRefreshToken(user models.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": user.UserID,
@@ -388,13 +446,10 @@ func (h *AuthHandler) generateRefreshToken(user models.User) (string, error) {
 	return token.SignedString([]byte(h.jwtSecret))
 }
 
-// InitializeAdminUser 初始化默认管理员用户
 func InitializeAdminUser(db *gorm.DB) error {
-	// Check if admin user exists
 	var userCount int64
 	db.Model(&models.User{}).Where("username = ?", "admin").Count(&userCount)
 	if userCount == 0 {
-		// Create admin user
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("adminpassword"), bcrypt.DefaultCost)
 		adminUser := models.User{
 			Username: "admin",

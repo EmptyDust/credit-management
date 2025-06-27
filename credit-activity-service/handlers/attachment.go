@@ -29,7 +29,6 @@ func NewAttachmentHandler(db *gorm.DB) *AttachmentHandler {
 	return &AttachmentHandler{db: db}
 }
 
-// GetAttachments 获取活动附件列表
 func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
@@ -41,7 +40,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -54,7 +52,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -73,10 +70,8 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：学生只能查看自己创建或参与的活动
 	if userType == "student" {
 		if activity.OwnerID != userID {
-			// 检查是否为参与者
 			var participant models.ActivityParticipant
 			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -88,14 +83,11 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 			}
 		}
 	}
-	// 教师和管理员可以查看所有活动的附件，无需额外权限检查
 
-	// 获取查询参数
 	category := c.Query("category")
 	fileType := c.Query("file_type")
 	uploadedBy := c.Query("uploaded_by")
 
-	// 构建查询
 	query := h.db.Model(&models.Attachment{}).Where("activity_id = ? AND deleted_at IS NULL", activityID)
 
 	if category != "" {
@@ -108,7 +100,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		query = query.Where("uploaded_by = ?", uploadedBy)
 	}
 
-	// 获取附件列表
 	var attachments []models.Attachment
 	if err := query.Order("uploaded_at DESC").Find(&attachments).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -119,13 +110,11 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	// 构建响应
 	var responses []models.AttachmentResponse
 	var totalSize int64
 	categoryCount := make(map[string]int64)
 	fileTypeCount := make(map[string]int64)
 
-	// 获取认证令牌用于调用用户服务
 	authToken := c.GetHeader("Authorization")
 
 	for _, attachment := range attachments {
@@ -144,20 +133,17 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 			DownloadURL:   fmt.Sprintf("/api/activities/%s/attachments/%s/download", activityID, attachment.ID),
 		}
 
-		// 获取上传者信息
 		if userInfo, err := utils.GetUserInfo(attachment.UploadedBy, authToken); err == nil {
 			response.Uploader = *userInfo
 		}
 
 		responses = append(responses, response)
 
-		// 统计信息
 		totalSize += attachment.FileSize
 		categoryCount[attachment.FileCategory]++
 		fileTypeCount[attachment.FileType]++
 	}
 
-	// 构建统计信息
 	stats := models.AttachmentStats{
 		TotalCount:    int64(len(attachments)),
 		TotalSize:     totalSize,
@@ -175,7 +161,6 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 	})
 }
 
-// UploadAttachment 上传单个附件
 func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
@@ -187,7 +172,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -200,7 +184,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -219,7 +202,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者和管理员可以上传附件
 	if userType != "admin" && activity.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -229,7 +211,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 获取上传的文件
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -241,10 +222,8 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// 获取文件描述
 	description := c.PostForm("description")
 
-	// 验证文件
 	if err := h.validateFile(header); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -267,9 +246,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 
 	md5Hash := fmt.Sprintf("%x", md5.Sum(fileBytes))
 
-	// 生成存储文件名
 	fileExt := filepath.Ext(header.Filename)
-	// fileName := fmt.Sprintf("%s_%d%s", md5Hash[:8], time.Now().Unix(), fileExt)
 
 	// 创建存储目录
 	uploadDir := "uploads/attachments"
@@ -282,8 +259,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 保存文件（如果物理文件已存在则跳过写入）
-	// filePath := filepath.Join(uploadDir, fileName)
 	md5FilePath := filepath.Join(uploadDir, md5Hash+fileExt)
 	if _, err := os.Stat(md5FilePath); os.IsNotExist(err) {
 		if err := os.WriteFile(md5FilePath, fileBytes, 0644); err != nil {
@@ -296,7 +271,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		}
 	}
 
-	// 创建附件记录（每次都插入新记录，哪怕md5_hash一样）
 	attachment := models.Attachment{
 		ActivityID:   activityID,
 		FileName:     md5Hash + fileExt, // 物理文件名统一用md5+ext
@@ -319,7 +293,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 构建响应
 	response := models.AttachmentResponse{
 		ID:            attachment.ID,
 		ActivityID:    attachment.ActivityID,
@@ -342,7 +315,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	})
 }
 
-// BatchUploadAttachments 批量上传附件
 func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
@@ -354,7 +326,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -367,7 +338,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -386,7 +356,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者和管理员可以上传附件
 	if userType != "admin" && activity.OwnerID != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -396,7 +365,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 获取上传的文件
 	form, err := c.MultipartForm()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -417,7 +385,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 检查文件数量限制
 	if len(files) > models.MaxBatchUploadCount {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
@@ -427,7 +394,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	// 创建存储目录
 	uploadDir := "uploads/attachments"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -442,7 +408,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 	successCount := 0
 	failCount := 0
 
-	// 开始事务
 	tx := h.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -567,7 +532,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 	})
 }
 
-// DownloadAttachment 下载附件
 func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	attachmentID := c.Param("attachment_id")
@@ -592,9 +556,7 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	userType, _ := c.Get("user_type")
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -613,10 +575,10 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：学生只能下载自己创建或参与的活动的附件
+	userType, _ := c.Get("user_type")
+
 	if userType == "student" {
 		if activity.OwnerID != userID {
-			// 检查是否为参与者
 			var participant models.ActivityParticipant
 			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -628,9 +590,7 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 			}
 		}
 	}
-	// 教师和管理员可以下载所有活动的附件，无需额外权限检查
 
-	// 获取附件信息
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -649,7 +609,6 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 检查文件是否存在
 	filePath := filepath.Join("uploads/attachments", attachment.FileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -660,13 +619,10 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	// 更新下载次数
 	h.db.Model(&attachment).Update("download_count", attachment.DownloadCount+1)
 
-	// 设置响应头
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", attachment.OriginalName))
 
-	// 根据文件类型设置正确的Content-Type
 	contentType := "application/octet-stream"
 	if attachment.FileType != "" {
 		switch strings.ToLower(attachment.FileType) {
@@ -696,11 +652,9 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	c.Header("Content-Type", contentType)
 	c.Header("Content-Length", strconv.FormatInt(attachment.FileSize, 10))
 
-	// 发送文件
 	c.File(filePath)
 }
 
-// PreviewAttachment 预览附件
 func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	attachmentID := c.Param("attachment_id")
@@ -714,7 +668,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -727,7 +680,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -746,10 +698,8 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：学生只能预览自己创建或参与的活动的附件
 	if userType == "student" {
 		if activity.OwnerID != userID {
-			// 检查是否为参与者
 			var participant models.ActivityParticipant
 			if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
 				c.JSON(http.StatusForbidden, gin.H{
@@ -761,9 +711,7 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 			}
 		}
 	}
-	// 教师和管理员可以预览所有活动的附件，无需额外权限检查
 
-	// 获取附件信息
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -782,7 +730,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	// 检查文件是否存在
 	filePath := filepath.Join("uploads/attachments", attachment.FileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -793,7 +740,6 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	// 根据文件类型设置正确的Content-Type用于预览
 	contentType := "application/octet-stream"
 	if attachment.FileType != "" {
 		switch strings.ToLower(attachment.FileType) {
@@ -832,16 +778,13 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		}
 	}
 
-	// 设置预览响应头（不设置Content-Disposition为attachment，允许浏览器直接显示）
 	c.Header("Content-Type", contentType)
 	c.Header("Content-Length", strconv.FormatInt(attachment.FileSize, 10))
 	c.Header("Cache-Control", "public, max-age=3600") // 缓存1小时
 
-	// 发送文件
 	c.File(filePath)
 }
 
-// UpdateAttachment 更新附件信息
 func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	attachmentID := c.Param("attachment_id")
@@ -855,7 +798,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -868,7 +810,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 获取附件信息
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -887,7 +828,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有上传者和管理员可以更新附件信息
 	if userType != "admin" && attachment.UploadedBy != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -907,7 +847,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	// 更新附件信息
 	attachment.Description = req.Description
 	if err := h.db.Save(&attachment).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -918,7 +857,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	// 构建响应
 	response := models.AttachmentResponse{
 		ID:            attachment.ID,
 		ActivityID:    attachment.ActivityID,
@@ -941,7 +879,6 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 	})
 }
 
-// DeleteAttachment 删除附件
 func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	attachmentID := c.Param("attachment_id")
@@ -955,7 +892,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -968,7 +904,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 
 	userType, _ := c.Get("user_type")
 
-	// 获取附件信息
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -987,7 +922,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有上传者和管理员可以删除附件
 	if userType != "admin" && attachment.UploadedBy != userID {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -997,13 +931,11 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// 检查是否有其他活动使用相同的文件
 	var otherAttachmentsCount int64
 	h.db.Model(&models.Attachment{}).
 		Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).
 		Count(&otherAttachmentsCount)
 
-	// 软删除附件记录
 	if err := h.db.Delete(&attachment).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -1013,7 +945,6 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	// 如果没有其他活动使用该文件，则删除物理文件
 	if otherAttachmentsCount == 0 {
 		filePath := filepath.Join("uploads/attachments", attachment.FileName)
 		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {

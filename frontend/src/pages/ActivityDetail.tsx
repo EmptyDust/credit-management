@@ -91,7 +91,7 @@ export default function ActivityDetailPage() {
     user &&
     activity &&
     user.user_id === activity.owner_id &&
-    activity?.status === "pending_review";
+    activity?.status !== "draft";
   const canReview =
     (user?.userType === "teacher" || user?.userType === "admin") &&
     (activity?.status === "pending_review" ||
@@ -128,6 +128,18 @@ export default function ActivityDetailPage() {
 
   const handleSave = async (basicInfo: any, detailInfo: any) => {
     if (!activity) return;
+
+    // 验证日期
+    if (basicInfo.start_date && basicInfo.end_date) {
+      const startDate = new Date(basicInfo.start_date);
+      const endDate = new Date(basicInfo.end_date);
+
+      if (endDate <= startDate) {
+        toast.error("结束时间必须在开始时间之后");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -136,7 +148,6 @@ export default function ActivityDetailPage() {
         title: basicInfo.title || activity.title,
         description: basicInfo.description || activity.description,
         category: basicInfo.category || activity.category,
-        requirements: basicInfo.requirements || activity.requirements,
       };
 
       // 处理日期字段，转换为正确的格式

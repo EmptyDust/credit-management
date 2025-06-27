@@ -17,7 +17,6 @@ func NewAuthMiddleware(jwtSecret string) *AuthMiddleware {
 	return &AuthMiddleware{jwtSecret: jwtSecret}
 }
 
-// AuthRequired 认证中间件
 func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -81,7 +80,6 @@ func NewPermissionMiddleware(db *gorm.DB) *PermissionMiddleware {
 	return &PermissionMiddleware{db: db}
 }
 
-// 只保留基于user_type的权限控制
 func (m *PermissionMiddleware) RequireUserType(userType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userTypeFromToken, exists := c.Get("user_type")

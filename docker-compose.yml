@@ -32,6 +32,7 @@ services:
       - CREDIT_ACTIVITY_SERVICE_URL=http://credit-activity-service:8083
       - AUTH_SERVICE_URL=http://auth-service:8081
       - USER_SERVICE_URL=http://user-service:8084
+      - JWT_SECRET=your-secret-key
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,7 +96,7 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=credit_management
       - DB_SSLMODE=disable
-      - JWT_SECRET=your-secret-key
+      - AUTH_SERVICE_URL=http://auth-service:8081
     depends_on:
       postgres:
         condition: service_healthy

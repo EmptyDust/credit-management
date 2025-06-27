@@ -174,7 +174,6 @@ MIT
 - real_name: 真实姓名（必需）
 - department: 部门（必需）
 - title: 职称（必需）
-- specialty: 专业领域
 
 > 以上 CSV 导入功能均已在后端实现，前端页面和交互尚未开发。
 

@@ -1,7 +1,4 @@
 import { useState, useEffect } from "react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
@@ -14,19 +11,9 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -36,18 +23,13 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Pagination } from "@/components/ui/pagination";
 import apiClient from "@/lib/api";
-import userService from "@/lib/userService";
 import {
   Search,
   Eye,
-  FileText,
-  Upload,
   Download,
   Filter,
   RefreshCw,
@@ -55,11 +37,12 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  Trash2,
   File,
   Image,
   FileVideo,
   FileAudio,
+  FileText,
+  User,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -78,9 +61,28 @@ interface Application {
   review_time?: string;
   applied_credits: number;
   approved_credits: number;
-  details: string;
   attachments?: string; // JSON string of attachments
   user_id?: string; // 用户ID，用于查询用户信息
+  user_info?: {
+    username: string;
+    name: string;
+    student_id?: string;
+    college?: string;
+    major?: string;
+    class?: string;
+    grade?: string;
+    user_type?: string;
+  };
+  activity?: {
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    owner_id: string;
+  };
 }
 
 interface ApplicationAttachment {
@@ -94,49 +96,6 @@ interface ApplicationAttachment {
   description: string;
   download_url: string;
 }
-
-interface Affair {
-  id: string;
-  name: string;
-  description?: string;
-  max_credits?: number;
-}
-
-interface CreateApplicationForm {
-  affair_id: string;
-  details: string;
-  applied_credits: number;
-}
-
-interface ReviewApplicationForm {
-  status: "approved" | "rejected";
-  review_comment: string;
-  approved_credits: number;
-}
-
-const createApplicationSchema = z.object({
-  affair_id: z.string().min(1, "请选择事务类型"),
-  details: z
-    .string()
-    .min(10, "详情至少10个字符")
-    .max(1000, "详情不能超过1000个字符"),
-  applied_credits: z
-    .number()
-    .min(0.5, "申请学分至少0.5")
-    .max(10, "申请学分最多10"),
-});
-
-const reviewApplicationSchema = z.object({
-  status: z.enum(["approved", "rejected"]),
-  review_comment: z
-    .string()
-    .min(1, "请填写审核意见")
-    .max(500, "审核意见不能超过500个字符"),
-  approved_credits: z
-    .number()
-    .min(0, "批准学分不能为负数")
-    .max(10, "批准学分最多10"),
-});
 
 const getFileIcon = (filename: string) => {
   const ext = filename.split(".").pop()?.toLowerCase();
@@ -174,17 +133,11 @@ const formatFileSize = (bytes: number) => {
 export default function ApplicationsPage() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
-  const [affairs, setAffairs] = useState<Affair[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [isDetailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [isReviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [isUploading, setIsUploading] = useState(false);
   const [selectedAppAttachments, setSelectedAppAttachments] = useState<
     ApplicationAttachment[]
   >([]);
@@ -195,27 +148,13 @@ export default function ApplicationsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const createForm = useForm<CreateApplicationForm>({
-    resolver: zodResolver(createApplicationSchema),
-    defaultValues: { affair_id: "", details: "", applied_credits: 1 },
-  });
-
-  const reviewForm = useForm<ReviewApplicationForm>({
-    resolver: zodResolver(reviewApplicationSchema),
-    defaultValues: {
-      status: "approved",
-      review_comment: "",
-      approved_credits: 0,
-    },
-  });
-
-  // 解析附件JSON字符串
   const parseAttachments = (
     attachmentsJson: string
   ): ApplicationAttachment[] => {
     try {
-      return attachmentsJson ? JSON.parse(attachmentsJson) : [];
-    } catch {
+      return JSON.parse(attachmentsJson);
+    } catch (error) {
+      console.error("Failed to parse attachments:", error);
       return [];
     }
   };
@@ -287,56 +226,11 @@ export default function ApplicationsPage() {
         review_time: app.reviewed_at || app.review_time,
         applied_credits: app.applied_credits,
         approved_credits: app.awarded_credits || app.approved_credits,
-        details: app.details || "",
         attachments: app.attachments,
         user_id: app.user_id,
+        user_info: app.user_info,
+        activity: app.activity,
       }));
-
-      // 检查是否有缺失的用户信息，如果有则补充
-      const applicationsWithMissingInfo = processedApplications.filter(
-        (app: any) => !app.student_name || !app.student_number
-      );
-
-      if (applicationsWithMissingInfo.length > 0) {
-        try {
-          const userIds = applicationsWithMissingInfo
-            .map((app: any) => app.user_id)
-            .filter(Boolean);
-
-          if (userIds.length > 0) {
-            const users = await userService.getUsersByIds(userIds);
-            const userMap = new Map(users.map((u) => [u.id, u]));
-
-            const enrichedApplications = processedApplications.map(
-              (app: any) => {
-                const userInfo = userMap.get(app.user_id);
-                if (userInfo && (!app.student_name || !app.student_number)) {
-                  return {
-                    ...app,
-                    student_name: app.student_name || userInfo.real_name || "",
-                    student_number:
-                      app.student_number || userInfo.student_id || "",
-                  };
-                }
-                return app;
-              }
-            );
-
-            setApplications(enrichedApplications);
-
-            // 更新分页信息
-            setTotalItems(paginationData.total);
-            setTotalPages(paginationData.total_pages);
-            setCurrentPage(paginationData.page);
-            // 不要从API响应更新pageSize，保持用户设置的值
-            // setPageSize(paginationData.page_size);
-
-            return;
-          }
-        } catch (userError) {
-          console.warn("Failed to fetch user info:", userError);
-        }
-      }
 
       setApplications(processedApplications);
 
@@ -344,44 +238,11 @@ export default function ApplicationsPage() {
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
       setCurrentPage(paginationData.page);
-      // 不要从API响应更新pageSize，保持用户设置的值
-      // setPageSize(paginationData.page_size);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
       toast.error("获取申请列表失败");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchAffairs = async () => {
-    try {
-      const response = await apiClient.get("/activities");
-      console.log("Activities response:", response.data); // 调试日志
-
-      // 正确处理后端返回的数据结构
-      let activities = [];
-      if (response.data.code === 0 && response.data.data) {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          // 分页数据结构
-          activities = response.data.data.data;
-        } else if (Array.isArray(response.data.data)) {
-          // 直接数组结构
-          activities = response.data.data;
-        }
-      }
-
-      setAffairs(
-        activities.map((activity: any) => ({
-          id: activity.id,
-          name: activity.title,
-          description: activity.description,
-          max_credits: activity.max_credits || 1,
-        }))
-      );
-    } catch (err) {
-      console.error("Failed to fetch activities:", err);
-      toast.error("获取活动列表失败");
     }
   };
 
@@ -405,103 +266,57 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     fetchApplications();
-    fetchAffairs();
   }, [user]);
 
-  const handleCreateApplication = async (values: CreateApplicationForm) => {
-    if (uploadingFiles.length === 0) {
-      toast.error("请至少上传一个文件");
-      return;
-    }
+  // 本地搜索过滤功能
+  const filteredApplications = applications.filter((app) => {
+    if (!searchTerm) return true;
 
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
+    const searchLower = searchTerm.toLowerCase();
 
-      const formData = new FormData();
-      formData.append("affair_id", values.affair_id);
-      formData.append("student_id", user?.id || "");
-      formData.append("user_id", user?.id || "");
-      formData.append("details", values.details);
-      formData.append("applied_credits", values.applied_credits.toString());
+    // 搜索申请人姓名
+    if (app.user_info?.name?.toLowerCase().includes(searchLower)) return true;
+    if (app.student_name?.toLowerCase().includes(searchLower)) return true;
 
-      // Add files
-      uploadingFiles.forEach((file) => {
-        formData.append(`files`, file);
-      });
-
-      await apiClient.post("/applications", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const progress = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            setUploadProgress(progress);
-          }
-        },
-      });
-
-      setCreateDialogOpen(false);
-      createForm.reset();
-      setUploadingFiles([]);
-      setUploadProgress(0);
-      fetchApplications(currentPage, pageSize);
-      toast.success("申请提交成功！");
-    } catch (err) {
-      console.error("Failed to create application:", err);
-      toast.error("申请提交失败");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleReviewApplication = async (values: ReviewApplicationForm) => {
-    if (!selectedApp) return;
-
-    try {
-      await apiClient.put(`/applications/${selectedApp.id}/status`, {
-        status: values.status,
-        review_comment: values.review_comment,
-        approved_credits: values.approved_credits,
-        reviewer_id: user?.id,
-      });
-
-      setReviewDialogOpen(false);
-      reviewForm.reset();
-      setSelectedApp(null);
-      fetchApplications();
-      toast.success("审核完成！");
-    } catch (err) {
-      console.error("Failed to review application:", err);
-      toast.error("审核失败");
-    }
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    const maxFileSize = 10 * 1024 * 1024; // 10MB
-    const allowedTypes = ["pdf", "doc", "docx", "jpg", "jpeg", "png", "gif"];
-
-    const validFiles = files.filter((file) => {
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      if (!ext || !allowedTypes.includes(ext)) {
-        toast.error(`不支持的文件类型: ${file.name}`);
-        return false;
-      }
-      if (file.size > maxFileSize) {
-        toast.error(`文件过大: ${file.name} (最大10MB)`);
-        return false;
-      }
+    // 搜索学号
+    if (app.user_info?.student_id?.toLowerCase().includes(searchLower))
       return true;
-    });
+    if (app.student_number?.toLowerCase().includes(searchLower)) return true;
 
-    setUploadingFiles((prev) => [...prev, ...validFiles]);
-  };
+    // 搜索用户名
+    if (app.user_info?.username?.toLowerCase().includes(searchLower))
+      return true;
 
-  const removeFile = (index: number) => {
-    setUploadingFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+    // 搜索学院
+    if (app.user_info?.college?.toLowerCase().includes(searchLower))
+      return true;
+
+    // 搜索专业
+    if (app.user_info?.major?.toLowerCase().includes(searchLower)) return true;
+
+    // 搜索班级
+    if (app.user_info?.class?.toLowerCase().includes(searchLower)) return true;
+
+    // 搜索活动名称
+    if (app.affair_name?.toLowerCase().includes(searchLower)) return true;
+    if (app.activity?.title?.toLowerCase().includes(searchLower)) return true;
+
+    // 搜索活动类别
+    if (app.activity?.category?.toLowerCase().includes(searchLower))
+      return true;
+
+    // 搜索活动描述
+    if (app.activity?.description?.toLowerCase().includes(searchLower))
+      return true;
+
+    return false;
+  });
+
+  // 状态过滤
+  const statusFilteredApplications = filteredApplications.filter((app) => {
+    if (statusFilter === "all") return true;
+    return app.status === statusFilter;
+  });
 
   const handleFileDownload = async (
     _attachmentId: string,
@@ -556,8 +371,8 @@ export default function ApplicationsPage() {
     <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">申请列表</h1>
-          <p className="text-muted-foreground">已通过的活动自动生成申请</p>
+          <h1 className="text-3xl font-bold tracking-tight">申请管理</h1>
+          <p className="text-muted-foreground">查看和管理所有学分申请记录</p>
         </div>
       </div>
 
@@ -574,7 +389,7 @@ export default function ApplicationsPage() {
             <div className="relative w-full max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="搜索学生姓名、学号或事务名称..."
+                placeholder="搜索申请人姓名、学号、学院、专业、班级或事务名称..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -633,15 +448,15 @@ export default function ApplicationsPage() {
       {/* Applications Table */}
       <Card className="rounded-xl shadow-lg">
         <CardHeader>
-          <CardTitle>申请列表</CardTitle>
+          <CardTitle>申请记录</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="border rounded-xl overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/60">
                 <TableRow>
-                  <TableHead>学生</TableHead>
-                  <TableHead>事务类型</TableHead>
+                  <TableHead>申请人信息</TableHead>
+                  <TableHead>活动信息</TableHead>
                   <TableHead>申请学分</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead>提交时间</TableHead>
@@ -658,7 +473,7 @@ export default function ApplicationsPage() {
                       </div>
                     </td>
                   </tr>
-                ) : applications.length === 0 ? (
+                ) : statusFilteredApplications.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
@@ -668,24 +483,55 @@ export default function ApplicationsPage() {
                     </td>
                   </tr>
                 ) : (
-                  applications.map((app) => (
+                  statusFilteredApplications.map((app) => (
                     <TableRow
                       key={app.id}
                       className="hover:bg-muted/40 transition-colors"
                     >
                       <TableCell>
-                        <div className="font-medium">{app.student_number}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {app.student_name}
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-medium">
+                              {app.user_info?.name ||
+                                app.student_name ||
+                                `用户 ${app.user_id}`}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {app.user_info?.student_id ||
+                                app.student_number ||
+                                app.user_info?.username ||
+                                app.user_id}
+                            </div>
+                            {app.user_info?.college && (
+                              <div className="text-xs text-muted-foreground">
+                                {app.user_info.college} - {app.user_info.major}
+                                {app.user_info.class &&
+                                  ` - ${app.user_info.class}`}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className="rounded px-2 py-1"
-                        >
-                          {app.affair_name || `事务#${app.affair_id}`}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge
+                            variant="secondary"
+                            className="rounded px-2 py-1"
+                          >
+                            {app.activity?.category || "未知类别"}
+                          </Badge>
+                          <div className="text-sm font-medium">
+                            {app.affair_name || `活动#${app.affair_id}`}
+                          </div>
+                          {app.activity?.description && (
+                            <div className="text-xs text-muted-foreground line-clamp-2">
+                              {app.activity.description}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-blue-600">
@@ -766,154 +612,6 @@ export default function ApplicationsPage() {
         </Card>
       )}
 
-      {/* Create Application Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>提交新申请</DialogTitle>
-            <DialogDescription>选择事务类型并填写详细信息</DialogDescription>
-          </DialogHeader>
-          <Form {...createForm}>
-            <form
-              onSubmit={createForm.handleSubmit(handleCreateApplication)}
-              className="space-y-6"
-            >
-              <FormField
-                control={createForm.control}
-                name="affair_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>事务类型</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择事务类型" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {affairs.map((affair) => (
-                          <SelectItem key={affair.id} value={String(affair.id)}>
-                            {affair.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={createForm.control}
-                name="applied_credits"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>申请学分</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        max="10"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={createForm.control}
-                name="details"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>申请详情</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="请详细描述您参与的事务内容、您的贡献和获得的成果..."
-                        className="min-h-[120px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div>
-                <FormLabel>上传文件</FormLabel>
-                <div className="mt-2">
-                  <Input
-                    type="file"
-                    multiple
-                    onChange={handleFileUpload}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-                    disabled={isUploading}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    支持PDF、Word文档和图片格式，单个文件不超过10MB
-                  </p>
-                </div>
-                {uploadingFiles.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    {uploadingFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-2 border rounded"
-                      >
-                        <div className="flex items-center gap-2">
-                          {getFileIcon(file.name)}
-                          <span className="text-sm">{file.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            ({formatFileSize(file.size)})
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                          disabled={isUploading}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {isUploading && (
-                  <div className="mt-2">
-                    <Progress value={uploadProgress} className="h-2" />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      上传进度: {uploadProgress}%
-                    </p>
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="w-full" disabled={isUploading}>
-                  {isUploading ? (
-                    <div className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      上传中...
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      提交申请
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
       {/* Application Detail Dialog */}
       <Dialog open={isDetailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -936,16 +634,69 @@ export default function ApplicationsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">学生</label>
+                  <label className="text-sm font-medium">申请人</label>
                   <p className="text-sm text-muted-foreground">
-                    {selectedApp.student_name || selectedApp.student_number}
+                    {selectedApp.user_info?.name ||
+                      selectedApp.student_name ||
+                      selectedApp.student_number}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">事务类型</label>
+                  <label className="text-sm font-medium">学号</label>
                   <p className="text-sm text-muted-foreground">
-                    {selectedApp.affair_name || `事务#${selectedApp.affair_id}`}
+                    {selectedApp.user_info?.student_id ||
+                      selectedApp.student_number}
                   </p>
+                </div>
+                {selectedApp.user_info?.college && (
+                  <div>
+                    <label className="text-sm font-medium">学院</label>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedApp.user_info.college}
+                    </p>
+                  </div>
+                )}
+                {selectedApp.user_info?.major && (
+                  <div>
+                    <label className="text-sm font-medium">专业</label>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedApp.user_info.major}
+                    </p>
+                  </div>
+                )}
+                {selectedApp.user_info?.class && (
+                  <div>
+                    <label className="text-sm font-medium">班级</label>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedApp.user_info.class}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <label className="text-sm font-medium">活动信息</label>
+                  <div className="mt-1 space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      {selectedApp.affair_name ||
+                        `活动#${selectedApp.affair_id}`}
+                    </p>
+                    {selectedApp.activity?.category && (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedApp.activity.category}
+                      </Badge>
+                    )}
+                    {selectedApp.activity?.description && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selectedApp.activity.description}
+                      </p>
+                    )}
+                    {selectedApp.activity?.start_date &&
+                      selectedApp.activity?.end_date && (
+                        <p className="text-xs text-muted-foreground">
+                          {selectedApp.activity.start_date.split("T")[0]} -{" "}
+                          {selectedApp.activity.end_date.split("T")[0]}
+                        </p>
+                      )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium">申请学分</label>
@@ -959,12 +710,6 @@ export default function ApplicationsPage() {
                     {selectedApp.approved_credits}
                   </p>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">申请详情</label>
-                <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                  {selectedApp.details}
-                </p>
               </div>
               {selectedApp.review_comment && (
                 <div>
@@ -1013,92 +758,6 @@ export default function ApplicationsPage() {
               )}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Review Application Dialog */}
-      <Dialog open={isReviewDialogOpen} onOpenChange={setReviewDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>审核申请</DialogTitle>
-            <DialogDescription>请填写审核意见和批准的学分</DialogDescription>
-          </DialogHeader>
-          <Form {...reviewForm}>
-            <form
-              onSubmit={reviewForm.handleSubmit(handleReviewApplication)}
-              className="space-y-4"
-            >
-              <FormField
-                control={reviewForm.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>审核结果</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="approved">通过</SelectItem>
-                        <SelectItem value="rejected">拒绝</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={reviewForm.control}
-                name="approved_credits"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>批准学分</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        max="10"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={reviewForm.control}
-                name="review_comment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>审核意见</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="请填写详细的审核意见..."
-                        className="min-h-[100px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="submit" className="w-full">
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  提交审核
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
         </DialogContent>
       </Dialog>
     </div>

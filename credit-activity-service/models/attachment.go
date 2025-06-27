@@ -30,7 +30,7 @@ type Attachment struct {
 	Uploader UserInfo       `json:"uploader" gorm:"foreignKey:UploadedBy"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
+
 func (a *Attachment) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
@@ -38,7 +38,7 @@ func (a *Attachment) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
+
 func (Attachment) TableName() string {
 	return "attachments"
 }
@@ -161,7 +161,6 @@ const MaxFileSize = 20 * 1024 * 1024
 // 批量上传文件数量限制
 const MaxBatchUploadCount = 10
 
-// GetFileCategory 根据文件扩展名获取文件类别
 func GetFileCategory(fileType string) string {
 	if category, exists := SupportedFileTypes[fileType]; exists {
 		return category
@@ -169,13 +168,11 @@ func GetFileCategory(fileType string) string {
 	return CategoryOther
 }
 
-// IsSupportedFileType 检查是否为支持的文件类型
 func IsSupportedFileType(fileType string) bool {
 	_, exists := SupportedFileTypes[fileType]
 	return exists
 }
 
-// GetSupportedFileTypes 获取所有支持的文件类型
 func GetSupportedFileTypes() []string {
 	var types []string
 	for fileType := range SupportedFileTypes {
@@ -184,7 +181,6 @@ func GetSupportedFileTypes() []string {
 	return types
 }
 
-// GetFileCategories 获取所有文件类别
 func GetFileCategories() []string {
 	return []string{
 		CategoryDocument,

@@ -44,7 +44,6 @@ type CreditActivity struct {
 	EndDate        time.Time      `json:"end_date"`
 	Status         string         `json:"status" gorm:"default:'draft';index"`
 	Category       string         `json:"category"`
-	Requirements   string         `json:"requirements"`
 	OwnerID        string         `json:"owner_id" gorm:"type:uuid;not null;index"`
 	ReviewerID     *string        `json:"reviewer_id" gorm:"type:uuid"`
 	ReviewComments string         `json:"review_comments"`
@@ -58,7 +57,6 @@ type CreditActivity struct {
 	Applications []Application         `json:"applications" gorm:"foreignKey:ActivityID"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
 func (ca *CreditActivity) BeforeCreate(tx *gorm.DB) error {
 	if ca.ID == "" {
 		ca.ID = uuid.New().String()
@@ -66,7 +64,6 @@ func (ca *CreditActivity) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
 func (CreditActivity) TableName() string {
 	return "credit_activities"
 }
@@ -87,7 +84,7 @@ type ActivityParticipant struct {
 	User     UserInfo       `json:"user" gorm:"foreignKey:UserID"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
+
 func (ap *ActivityParticipant) BeforeCreate(tx *gorm.DB) error {
 	if ap.ID == "" {
 		ap.ID = uuid.New().String()
@@ -95,7 +92,7 @@ func (ap *ActivityParticipant) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
+
 func (ActivityParticipant) TableName() string {
 	return "activity_participants"
 }
@@ -117,7 +114,7 @@ type Application struct {
 	Activity CreditActivity `json:"activity" gorm:"foreignKey:ActivityID"`
 }
 
-// BeforeCreate 在创建前自动生成UUID
+
 func (a *Application) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = uuid.New().String()
@@ -125,7 +122,7 @@ func (a *Application) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// TableName 指定表名
+
 func (Application) TableName() string {
 	return "applications"
 }

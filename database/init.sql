@@ -41,8 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
     
     -- 教师特有字段（可选）
     department VARCHAR(100),
-    title VARCHAR(50),
-    specialty VARCHAR(200)
+    title VARCHAR(50)
 );
 
 -- 创建学分活动表
@@ -54,7 +53,6 @@ CREATE TABLE IF NOT EXISTS credit_activities (
     end_date DATE NOT NULL CHECK (end_date >= start_date),
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected')),
     category VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(category)) > 0),
-    requirements TEXT,
     owner_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     reviewer_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     review_comments TEXT,
@@ -582,7 +580,7 @@ CREATE TRIGGER trigger_cleanup_orphaned_attachments
 
 -- 学生基本信息视图
 CREATE OR REPLACE VIEW student_basic_info AS
-SELECT 
+SELECT
     user_id,
     username,
     real_name,
@@ -591,71 +589,165 @@ SELECT
     major,
     class,
     grade,
+    avatar
+FROM users
+WHERE user_type = 'student' AND deleted_at IS NULL;
+
+-- 学生详细信息视图
+CREATE OR REPLACE VIEW student_detail_info AS
+SELECT
+    user_id,
+    username,
+    real_name,
+    email,
+    phone,
+    student_id,
+    college,
+    major,
+    class,
+    grade,
     status,
     avatar,
+    last_login_at,
+    register_time
+FROM users
+WHERE user_type = 'student' AND deleted_at IS NULL;
+
+-- 学生完整信息视图
+CREATE OR REPLACE VIEW student_complete_info AS
+SELECT
+    user_id,
+    username,
+    email,
+    phone,
+    real_name,
+    user_type,
+    status,
+    avatar,
+    last_login_at,
     register_time,
     created_at,
-    updated_at
-FROM users 
+    updated_at,
+    student_id,
+    college,
+    major,
+    class,
+    grade
+FROM users
 WHERE user_type = 'student' AND deleted_at IS NULL;
 
 -- 教师基本信息视图
 CREATE OR REPLACE VIEW teacher_basic_info AS
-SELECT 
+SELECT
     user_id,
     username,
     real_name,
     department,
     title,
-    status,
-    avatar,
-    register_time,
-    created_at,
-    updated_at
-FROM users 
+    avatar
+FROM users
 WHERE user_type = 'teacher' AND deleted_at IS NULL;
-
--- 学生详细信息视图
-CREATE OR REPLACE VIEW student_detail_info AS
-SELECT 
-    user_id,
-    username,
-    email,
-    phone,
-    real_name,
-    student_id,
-    college,
-    major,
-    class,
-    grade,
-    status,
-    avatar,
-    last_login_at,
-    register_time,
-    created_at,
-    updated_at
-FROM users 
-WHERE user_type = 'student' AND deleted_at IS NULL;
 
 -- 教师详细信息视图
 CREATE OR REPLACE VIEW teacher_detail_info AS
-SELECT 
+SELECT
+    user_id,
+    username,
+    real_name,
+    email,
+    phone,
+    department,
+    title,
+    status,
+    avatar,
+    last_login_at,
+    register_time
+FROM users
+WHERE user_type = 'teacher' AND deleted_at IS NULL;
+
+-- 教师完整信息视图
+CREATE OR REPLACE VIEW teacher_complete_info AS
+SELECT
     user_id,
     username,
     email,
     phone,
     real_name,
-    department,
-    title,
-    specialty,
+    user_type,
     status,
     avatar,
     last_login_at,
     register_time,
     created_at,
-    updated_at
-FROM users 
+    updated_at,
+    department,
+    title
+FROM users
 WHERE user_type = 'teacher' AND deleted_at IS NULL;
+
+CREATE OR REPLACE VIEW detailed_credit_activity_view AS
+SELECT
+    ca.id AS activity_id,
+    ca.title,
+    ca.description,
+    ca.start_date,
+    ca.end_date,
+    ca.status,
+    ca.category,
+    ca.owner_id AS creator_id,
+    creator.real_name AS creator_name,
+    creator.username AS creator_username,
+    ca.created_at,
+    ca.updated_at,
+    (
+        SELECT json_agg(json_build_object(
+            'user_id', p.user_id,
+            'username', u.username,
+            'real_name', u.real_name,
+            'credits', p.credits
+        ))
+        FROM activity_participants p
+        JOIN users u ON p.user_id = u.user_id
+        WHERE p.activity_id = ca.id AND p.deleted_at IS NULL AND u.deleted_at IS NULL
+    ) AS participants
+FROM
+    credit_activities ca
+JOIN
+    users creator ON ca.owner_id = creator.user_id
+WHERE
+    ca.deleted_at IS NULL AND creator.deleted_at IS NULL;
+
+CREATE OR REPLACE VIEW detailed_applications_view AS
+SELECT
+    -- 申请本身的信息
+    app.id AS application_id,
+    app.status AS application_status,
+    app.applied_credits,
+    app.awarded_credits,
+    app.submitted_at,
+
+    -- 申请人（学生）的信息
+    u.user_id AS applicant_id,
+    u.real_name AS applicant_name,
+    u.username AS applicant_username,
+    u.student_id,
+    u.college AS applicant_college,
+    u.major AS applicant_major,
+
+    -- 关联的活动信息
+    act.id AS activity_id,
+    act.title AS activity_title,
+    act.category AS activity_category
+FROM
+    applications app
+JOIN
+    users u ON app.user_id = u.user_id
+JOIN
+    credit_activities act ON app.activity_id = act.id
+WHERE
+    app.deleted_at IS NULL
+    AND u.deleted_at IS NULL
+    AND act.deleted_at IS NULL;
 
 -- ========================================
 -- 8. 初始化数据

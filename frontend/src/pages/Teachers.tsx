@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient from "@/lib/api";
+import apiClient, { apiHelpers } from "@/lib/api";
 import {
   PlusCircle,
   Search,
@@ -61,13 +61,13 @@ export type Teacher = {
   username: string;
   real_name: string;
   email?: string;
-  phone?: string;
-  department?: string;
-  status: "active" | "inactive";
+  phone?: string | null;
+  department?: string | null;
+  title?: string | null;
+  status: "active" | "inactive" | "suspended";
   avatar?: string;
+  last_login_at?: string | null;
   register_time?: string;
-  created_at?: string;
-  updated_at?: string;
 };
 
 // Form schema for validation
@@ -88,7 +88,8 @@ const formSchema = z.object({
     .optional()
     .or(z.literal("")),
   department: z.string().min(1, "院系不能为空"),
-  status: z.enum(["active", "inactive"]),
+  title: z.string().optional().or(z.literal("")),
+  status: z.enum(["active", "inactive", "suspended"]),
   user_type: z.literal("teacher"),
 });
 
@@ -219,22 +220,6 @@ export default function TeachersPage() {
           page_size: response.data.data.page_size || 10,
           total_pages: response.data.data.total_pages || 0,
         };
-      } else if (response.data?.teachers) {
-        teachersData = response.data.teachers;
-        paginationData = {
-          total: teachersData.length,
-          page: 1,
-          page_size: teachersData.length,
-          total_pages: 1,
-        };
-      } else if (Array.isArray(response.data)) {
-        teachersData = response.data;
-        paginationData = {
-          total: teachersData.length,
-          page: 1,
-          page_size: teachersData.length,
-          total_pages: 1,
-        };
       } else {
         teachersData = [];
         paginationData = {
@@ -251,8 +236,6 @@ export default function TeachersPage() {
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
       setCurrentPage(paginationData.page);
-      // 不要从API响应更新pageSize，保持用户设置的值
-      // setPageSize(paginationData.page_size);
 
       console.log("Teachers loaded:", teachersData.length);
     } catch (err: any) {
@@ -296,7 +279,14 @@ export default function TeachersPage() {
   const handleDialogOpen = (teacher: Teacher | null) => {
     setEditingTeacher(teacher);
     if (teacher) {
-      form.reset(teacher);
+      // 转换null值为空字符串以匹配表单schema
+      const formData = {
+        ...teacher,
+        department: teacher.department || "",
+        title: teacher.title || "",
+        phone: teacher.phone || "",
+      };
+      form.reset(formData);
     } else {
       form.reset({
         username: "",
@@ -305,6 +295,7 @@ export default function TeachersPage() {
         email: "",
         phone: "",
         department: "",
+        title: "",
         status: "active",
         user_type: "teacher",
       });
@@ -349,6 +340,7 @@ export default function TeachersPage() {
     const statusConfig = {
       active: { label: "活跃", color: "bg-green-100 text-green-800" },
       inactive: { label: "停用", color: "bg-gray-100 text-gray-800" },
+      suspended: { label: "暂停", color: "bg-red-100 text-red-800" },
     };
 
     const config =
@@ -380,12 +372,16 @@ export default function TeachersPage() {
   const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // 验证文件类型
       const allowedTypes = [
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "text/csv",
       ];
-      if (!allowedTypes.includes(file.type)) {
+      if (
+        !allowedTypes.includes(file.type) &&
+        !file.name.toLowerCase().endsWith(".csv")
+      ) {
         toast.error("请选择Excel或CSV文件");
         return;
       }
@@ -402,9 +398,9 @@ export default function TeachersPage() {
       formData.append("file", importFile);
       formData.append("user_type", "teacher");
 
-      const response = await apiClient.post("/users/import-csv", formData, {
+      const response = await apiClient.post("/users/import", formData, {
         headers: {
-          "Content-Type": "multipart/form-data",
+          // Remove Content-Type header to let browser set it with boundary
         },
       });
 
@@ -564,6 +560,7 @@ export default function TeachersPage() {
                 <SelectItem value="all">全部状态</SelectItem>
                 <SelectItem value="active">活跃</SelectItem>
                 <SelectItem value="inactive">停用</SelectItem>
+                <SelectItem value="suspended">暂停</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -592,6 +589,7 @@ export default function TeachersPage() {
                   <TableHead>用户名</TableHead>
                   <TableHead>姓名</TableHead>
                   <TableHead>院系</TableHead>
+                  <TableHead>职称</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
@@ -641,7 +639,8 @@ export default function TeachersPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{teacher.department}</TableCell>
+                      <TableCell>{teacher.department || "-"}</TableCell>
+                      <TableCell>{teacher.title || "-"}</TableCell>
                       <TableCell>{getStatusBadge(teacher.status)}</TableCell>
                       <TableCell className="text-right space-x-2">
                         {canManageTeachers && (
@@ -794,6 +793,19 @@ export default function TeachersPage() {
               />
               <FormField
                 control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>职称</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="请输入职称" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem className="col-span-2">
@@ -826,6 +838,7 @@ export default function TeachersPage() {
                       <SelectContent>
                         <SelectItem value="active">活跃</SelectItem>
                         <SelectItem value="inactive">停用</SelectItem>
+                        <SelectItem value="suspended">暂停</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -878,6 +891,38 @@ export default function TeachersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/users/csv-template?user_type=teacher";
+                  link.download = "teacher_template.csv";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载CSV模板
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = "/api/users/excel-template?user_type=teacher";
+                  link.download = "teacher_template.xlsx";
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载Excel模板
+              </Button>
+            </div>
             <div>
               <label className="text-sm font-medium">选择文件</label>
               <Input

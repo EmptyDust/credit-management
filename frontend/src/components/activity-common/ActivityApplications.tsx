@@ -60,17 +60,6 @@ interface ActivityApplicationsProps {
   onRefresh?: () => void;
 }
 
-interface ApplicationWithUserInfo extends Application {
-  user_info?: {
-    username: string;
-    name: string;
-    student_id?: string;
-    college?: string;
-    major?: string;
-    class?: string;
-  };
-}
-
 // 获取状态显示文本
 const getStatusText = (status: string) => {
   switch (status) {
@@ -124,15 +113,13 @@ export default function ActivityApplications({
   onRefresh,
 }: ActivityApplicationsProps) {
   const { user } = useAuth();
-  const [applications, setApplications] = useState<ApplicationWithUserInfo[]>(
-    []
-  );
+  const [applications, setApplications] = useState<Application[]>([]);
   const [, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedApplication, setSelectedApplication] =
-    useState<ApplicationWithUserInfo | null>(null);
+    useState<Application | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewCredits, setReviewCredits] = useState(0);
   const [reviewComments, setReviewComments] = useState("");
@@ -240,6 +227,15 @@ export default function ActivityApplications({
         .includes(searchQuery.toLowerCase()) ||
       application.user_info?.username
         ?.toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      application.user_info?.college
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      application.user_info?.major
+        ?.toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      application.user_info?.class
+        ?.toLowerCase()
         .includes(searchQuery.toLowerCase());
 
     const matchesStatus =
@@ -338,7 +334,7 @@ export default function ActivityApplications({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索申请人..."
+              placeholder="搜索申请人姓名、学号、学院、专业、班级..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -364,6 +360,7 @@ export default function ActivityApplications({
             <TableHeader>
               <TableRow>
                 <TableHead>申请人信息</TableHead>
+                <TableHead>活动信息</TableHead>
                 <TableHead>申请学分</TableHead>
                 <TableHead>授予学分</TableHead>
                 <TableHead>状态</TableHead>
@@ -396,6 +393,21 @@ export default function ActivityApplications({
                           </div>
                         )}
                       </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <Badge variant="outline" className="text-xs">
+                        {activity.category || "未知类别"}
+                      </Badge>
+                      <div className="text-sm font-medium">
+                        {activity.title}
+                      </div>
+                      {activity.description && (
+                        <div className="text-xs text-muted-foreground line-clamp-2">
+                          {activity.description}
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -567,6 +579,48 @@ export default function ActivityApplications({
                   </p>
                 </div>
               )}
+
+              {/* 活动信息 */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium text-gray-500 mb-2">
+                  关联活动
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      活动名称
+                    </label>
+                    <p className="text-sm font-medium">{activity.title}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">
+                      活动类别
+                    </label>
+                    <Badge variant="outline" className="text-xs">
+                      {activity.category}
+                    </Badge>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-sm font-medium text-gray-500">
+                      活动描述
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      {activity.description || "暂无描述"}
+                    </p>
+                  </div>
+                  {activity.start_date && activity.end_date && (
+                    <div className="col-span-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        活动时间
+                      </label>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(activity.start_date).toLocaleDateString()} -{" "}
+                        {new Date(activity.end_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

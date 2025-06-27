@@ -27,6 +27,5 @@ func (h *UserHandler) convertToUserResponse(user models.User) models.UserRespons
 		Grade:        user.Grade,
 		Department:   user.Department,
 		Title:        user.Title,
-		Specialty:    user.Specialty,
 	}
 }

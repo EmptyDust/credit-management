@@ -12,17 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// ParticipantHandler 参与者处理器
 type ParticipantHandler struct {
 	db *gorm.DB
 }
 
-// NewParticipantHandler 创建参与者处理器
 func NewParticipantHandler(db *gorm.DB) *ParticipantHandler {
 	return &ParticipantHandler{db: db}
 }
 
-// AddParticipants 添加参与者
 func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("user_id")
@@ -56,7 +53,6 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		return
 	}
 
-	// 权限检查：只有活动创建者和管理员可以添加参与者
 	if activity.OwnerID != userID && userType != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -66,13 +62,11 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户的认证令牌
 	authToken := ""
 	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 		authToken = authHeader
 	}
 
-	// 验证用户角色：只有学生可以参与活动
 	for _, targetUserID := range req.UserIDs {
 		if !h.isStudent(targetUserID, authToken) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -88,11 +82,9 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	var addedCount int
 
 	for _, targetUserID := range req.UserIDs {
-		// 检查是否已经是参与者
 		var existing models.ActivityParticipant
 		err := h.db.Where("activity_id = ? AND user_id = ?", activityID, targetUserID).First(&existing).Error
 		if err == nil {
-			// 已经是参与者，跳过
 			continue
 		}
 
@@ -111,18 +103,18 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		addedCount++
 	}
 
-	// 获取参与者信息（包含用户信息）
 	var responses []models.ParticipantResponse
 	for _, participant := range participants {
+		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ParticipantResponse{
 			UserID:   participant.UserID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
-		}
-
-		// 获取用户信息
-		if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 
 		responses = append(responses, response)
@@ -138,7 +130,6 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	})
 }
 
-// BatchSetCredits 批量设置参与者学分
 func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("user_id")
@@ -200,13 +191,16 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 			continue
 		}
 
+		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ParticipantResponse{
 			UserID:   participant.UserID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
-		}
-		if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 		updatedParticipants = append(updatedParticipants, response)
 		updatedCount++
@@ -222,7 +216,6 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 	})
 }
 
-// SetSingleCredits 设置单个参与者学分
 func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	activityID := c.Param("id")
 	targetUserID := c.Param("user_id")
@@ -295,9 +288,17 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 		authToken = authHeader
 	}
-	if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
-		response.UserInfo = userInfo
+
+	userInfo, err := h.getUserInfo(participant.UserID, authToken)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "参与者关联的用户不存在",
+			"data":    nil,
+		})
+		return
 	}
+	response.UserInfo = userInfo
 
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -306,7 +307,6 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	})
 }
 
-// RemoveParticipant 删除参与者
 func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 	activityID := c.Param("id")
 	targetUserID := c.Param("user_id")
@@ -331,7 +331,6 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	// 只有活动创建者或管理员可以删除参与者
 	if activity.OwnerID != userID && userType != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -370,7 +369,6 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 	})
 }
 
-// LeaveActivity 退出活动
 func (h *ParticipantHandler) LeaveActivity(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("user_id")
@@ -404,7 +402,6 @@ func (h *ParticipantHandler) LeaveActivity(c *gin.Context) {
 	})
 }
 
-// GetActivityParticipants 获取活动参与者列表
 func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	activityID := c.Param("id")
 
@@ -424,13 +421,16 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 		authToken = authHeader
 	}
 	for _, participant := range participants {
+		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ParticipantResponse{
 			UserID:   participant.UserID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
-		}
-		if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 		responses = append(responses, response)
 	}
@@ -445,17 +445,14 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	})
 }
 
-// isStudent 检查用户是否为学生（使用真实用户服务）
 func (h *ParticipantHandler) isStudent(userID string, authToken string) bool {
 	return utils.IsStudent(userID, authToken)
 }
 
-// getUserInfo 获取用户信息（使用真实用户服务）
 func (h *ParticipantHandler) getUserInfo(userID string, authToken string) (*models.UserInfo, error) {
 	return utils.GetUserInfo(userID, authToken)
 }
 
-// BatchRemoveParticipants 批量删除参与者
 func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("user_id")
@@ -474,7 +471,6 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 		return
 	}
 
-	// 检查活动是否存在
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -493,7 +489,6 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 		return
 	}
 
-	// 权限检查
 	if activity.OwnerID != userID && userType != "admin" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    403,
@@ -503,7 +498,6 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 		return
 	}
 
-	// 批量删除参与者
 	if err := h.db.Where("activity_id = ? AND user_id IN ?", activityID, req.UserIDs).Delete(&models.ActivityParticipant{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,
@@ -523,7 +517,6 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 	})
 }
 
-// GetParticipantStats 获取参与者统计信息
 func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 	activityID := c.Param("id")
 
@@ -535,7 +528,6 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 		MinCredits        float64 `json:"min_credits"`
 	}
 
-	// 获取基本统计信息
 	if err := h.db.Model(&models.ActivityParticipant{}).
 		Where("activity_id = ?", activityID).
 		Select("COUNT(*) as total_participants, SUM(credits) as total_credits, AVG(credits) as avg_credits, MAX(credits) as max_credits, MIN(credits) as min_credits").
@@ -548,7 +540,6 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 		return
 	}
 
-	// 获取最近加入的参与者数量（7天内）
 	var recentParticipants int64
 	h.db.Model(&models.ActivityParticipant{}).
 		Where("activity_id = ? AND joined_at >= ?", activityID, time.Now().AddDate(0, 0, -7)).
@@ -571,12 +562,10 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 	})
 }
 
-// ExportParticipants 导出参与者名单
 func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 	activityID := c.Param("id")
 	format := c.DefaultQuery("format", "json")
 
-	// 获取所有参与者
 	var participants []models.ActivityParticipant
 	if err := h.db.Where("activity_id = ?", activityID).Order("joined_at DESC").Find(&participants).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -587,20 +576,22 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 		return
 	}
 
-	// 获取用户信息
 	responses := make([]models.ParticipantResponse, 0, len(participants))
 	authToken := ""
 	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 		authToken = authHeader
 	}
 	for _, participant := range participants {
+		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		if err != nil {
+			continue
+		}
+
 		response := models.ParticipantResponse{
 			UserID:   participant.UserID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
-		}
-		if userInfo, err := h.getUserInfo(participant.UserID, authToken); err == nil {
-			response.UserInfo = userInfo
+			UserInfo: userInfo,
 		}
 		responses = append(responses, response)
 	}
@@ -618,7 +609,6 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 			},
 		})
 	case "csv":
-		// 这里可以实现CSV导出功能
 		c.JSON(http.StatusOK, gin.H{
 			"code":    0,
 			"message": "导出成功",
@@ -637,7 +627,6 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 	}
 }
 
-// GetUserParticipatedActivities 获取用户参与的活动列表
 func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -650,7 +639,6 @@ func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
 		pageSize = 10
 	}
 
-	// 获取用户参与的活动
 	var participants []models.ActivityParticipant
 	if err := h.db.Where("user_id = ?", userID).Offset((page - 1) * pageSize).Limit(pageSize).Order("joined_at DESC").Find(&participants).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -661,11 +649,9 @@ func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
 		return
 	}
 
-	// 获取总数
 	var total int64
 	h.db.Model(&models.ActivityParticipant{}).Where("user_id = ?", userID).Count(&total)
 
-	// 构建响应数据
 	var activities []gin.H
 	for _, participant := range participants {
 		var activity models.CreditActivity

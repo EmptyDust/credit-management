@@ -48,7 +48,6 @@ const ActivityDetailContainer = forwardRef<
     title: activity.title || "",
     description: activity.description || "",
     category: activity.category || "",
-    requirements: activity.requirements || "",
     start_date: formatDateForInput(activity.start_date || ""),
     end_date: formatDateForInput(activity.end_date || ""),
   });

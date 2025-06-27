@@ -13,7 +13,6 @@ import {
   Star,
 } from "lucide-react";
 import type { Activity } from "@/types/activity";
-import { useState } from "react";
 import {
   Select,
   SelectContent,
@@ -21,8 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import apiClient from "@/lib/api";
-import toast from "react-hot-toast";
 
 interface ActivityBasicInfoProps {
   activity: Activity;
@@ -90,32 +87,9 @@ const activityCategories = [
 export default function ActivityBasicInfo({
   activity,
   isEditing = false,
-  onEditModeChange,
-  onRefresh,
   basicInfo,
   setBasicInfo,
 }: ActivityBasicInfoProps) {
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async (values: any) => {
-    setSaving(true);
-    try {
-      await apiClient.put(`/activities/${activity.id}`, values);
-      toast.success("活动信息更新成功");
-      onEditModeChange?.(false);
-      onRefresh?.();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || "更新失败";
-      toast.error(errorMessage);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    onEditModeChange?.(false);
-  };
-
   // 计算总学分
   const participants = activity.participants || [];
   const totalCredits = participants.reduce((sum, p) => sum + p.credits, 0);
@@ -257,7 +231,7 @@ export default function ActivityBasicInfo({
             <div>
               <div className="font-medium">创建人</div>
               <div className="text-sm text-muted-foreground">
-                {activity.owner_info?.name || activity.owner_id}
+                {activity.owner_info?.real_name || activity.owner_id}
               </div>
             </div>
           </div>
