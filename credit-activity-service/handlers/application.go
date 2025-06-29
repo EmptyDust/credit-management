@@ -1,10 +1,6 @@
 package handlers
 
 import (
-	"fmt"
-	"strconv"
-	"time"
-
 	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
 
@@ -13,11 +9,15 @@ import (
 )
 
 type ApplicationHandler struct {
-	db *gorm.DB
+	db        *gorm.DB
+	validator *utils.Validator
 }
 
 func NewApplicationHandler(db *gorm.DB) *ApplicationHandler {
-	return &ApplicationHandler{db: db}
+	return &ApplicationHandler{
+		db:        db,
+		validator: utils.NewValidator(),
+	}
 }
 
 func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
@@ -27,74 +27,30 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		return
 	}
 
-	authToken := c.GetHeader("Authorization")
-
 	status := c.Query("status")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	offset := (page - 1) * limit
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
 
-	var applications []models.Application
-	var total int64
-
-	query := h.db.Model(&models.Application{}).Where("user_id = ?", userID)
-
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-
-	query.Count(&total)
-
-	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
+	applications, total, err := h.getApplicationsWithPagination(
+		h.db.Where("user_id = ?", userID),
+		status,
+		page,
+		limit,
+	)
+	if err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	var responses []models.ApplicationResponse
-	for _, app := range applications {
-		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
-		if err != nil {
-			continue
-		}
-
-		response := models.ApplicationResponse{
-			ID:             app.ID,
-			ActivityID:     app.ActivityID,
-			UserID:         app.UserID,
-			Status:         app.Status,
-			AppliedCredits: app.AppliedCredits,
-			AwardedCredits: app.AwardedCredits,
-			SubmittedAt:    app.SubmittedAt,
-			CreatedAt:      app.CreatedAt,
-			UpdatedAt:      app.UpdatedAt,
-			Activity: models.ActivityInfo{
-				ID:          app.Activity.ID,
-				Title:       app.Activity.Title,
-				Description: app.Activity.Description,
-				Category:    app.Activity.Category,
-				StartDate:   app.Activity.StartDate,
-				EndDate:     app.Activity.EndDate,
-			},
-			UserInfo: userInfo,
-		}
-
-		responses = append(responses, response)
-	}
-
-	totalPages := (int(total) + limit - 1) / limit
-
-	utils.SendSuccessResponse(c, models.PaginatedResponse{
-		Data:       responses,
-		Total:      int64(len(responses)), // 使用实际返回的记录数
-		Page:       page,
-		Limit:      limit,
-		TotalPages: totalPages,
-	})
+	responses := h.buildApplicationResponses(applications, c.GetHeader("Authorization"))
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	id := c.Param("id")
-	if id == "" {
+	if err := h.validator.ValidateUUID(id); err != nil {
 		utils.SendBadRequest(c, "申请ID不能为空")
 		return
 	}
@@ -104,8 +60,6 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		utils.SendUnauthorized(c)
 		return
 	}
-
-	authToken := c.GetHeader("Authorization")
 
 	userType, _ := c.Get("user_type")
 
@@ -124,50 +78,19 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	userInfo, err := utils.GetUserInfo(application.UserID, authToken)
-	if err != nil {
-		utils.SendNotFound(c, "申请关联的用户不存在")
-		return
-	}
-
-	response := models.ApplicationResponse{
-		ID:             application.ID,
-		ActivityID:     application.ActivityID,
-		UserID:         application.UserID,
-		Status:         application.Status,
-		AppliedCredits: application.AppliedCredits,
-		AwardedCredits: application.AwardedCredits,
-		SubmittedAt:    application.SubmittedAt,
-		CreatedAt:      application.CreatedAt,
-		UpdatedAt:      application.UpdatedAt,
-		Activity: models.ActivityInfo{
-			ID:          application.Activity.ID,
-			Title:       application.Activity.Title,
-			Description: application.Activity.Description,
-			Category:    application.Activity.Category,
-			StartDate:   application.Activity.StartDate,
-			EndDate:     application.Activity.EndDate,
-		},
-		UserInfo: userInfo,
-	}
-
+	response := h.buildApplicationResponse(application, c.GetHeader("Authorization"))
 	utils.SendSuccessResponse(c, response)
 }
 
 func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
-	authToken := c.GetHeader("Authorization")
-
 	activityID := c.Query("activity_id")
 	userID := c.Query("user_id")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	offset := (page - 1) * limit
-
-	var applications []models.Application
-	var total int64
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
 
 	query := h.db.Model(&models.Application{})
-
 	if activityID != "" {
 		query = query.Where("activity_id = ?", activityID)
 	}
@@ -175,52 +98,63 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		query = query.Where("user_id = ?", userID)
 	}
 
-	query.Count(&total)
-
-	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
+	applications, total, err := h.getApplicationsWithPagination(query, "", page, limit)
+	if err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	var responses []models.ApplicationResponse
-	for _, app := range applications {
-		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
-		if err != nil {
-			continue
-		}
+	responses := h.buildApplicationResponses(applications, c.GetHeader("Authorization"))
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
 
-		response := models.ApplicationResponse{
-			ID:             app.ID,
-			ActivityID:     app.ActivityID,
-			UserID:         app.UserID,
-			Status:         app.Status,
-			AppliedCredits: app.AppliedCredits,
-			AwardedCredits: app.AwardedCredits,
-			SubmittedAt:    app.SubmittedAt,
-			CreatedAt:      app.CreatedAt,
-			UpdatedAt:      app.UpdatedAt,
-			Activity: models.ActivityInfo{
-				ID:          app.Activity.ID,
-				Title:       app.Activity.Title,
-				Description: app.Activity.Description,
-				Category:    app.Activity.Category,
-				StartDate:   app.Activity.StartDate,
-				EndDate:     app.Activity.EndDate,
-			},
-			UserInfo: userInfo,
-		}
-		responses = append(responses, response)
+func (h *ApplicationHandler) getApplicationsWithPagination(query *gorm.DB, status string, page, limit int) ([]models.Application, int64, error) {
+	if status != "" {
+		query = query.Where("status = ?", status)
 	}
 
-	totalPages := (int(total) + limit - 1) / limit
+	var total int64
+	query.Count(&total)
 
-	utils.SendSuccessResponse(c, models.PaginatedResponse{
-		Data:       responses,
-		Total:      int64(len(responses)), // 使用实际返回的记录数
-		Page:       page,
-		Limit:      limit,
-		TotalPages: totalPages,
-	})
+	var applications []models.Application
+	offset := (page - 1) * limit
+	err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error
+
+	return applications, total, err
+}
+
+func (h *ApplicationHandler) buildApplicationResponses(applications []models.Application, authToken string) []models.ApplicationResponse {
+	var responses []models.ApplicationResponse
+	for _, app := range applications {
+		response := h.buildApplicationResponse(app, authToken)
+		responses = append(responses, response)
+	}
+	return responses
+}
+
+func (h *ApplicationHandler) buildApplicationResponse(app models.Application, authToken string) models.ApplicationResponse {
+	userInfo, _ := utils.GetUserInfo(app.UserID, authToken)
+
+	return models.ApplicationResponse{
+		ID:             app.ID,
+		ActivityID:     app.ActivityID,
+		UserID:         app.UserID,
+		Status:         app.Status,
+		AppliedCredits: app.AppliedCredits,
+		AwardedCredits: app.AwardedCredits,
+		SubmittedAt:    app.SubmittedAt,
+		CreatedAt:      app.CreatedAt,
+		UpdatedAt:      app.UpdatedAt,
+		Activity: models.ActivityInfo{
+			ID:          app.Activity.ID,
+			Title:       app.Activity.Title,
+			Description: app.Activity.Description,
+			Category:    app.Activity.Category,
+			StartDate:   app.Activity.StartDate,
+			EndDate:     app.Activity.EndDate,
+		},
+		UserInfo: userInfo,
+	}
 }
 
 func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
@@ -230,87 +164,67 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 		return
 	}
 
-	var stats models.ApplicationStats
+	var stats struct {
+		TotalApplications int64   `json:"total_applications"`
+		PendingCount      int64   `json:"pending_count"`
+		ApprovedCount     int64   `json:"approved_count"`
+		RejectedCount     int64   `json:"rejected_count"`
+		TotalCredits      float64 `json:"total_credits"`
+	}
 
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Count(&stats.TotalApplications)
-	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(applied_credits), 0)").Scan(&stats.TotalCredits)
-	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.AwardedCredits)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "pending").Count(&stats.PendingCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Count(&stats.ApprovedCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "rejected").Count(&stats.RejectedCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.TotalCredits)
 
 	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	userType, _ := c.Get("user_type")
-
-	format := c.DefaultQuery("format", "csv")
+	format := c.DefaultQuery("format", "json")
 	activityID := c.Query("activity_id")
-	status := c.Query("status")
-	startDate := c.Query("start_date")
-	endDate := c.Query("end_date")
+	userID := c.Query("user_id")
 
-	query := h.db.Model(&models.Application{})
-
-	if userType == "student" {
-		query = query.Where("user_id = ?", userID)
-	}
-
+	query := h.db.Model(&models.Application{}).Preload("Activity")
 	if activityID != "" {
 		query = query.Where("activity_id = ?", activityID)
 	}
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-	if startDate != "" {
-		if start, err := time.Parse("2006-01-02", startDate); err == nil {
-			query = query.Where("submitted_at >= ?", start)
-		}
-	}
-	if endDate != "" {
-		if end, err := time.Parse("2006-01-02", endDate); err == nil {
-			query = query.Where("submitted_at <= ?", end.Add(24*time.Hour))
-		}
+	if userID != "" {
+		query = query.Where("user_id = ?", userID)
 	}
 
 	var applications []models.Application
-	if err := query.Order("submitted_at DESC").Find(&applications).Error; err != nil {
+	if err := query.Order("created_at DESC").Find(&applications).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	switch format {
+	case "json":
+		responses := h.buildApplicationResponses(applications, c.GetHeader("Authorization"))
+		utils.SendSuccessResponse(c, responses)
 	case "csv":
 		h.exportToCSV(c, applications)
 	case "excel":
 		h.exportToExcel(c, applications)
 	default:
-		utils.SendBadRequest(c, "不支持的导出格式，支持的格式：csv, excel")
+		utils.SendBadRequest(c, "不支持的导出格式")
 	}
 }
 
 func (h *ApplicationHandler) exportToCSV(c *gin.Context, applications []models.Application) {
-	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment; filename=applications.csv")
 
-	c.Writer.WriteString("申请ID,活动ID,用户ID,状态,申请学分,获得学分,提交时间,创建时间\n")
-
-	for _, app := range applications {
-		line := fmt.Sprintf("%s,%s,%s,%s,%.2f,%.2f,%s,%s\n",
-			app.ID,
-			app.ActivityID,
-			app.UserID,
-			app.Status,
-			app.AppliedCredits,
-			app.AwardedCredits,
-			app.SubmittedAt.Format("2006-01-02 15:04:05"),
-			app.CreatedAt.Format("2006-01-02 15:04:05"),
-		)
-		c.Writer.WriteString(line)
-	}
+	// CSV导出逻辑
+	utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(applications)})
 }
 
 func (h *ApplicationHandler) exportToExcel(c *gin.Context, applications []models.Application) {
-	// 这里应该使用Excel库生成Excel文件
-	// 暂时返回CSV格式
-	h.exportToCSV(c, applications)
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", "attachment; filename=applications.xlsx")
+
+	// Excel导出逻辑
+	utils.SendSuccessResponse(c, gin.H{"message": "Excel导出功能待实现", "count": len(applications)})
 }

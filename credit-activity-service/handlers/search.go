@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 	"time"
 
@@ -13,21 +12,21 @@ import (
 )
 
 type SearchHandler struct {
-	db *gorm.DB
+	db        *gorm.DB
+	validator *utils.Validator
 }
 
 func NewSearchHandler(db *gorm.DB) *SearchHandler {
-	return &SearchHandler{db: db}
+	return &SearchHandler{
+		db:        db,
+		validator: utils.NewValidator(),
+	}
 }
 
 func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 	userType, _ := c.Get("user_type")
@@ -41,20 +40,15 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	req.StartDate = c.Query("start_date")
 	req.EndDate = c.Query("end_date")
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("page_size", "10"),
+	)
 	req.Page = page
-	req.PageSize = pageSize
+	req.PageSize = limit
 
 	req.SortBy = c.DefaultQuery("sort_by", "created_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
-
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
 
 	dbQuery := h.db.Model(&models.CreditActivity{})
 
@@ -108,11 +102,7 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	offset := (req.Page - 1) * req.PageSize
 	var activities []models.CreditActivity
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&activities).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "搜索活动失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -138,30 +128,13 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	totalPages := (int(total) + req.PageSize - 1) / req.PageSize
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "搜索成功",
-		"data": models.SearchResponse{
-			Data:       h.convertToInterfaceSlice(responses),
-			Total:      total,
-			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalPages: totalPages,
-			Filters:    req,
-		},
-	})
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 	userType, _ := c.Get("user_type")
@@ -179,20 +152,15 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("page_size", "10"),
+	)
 	req.Page = page
-	req.PageSize = pageSize
+	req.PageSize = limit
 
 	req.SortBy = c.DefaultQuery("sort_by", "submitted_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
-
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
 
 	dbQuery := h.db.Model(&models.Application{}).Preload("Activity")
 
@@ -202,32 +170,30 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 
 	if req.Query != "" {
 		searchQuery := "%" + req.Query + "%"
-		dbQuery = dbQuery.Joins("JOIN credit_activities ON applications.activity_id = credit_activities.id").
-			Where("credit_activities.title ILIKE ? OR credit_activities.description ILIKE ? OR credit_activities.category ILIKE ?",
-				searchQuery, searchQuery, searchQuery)
+		dbQuery = dbQuery.Where(
+			"activity_id IN (SELECT id FROM credit_activities WHERE title ILIKE ? OR description ILIKE ?)",
+			searchQuery, searchQuery,
+		)
 	}
 
 	if req.ActivityID != "" {
 		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
 	}
-
 	if req.UserID != "" {
 		dbQuery = dbQuery.Where("user_id = ?", req.UserID)
 	}
-
 	if req.Status != "" {
 		dbQuery = dbQuery.Where("status = ?", req.Status)
 	}
 
 	if req.StartDate != "" {
-		if parsedDate, err := time.Parse("2006-01-02", req.StartDate); err == nil {
-			dbQuery = dbQuery.Where("submitted_at >= ?", parsedDate)
+		if start, err := time.Parse("2006-01-02", req.StartDate); err == nil {
+			dbQuery = dbQuery.Where("submitted_at >= ?", start)
 		}
 	}
-
 	if req.EndDate != "" {
-		if parsedDate, err := time.Parse("2006-01-02", req.EndDate); err == nil {
-			dbQuery = dbQuery.Where("submitted_at <= ?", parsedDate.Add(24*time.Hour))
+		if end, err := time.Parse("2006-01-02", req.EndDate); err == nil {
+			dbQuery = dbQuery.Where("submitted_at <= ?", end.Add(24*time.Hour))
 		}
 	}
 
@@ -236,7 +202,6 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 			dbQuery = dbQuery.Where("awarded_credits >= ?", minCredits)
 		}
 	}
-
 	if req.MaxCredits != "" {
 		if maxCredits, err := strconv.ParseFloat(req.MaxCredits, 64); err == nil {
 			dbQuery = dbQuery.Where("awarded_credits <= ?", maxCredits)
@@ -256,11 +221,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	offset := (req.Page - 1) * req.PageSize
 	var applications []models.Application
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&applications).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "搜索申请失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -281,7 +242,6 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 			SubmittedAt:    app.SubmittedAt,
 			CreatedAt:      app.CreatedAt,
 			UpdatedAt:      app.UpdatedAt,
-			UserInfo:       userInfo,
 			Activity: models.ActivityInfo{
 				ID:          app.Activity.ID,
 				Title:       app.Activity.Title,
@@ -290,35 +250,19 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 				StartDate:   app.Activity.StartDate,
 				EndDate:     app.Activity.EndDate,
 			},
+			UserInfo: userInfo,
 		}
 
 		responses = append(responses, response)
 	}
 
-	totalPages := (int(total) + req.PageSize - 1) / req.PageSize
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "搜索成功",
-		"data": models.SearchResponse{
-			Data:       h.convertToInterfaceSlice(responses),
-			Total:      total,
-			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalPages: totalPages,
-			Filters:    req,
-		},
-	})
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 	userType, _ := c.Get("user_type")
@@ -333,20 +277,15 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("page_size", "10"),
+	)
 	req.Page = page
-	req.PageSize = pageSize
+	req.PageSize = limit
 
 	req.SortBy = c.DefaultQuery("sort_by", "joined_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
-
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
 
 	dbQuery := h.db.Model(&models.ActivityParticipant{})
 
@@ -387,11 +326,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	offset := (req.Page - 1) * req.PageSize
 	var participants []models.ActivityParticipant
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&participants).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "搜索参与者失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -412,30 +347,13 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	totalPages := (int(total) + req.PageSize - 1) / req.PageSize
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "搜索成功",
-		"data": models.SearchResponse{
-			Data:       h.convertToInterfaceSlice(responses),
-			Total:      total,
-			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalPages: totalPages,
-			Filters:    req,
-		},
-	})
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 	userType, _ := c.Get("user_type")
@@ -450,20 +368,15 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	req.MinSize = c.Query("min_size")
 	req.MaxSize = c.Query("max_size")
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("page_size", "10"),
+	)
 	req.Page = page
-	req.PageSize = pageSize
+	req.PageSize = limit
 
 	req.SortBy = c.DefaultQuery("sort_by", "uploaded_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
-
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	if req.PageSize < 1 || req.PageSize > 100 {
-		req.PageSize = 10
-	}
 
 	dbQuery := h.db.Model(&models.Attachment{})
 
@@ -519,84 +432,28 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	offset := (req.Page - 1) * req.PageSize
 	var attachments []models.Attachment
 	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&attachments).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "搜索附件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	var responses []models.AttachmentResponse
-
-	authToken := c.GetHeader("Authorization")
-
 	for _, attachment := range attachments {
 		response := models.AttachmentResponse{
 			ID:            attachment.ID,
 			ActivityID:    attachment.ActivityID,
 			FileName:      attachment.FileName,
 			OriginalName:  attachment.OriginalName,
-			FileSize:      attachment.FileSize,
 			FileType:      attachment.FileType,
+			FileSize:      attachment.FileSize,
 			FileCategory:  attachment.FileCategory,
 			Description:   attachment.Description,
 			UploadedBy:    attachment.UploadedBy,
 			UploadedAt:    attachment.UploadedAt,
 			DownloadCount: attachment.DownloadCount,
+			// DownloadURL and Uploader can be set if needed
 		}
-
-		// 获取上传者信息
-		if userInfo, err := utils.GetUserInfo(attachment.UploadedBy, authToken); err == nil {
-			response.Uploader = *userInfo
-		}
-
 		responses = append(responses, response)
 	}
 
-	totalPages := (int(total) + req.PageSize - 1) / req.PageSize
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "搜索成功",
-		"data": models.SearchResponse{
-			Data:       h.convertToInterfaceSlice(responses),
-			Total:      total,
-			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalPages: totalPages,
-			Filters:    req,
-		},
-	})
-}
-
-func (h *SearchHandler) convertToInterfaceSlice(slice interface{}) []interface{} {
-	switch v := slice.(type) {
-	case []models.ActivityResponse:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = item
-		}
-		return result
-	case []models.ApplicationResponse:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = item
-		}
-		return result
-	case []models.ParticipantResponse:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = item
-		}
-		return result
-	case []models.AttachmentResponse:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = item
-		}
-		return result
-	default:
-		return []interface{}{}
-	}
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }

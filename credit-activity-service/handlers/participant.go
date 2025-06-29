@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-	"strconv"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -13,11 +11,15 @@ import (
 )
 
 type ParticipantHandler struct {
-	db *gorm.DB
+	db        *gorm.DB
+	validator *utils.Validator
 }
 
 func NewParticipantHandler(db *gorm.DB) *ParticipantHandler {
-	return &ParticipantHandler{db: db}
+	return &ParticipantHandler{
+		db:        db,
+		validator: utils.NewValidator(),
+	}
 }
 
 func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
@@ -27,53 +29,29 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 
 	var req models.AddParticipantsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "参数错误",
-			"data":    err.Error(),
-		})
+		utils.SendBadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    "指定的活动不存在",
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者、教师或管理员可以添加参与者",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "权限不足，只有活动创建者、教师或管理员可以添加参与者")
 		return
 	}
 
-	authToken := ""
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		authToken = authHeader
-	}
-
+	authToken := c.GetHeader("Authorization")
 	for _, targetUserID := range req.UserIDs {
 		if !h.isStudent(targetUserID, authToken) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "只能添加学生用户作为参与者",
-				"data":    targetUserID,
-			})
+			utils.SendBadRequest(c, "只能添加学生用户作为参与者")
 			return
 		}
 	}
@@ -120,13 +98,9 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "参与者添加成功",
-		"data": gin.H{
-			"added_count":  addedCount,
-			"participants": responses,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"added_count":  addedCount,
+		"participants": responses,
 	})
 }
 
@@ -137,46 +111,26 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 
 	var req models.BatchCreditsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "参数错误",
-			"data":    err.Error(),
-		})
+		utils.SendBadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    "指定的活动不存在",
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者、教师或管理员可以设置学分",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "权限不足，只有活动创建者、教师或管理员可以设置学分")
 		return
 	}
 
-	authToken := ""
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		authToken = authHeader
-	}
-
+	authToken := c.GetHeader("Authorization")
 	var updatedParticipants []models.ParticipantResponse
 	updatedCount := 0
 
@@ -202,80 +156,63 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
 		}
+
 		updatedParticipants = append(updatedParticipants, response)
 		updatedCount++
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "批量设置学分成功",
-		"data": gin.H{
-			"updated_count": updatedCount,
-			"participants":  updatedParticipants,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"updated_count": updatedCount,
+		"participants":  updatedParticipants,
 	})
 }
 
 func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	activityID := c.Param("id")
-	targetUserID := c.Param("user_id")
+	participantID := c.Param("participant_id")
 	userID, _ := c.Get("user_id")
 	userType, _ := c.Get("user_type")
 
 	var req models.SingleCreditsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "参数错误",
-			"data":    err.Error(),
-		})
+		utils.SendBadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    "指定的活动不存在",
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者、教师或管理员可以设置学分",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "权限不足，只有活动创建者、教师或管理员可以设置学分")
 		return
 	}
 
 	var participant models.ActivityParticipant
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, targetUserID).First(&participant).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "参与者不存在",
-			"data":    "指定的参与者不存在",
-		})
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).First(&participant).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendNotFound(c, "参与者不存在")
+		} else {
+			utils.SendInternalServerError(c, err)
+		}
 		return
 	}
 
 	participant.Credits = req.Credits
 	if err := h.db.Save(&participant).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "设置学分失败",
-			"data":    err.Error(),
-		})
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	userInfo, err := h.getUserInfo(participant.UserID, c.GetHeader("Authorization"))
+	if err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -283,143 +220,74 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 		UserID:   participant.UserID,
 		Credits:  participant.Credits,
 		JoinedAt: participant.JoinedAt,
-	}
-	authToken := ""
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		authToken = authHeader
+		UserInfo: userInfo,
 	}
 
-	userInfo, err := h.getUserInfo(participant.UserID, authToken)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "参与者关联的用户不存在",
-			"data":    nil,
-		})
-		return
-	}
-	response.UserInfo = userInfo
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "学分设置成功",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 	activityID := c.Param("id")
-	targetUserID := c.Param("user_id")
+	participantID := c.Param("participant_id")
 	userID, _ := c.Get("user_id")
 	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    "指定的活动不存在",
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者、教师或管理员可以删除参与者",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "权限不足，只有活动创建者、教师或管理员可以移除参与者")
 		return
 	}
 
-	var participant models.ActivityParticipant
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, targetUserID).First(&participant).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "参与者不存在",
-			"data":    "指定的参与者不存在",
-		})
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	if err := h.db.Delete(&participant).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "删除参与者失败",
-			"data":    err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "参与者删除成功",
-		"data": gin.H{
-			"user_id":    targetUserID,
-			"removed_at": time.Now(),
-		},
-	})
+	utils.SendSuccessResponse(c, gin.H{"message": "参与者移除成功"})
 }
 
 func (h *ParticipantHandler) LeaveActivity(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("user_id")
 
-	var participant models.ActivityParticipant
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "参与者不存在",
-			"data":    "指定的参与者不存在",
-		})
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	if err := h.db.Delete(&participant).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "退出活动失败",
-			"data":    err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "退出活动成功",
-		"data": gin.H{
-			"user_id": userID,
-			"left_at": time.Now(),
-		},
-	})
+	utils.SendSuccessResponse(c, gin.H{"message": "成功退出活动"})
 }
 
 func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	activityID := c.Param("id")
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
 
 	var participants []models.ActivityParticipant
-	if err := h.db.Where("activity_id = ?", activityID).Find(&participants).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取参与者列表失败",
-			"data":    err.Error(),
-		})
+	var total int64
+
+	query := h.db.Where("activity_id = ?", activityID)
+	query.Count(&total)
+
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Order("joined_at DESC").Find(&participants).Error; err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	responses := make([]models.ParticipantResponse, 0, len(participants))
-	authToken := ""
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		authToken = authHeader
-	}
+	var responses []models.ParticipantResponse
+	authToken := c.GetHeader("Authorization")
 	for _, participant := range participants {
 		userInfo, err := h.getUserInfo(participant.UserID, authToken)
 		if err != nil {
@@ -432,25 +300,11 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
 		}
+
 		responses = append(responses, response)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": gin.H{
-			"participants": responses,
-			"total":        len(responses),
-		},
-	})
-}
-
-func (h *ParticipantHandler) isStudent(userID string, authToken string) bool {
-	return utils.IsStudent(userID, authToken)
-}
-
-func (h *ParticipantHandler) getUserInfo(userID string, authToken string) (*models.UserInfo, error) {
-	return utils.GetUserInfo(userID, authToken)
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
@@ -458,62 +312,37 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	userType, _ := c.Get("user_type")
 
-	var req struct {
-		UserIDs []string `json:"user_ids" binding:"required,min=1"`
-	}
-
+	var req models.BatchRemoveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID && userType != "admin" && userType != "teacher" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者、教师或管理员可以批量删除参与者",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "权限不足，只有活动创建者、教师或管理员可以批量移除参与者")
 		return
 	}
 
-	if err := h.db.Where("activity_id = ? AND user_id IN ?", activityID, req.UserIDs).Delete(&models.ActivityParticipant{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "批量删除参与者失败",
-			"data":    err.Error(),
-		})
-		return
+	removedCount := 0
+	for _, participantID := range req.UserIDs {
+		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err == nil {
+			removedCount++
+		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "批量删除参与者成功",
-		"data": gin.H{
-			"removed_count": len(req.UserIDs),
-			"removed_users": req.UserIDs,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"removed_count":   removedCount,
+		"total_requested": len(req.UserIDs),
 	})
 }
 
@@ -523,43 +352,17 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 	var stats struct {
 		TotalParticipants int64   `json:"total_participants"`
 		TotalCredits      float64 `json:"total_credits"`
-		AvgCredits        float64 `json:"avg_credits"`
-		MaxCredits        float64 `json:"max_credits"`
-		MinCredits        float64 `json:"min_credits"`
+		AverageCredits    float64 `json:"average_credits"`
 	}
 
-	if err := h.db.Model(&models.ActivityParticipant{}).
-		Where("activity_id = ?", activityID).
-		Select("COUNT(*) as total_participants, SUM(credits) as total_credits, AVG(credits) as avg_credits, MAX(credits) as max_credits, MIN(credits) as min_credits").
-		Scan(&stats).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取统计信息失败",
-			"data":    err.Error(),
-		})
-		return
+	h.db.Model(&models.ActivityParticipant{}).Where("activity_id = ?", activityID).Count(&stats.TotalParticipants)
+	h.db.Model(&models.ActivityParticipant{}).Where("activity_id = ?", activityID).Select("COALESCE(SUM(credits), 0)").Scan(&stats.TotalCredits)
+
+	if stats.TotalParticipants > 0 {
+		stats.AverageCredits = stats.TotalCredits / float64(stats.TotalParticipants)
 	}
 
-	var recentParticipants int64
-	h.db.Model(&models.ActivityParticipant{}).
-		Where("activity_id = ? AND joined_at >= ?", activityID, time.Now().AddDate(0, 0, -7)).
-		Count(&recentParticipants)
-
-	statsData := gin.H{
-		"total_participants":  stats.TotalParticipants,
-		"total_credits":       stats.TotalCredits,
-		"avg_credits":         stats.AvgCredits,
-		"max_credits":         stats.MaxCredits,
-		"min_credits":         stats.MinCredits,
-		"recent_participants": recentParticipants,
-		"activity_id":         activityID,
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "获取统计信息成功",
-		"data":    statsData,
-	})
+	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
@@ -568,118 +371,93 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 
 	var participants []models.ActivityParticipant
 	if err := h.db.Where("activity_id = ?", activityID).Order("joined_at DESC").Find(&participants).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取参与者数据失败",
-			"data":    err.Error(),
-		})
+		utils.SendInternalServerError(c, err)
 		return
-	}
-
-	responses := make([]models.ParticipantResponse, 0, len(participants))
-	authToken := ""
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		authToken = authHeader
-	}
-	for _, participant := range participants {
-		userInfo, err := h.getUserInfo(participant.UserID, authToken)
-		if err != nil {
-			continue
-		}
-
-		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
-			Credits:  participant.Credits,
-			JoinedAt: participant.JoinedAt,
-			UserInfo: userInfo,
-		}
-		responses = append(responses, response)
 	}
 
 	switch format {
 	case "json":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "导出成功",
-			"data": gin.H{
-				"activity_id":  activityID,
-				"participants": responses,
-				"total_count":  len(responses),
-				"export_time":  time.Now(),
-			},
-		})
+		var responses []models.ParticipantResponse
+		authToken := c.GetHeader("Authorization")
+		for _, participant := range participants {
+			userInfo, err := h.getUserInfo(participant.UserID, authToken)
+			if err != nil {
+				continue
+			}
+
+			response := models.ParticipantResponse{
+				UserID:   participant.UserID,
+				Credits:  participant.Credits,
+				JoinedAt: participant.JoinedAt,
+				UserInfo: userInfo,
+			}
+
+			responses = append(responses, response)
+		}
+		utils.SendSuccessResponse(c, responses)
 	case "csv":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "导出成功",
-			"data": gin.H{
-				"message":     "CSV导出功能待实现",
-				"total_count": len(responses),
-				"activity_id": activityID,
-			},
-		})
+		c.Header("Content-Type", "text/csv")
+		c.Header("Content-Disposition", "attachment; filename=participants.csv")
+		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(participants)})
+	case "excel":
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		c.Header("Content-Disposition", "attachment; filename=participants.xlsx")
+		utils.SendSuccessResponse(c, gin.H{"message": "Excel导出功能待实现", "count": len(participants)})
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持的导出格式",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "不支持的导出格式")
 	}
 }
 
 func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 10
-	}
-
-	var participants []models.ActivityParticipant
-	if err := h.db.Where("user_id = ?", userID).Offset((page - 1) * pageSize).Limit(pageSize).Order("joined_at DESC").Find(&participants).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取参与活动列表失败",
-			"data":    err.Error(),
-		})
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.SendUnauthorized(c)
 		return
 	}
 
-	var total int64
-	h.db.Model(&models.ActivityParticipant{}).Where("user_id = ?", userID).Count(&total)
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
 
-	var activities []gin.H
-	for _, participant := range participants {
-		var activity models.CreditActivity
-		if err := h.db.Where("id = ?", participant.ActivityID).First(&activity).Error; err == nil {
-			activities = append(activities, gin.H{
-				"activity_id": activity.ID,
-				"title":       activity.Title,
-				"category":    activity.Category,
-				"status":      activity.Status,
-				"start_date":  activity.StartDate,
-				"end_date":    activity.EndDate,
-				"credits":     participant.Credits,
-				"joined_at":   participant.JoinedAt,
-			})
-		}
+	var participants []models.ActivityParticipant
+	var total int64
+
+	query := h.db.Where("user_id = ?", userID).Preload("Activity")
+	query.Count(&total)
+
+	offset := (page - 1) * limit
+	if err := query.Offset(offset).Limit(limit).Order("joined_at DESC").Find(&participants).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
 	}
 
-	totalPages := (total + int64(pageSize) - 1) / int64(pageSize)
+	var responses []models.ParticipantActivityResponse
+	for _, participant := range participants {
+		response := models.ParticipantActivityResponse{
+			ActivityID: participant.ActivityID,
+			Credits:    participant.Credits,
+			JoinedAt:   participant.JoinedAt,
+			Activity: models.ActivityInfo{
+				ID:          participant.Activity.ID,
+				Title:       participant.Activity.Title,
+				Description: participant.Activity.Description,
+				Category:    participant.Activity.Category,
+				StartDate:   participant.Activity.StartDate,
+				EndDate:     participant.Activity.EndDate,
+			},
+		}
+		responses = append(responses, response)
+	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "获取成功",
-		"data": gin.H{
-			"activities":  activities,
-			"total":       total,
-			"page":        page,
-			"page_size":   pageSize,
-			"total_pages": totalPages,
-		},
-	})
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
+
+func (h *ParticipantHandler) isStudent(userID string, authToken string) bool {
+	userInfo, err := utils.GetUserInfo(userID, authToken)
+	return err == nil && userInfo != nil && userInfo.UserType == "student"
+}
+
+func (h *ParticipantHandler) getUserInfo(userID string, authToken string) (*models.UserInfo, error) {
+	return utils.GetUserInfo(userID, authToken)
 }
