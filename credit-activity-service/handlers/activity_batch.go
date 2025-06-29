@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,21 +18,13 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
@@ -42,11 +34,7 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 	err := h.db.Raw("SELECT batch_delete_activities(?, ?, ?)", req.ActivityIDs, userID, userType).Scan(&deletedCount).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "批量删除活动失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -71,89 +59,29 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "批量删除活动成功",
-		"data": gin.H{
-			"deleted_count": deletedCount,
-			"total_count":   len(req.ActivityIDs),
-			"deleted_at":    time.Now(),
-		},
-	})
-}
-
-func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
-		return
-	}
-
-	userType, _ := c.Get("user_type")
-
-	var activities []struct {
-		ActivityID  string    `json:"activity_id"`
-		Title       string    `json:"title"`
-		Description string    `json:"description"`
-		Status      string    `json:"status"`
-		Category    string    `json:"category"`
-		OwnerID     string    `json:"owner_id"`
-		CreatedAt   time.Time `json:"created_at"`
-		CanDelete   bool      `json:"can_delete"`
-	}
-
-	err := h.db.Raw("SELECT * FROM get_user_deletable_activities(?, ?)", userID, userType).Scan(&activities).Error
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取可删除活动列表失败: " + err.Error(),
-			"data":    nil,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "获取可删除活动列表成功",
-		"data": gin.H{
-			"activities": activities,
-			"total":      len(activities),
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"message":       "批量删除活动成功",
+		"deleted_count": deletedCount,
+		"total_count":   len(req.ActivityIDs),
+		"deleted_at":    time.Now(),
 	})
 }
 
 func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 	var req models.BatchActivityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	if len(req.Activities) > 10 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "批量创建活动数量不能超过10个",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "批量创建活动数量不能超过10个")
 		return
 	}
 
@@ -240,47 +168,27 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 
 	if len(errors) > 0 {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "批量创建活动失败",
-			"data": gin.H{
-				"errors":             errors,
-				"created_count":      0,
-				"total_count":        len(req.Activities),
-				"created_activities": []models.ActivityCreateResponse{},
-			},
-		})
+		utils.SendBadRequest(c, "批量创建活动失败")
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "提交事务失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "批量创建活动成功",
-		"data": gin.H{
-			"created_count":      len(createdActivities),
-			"total_count":        len(req.Activities),
-			"created_activities": createdActivities,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"message":            "批量创建活动成功",
+		"created_count":      len(createdActivities),
+		"total_count":        len(req.Activities),
+		"created_activities": createdActivities,
 	})
 }
 
 func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 	userType, _ := c.Get("user_type")
@@ -292,11 +200,7 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 		} `json:"updates" binding:"required,min=1,max=20"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
@@ -456,36 +360,24 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 
 	if len(errors) > 0 {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "批量更新部分失败",
-			"data": gin.H{
-				"updated_count":      len(updatedActivities),
-				"total_count":        len(req.Updates),
-				"updated_activities": updatedActivities,
-				"errors":             errors,
-			},
+		utils.SendBadRequestWithData(c, "批量更新部分失败", gin.H{
+			"updated_count":      len(updatedActivities),
+			"total_count":        len(req.Updates),
+			"updated_activities": updatedActivities,
+			"errors":             errors,
 		})
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "提交事务失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "批量更新成功",
-		"data": gin.H{
-			"updated_count":      len(updatedActivities),
-			"total_count":        len(req.Updates),
-			"updated_activities": updatedActivities,
-			"errors":             []string{},
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"updated_count":      len(updatedActivities),
+		"total_count":        len(req.Updates),
+		"updated_activities": updatedActivities,
+		"errors":             []string{},
 	})
 }

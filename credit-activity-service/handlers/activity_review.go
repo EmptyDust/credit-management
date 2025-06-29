@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"net/http"
-	"strconv"
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -13,125 +12,75 @@ import (
 
 func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 	id := c.Param("id")
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+	if err := h.validator.ValidateUUID(id); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
-	var activity models.CreditActivity
-	if err := h.db.Where("id = ?", id).First(&activity).Error; err != nil {
+	// 使用数据库基类获取活动
+	activity, err := h.base.GetActivityByID(id)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限提交此活动",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "无权限提交此活动")
 		return
 	}
 
 	if activity.Status != models.StatusDraft {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只能提交草稿状态的活动",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "只能提交草稿状态的活动")
 		return
 	}
 
 	if err := h.db.Model(&activity).Update("status", models.StatusPendingReview).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "提交审核失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "活动已提交审核",
-		"data": gin.H{
-			"id":     activity.ID,
-			"status": models.StatusPendingReview,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"id":     activity.ID,
+		"status": models.StatusPendingReview,
 	})
 }
 
 func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	id := c.Param("id")
-	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+	if err := h.validator.ValidateUUID(id); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var req models.ActivityReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	var activity models.CreditActivity
-	if err := h.db.Where("id = ?", id).First(&activity).Error; err != nil {
+	// 使用数据库基类获取活动
+	activity, err := h.base.GetActivityByID(id)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -139,11 +88,7 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	if activity.Status != models.StatusPendingReview &&
 		activity.Status != models.StatusApproved &&
 		activity.Status != models.StatusRejected {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只能审核待审核、已通过或已拒绝状态的活动",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "只能审核待审核、已通过或已拒绝状态的活动")
 		return
 	}
 
@@ -156,125 +101,122 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	}
 
 	if err := h.db.Model(&activity).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "审核活动失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "审核完成",
-		"data": gin.H{
-			"id":              activity.ID,
-			"status":          req.Status,
-			"reviewer_id":     userID.(string),
-			"review_comments": req.ReviewComments,
-			"reviewed_at":     now,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"id":              activity.ID,
+		"status":          req.Status,
+		"reviewer_id":     userID.(string),
+		"review_comments": req.ReviewComments,
+		"reviewed_at":     now,
 	})
 }
 
 func (h *ActivityHandler) GetPendingActivities(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	offset := (page - 1) * limit
+	// 使用统一的验证器处理分页参数
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
 
-	var activities []models.CreditActivity
-	var total int64
-
-	query := h.db.Where("status = ?", models.StatusPendingReview)
-
-	query.Model(&models.CreditActivity{}).Count(&total)
-
-	if err := query.Offset(offset).Limit(limit).Order("created_at DESC").Find(&activities).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取待审核活动失败: " + err.Error(),
-			"data":    nil,
-		})
+	// 使用数据库基类获取待审核活动
+	activities, total, err := h.base.GetPendingActivities(page, limit)
+	if err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	totalPages := (int(total) + limit - 1) / limit
+	var responses []models.ActivityResponse
+	authToken := ""
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		authToken = authHeader
+	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": models.PaginatedResponse{
-			Data:       activities,
-			Total:      total,
-			Page:       page,
-			Limit:      limit,
-			TotalPages: totalPages,
-		},
-	})
+	for _, activity := range activities {
+		response := h.enrichActivityResponse(activity, authToken)
+		responses = append(responses, response)
+	}
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
 func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 	id := c.Param("id")
-	userID, _ := c.Get("user_id")
+	if err := h.validator.ValidateUUID(id); err != nil {
+		utils.SendBadRequest(c, err.Error())
+		return
+	}
 
-	var activity models.CreditActivity
-	if err := h.db.Where("id = ?", id).First(&activity).Error; err != nil {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.SendUnauthorized(c)
+		return
+	}
+
+	// 使用数据库基类获取活动
+	activity, err := h.base.GetActivityByID(id)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    "指定的活动不存在",
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败",
-				"data":    err.Error(),
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if activity.OwnerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "权限不足，只有活动创建者可以撤回活动",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "无权限撤回此活动")
 		return
 	}
 
-	if activity.Status == models.StatusDraft {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "草稿状态的活动无需撤回",
-			"data":    nil,
-		})
+	if activity.Status != models.StatusPendingReview {
+		utils.SendBadRequest(c, "只能撤回待审核状态的活动")
 		return
 	}
 
-	activity.Status = models.StatusDraft
-	activity.ReviewerID = nil
-	activity.ReviewComments = ""
-	activity.ReviewedAt = nil
-
-	if err := h.db.Save(&activity).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "撤回活动失败",
-			"data":    err.Error(),
-		})
+	if err := h.db.Model(&activity).Update("status", models.StatusDraft).Error; err != nil {
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	now := time.Now()
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "活动撤回成功",
-		"data": gin.H{
-			"id":           activity.ID,
-			"status":       activity.Status,
-			"withdrawn_at": now,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"id":     activity.ID,
+		"status": models.StatusDraft,
 	})
+}
+
+func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.SendUnauthorized(c)
+		return
+	}
+
+	// 使用统一的验证器处理分页参数
+	page, limit, _ := h.validator.ValidatePagination(
+		c.DefaultQuery("page", "1"),
+		c.DefaultQuery("limit", "10"),
+	)
+
+	// 使用数据库基类获取可删除的活动
+	activities, total, err := h.base.GetDeletableActivities(userID.(string), page, limit)
+	if err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	var responses []models.ActivityResponse
+	authToken := ""
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		authToken = authHeader
+	}
+
+	for _, activity := range activities {
+		response := h.enrichActivityResponse(activity, authToken)
+		responses = append(responses, response)
+	}
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }

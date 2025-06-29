@@ -3,13 +3,12 @@ package handlers
 import (
 	"encoding/csv"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
 	"mime/multipart"
 
@@ -20,39 +19,24 @@ import (
 
 func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 	activityID := c.Param("id")
-	if activityID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+	if err := h.validator.ValidateUUID(activityID); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
-	var originalActivity models.CreditActivity
-	if err := h.db.Where("id = ?", activityID).First(&originalActivity).Error; err != nil {
+	// 使用数据库基类获取活动
+	originalActivity, err := h.base.GetActivityByID(activityID)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -68,21 +52,12 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&newActivity).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "复制活动失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	response := h.enrichActivityResponse(newActivity, "")
-
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "活动复制成功",
-		"data":    response,
-	})
+	utils.SendCreatedResponse(c, "活动复制成功", response)
 }
 
 func (h *ActivityHandler) ExportActivities(c *gin.Context) {
@@ -101,56 +76,36 @@ func (h *ActivityHandler) ExportActivities(c *gin.Context) {
 		dbQuery = dbQuery.Where("status = ?", status)
 	}
 	if startDate != "" {
-		if parsedDate, err := time.Parse("2006-01-02", startDate); err == nil {
+		if parsedDate, err := utils.ParseDate(startDate); err == nil {
 			dbQuery = dbQuery.Where("start_date >= ?", parsedDate)
 		}
 	}
 	if endDate != "" {
-		if parsedDate, err := time.Parse("2006-01-02", endDate); err == nil {
+		if parsedDate, err := utils.ParseDate(endDate); err == nil {
 			dbQuery = dbQuery.Where("end_date <= ?", parsedDate)
 		}
 	}
 
 	var activities []models.CreditActivity
 	if err := dbQuery.Order("created_at DESC").Find(&activities).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取活动数据失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	switch format {
 	case "json":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "导出成功",
-			"data":    activities,
-		})
+		utils.SendSuccessResponse(c, activities)
 	case "csv":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "导出成功",
-			"data":    gin.H{"message": "CSV导出功能待实现", "count": len(activities)},
-		})
+		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(activities)})
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持的导出格式",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "不支持的导出格式")
 	}
 }
 
 func (h *ActivityHandler) SaveAsTemplate(c *gin.Context) {
 	activityID := c.Param("id")
-	if activityID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+	if err := h.validator.ValidateUUID(activityID); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
@@ -160,100 +115,70 @@ func (h *ActivityHandler) SaveAsTemplate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	var originalActivity models.CreditActivity
-	if err := h.db.Where("id = ?", activityID).First(&originalActivity).Error; err != nil {
+	// 使用数据库基类检查活动是否存在
+	if err := h.base.CheckActivityExists(activityID); err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	// 这里可以实现模板保存逻辑
 	// 目前返回成功消息，实际实现需要创建模板表
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "模板保存成功",
-		"data": gin.H{
-			"template_name": req.TemplateName,
-			"activity_id":   activityID,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"template_name": req.TemplateName,
+		"activity_id":   activityID,
 	})
 }
 
 func (h *ActivityHandler) ImportActivities(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请上传文件: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请选择要导入的文件")
 		return
 	}
 
-	fmt.Printf("File received: %s, size: %d\n", file.Filename, file.Size)
-
-	if file.Size > 10*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件大小不能超过10MB",
-			"data":    nil,
-		})
+	// 验证文件类型
+	allowedTypes := []string{"csv", "xlsx", "xls"}
+	if err := h.validator.ValidateFileType(file.Filename, allowedTypes); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	fileName := strings.ToLower(file.Filename)
+	// 验证文件大小 (10MB)
+	maxSize := int64(10 * 1024 * 1024)
+	if err := h.validator.ValidateFileSize(file.Size, maxSize); err != nil {
+		utils.SendBadRequest(c, err.Error())
+		return
+	}
+
 	var records [][]string
-	var parseError error
+	fileExt := strings.ToLower(filepath.Ext(file.Filename))
 
-	if strings.HasSuffix(fileName, ".csv") {
-		records, parseError = h.parseCSVFile(file)
-	} else if strings.HasSuffix(fileName, ".xlsx") || strings.HasSuffix(fileName, ".xls") {
-		records, parseError = h.parseExcelFile(file)
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只支持CSV、XLSX、XLS文件格式",
-			"data":    nil,
-		})
+	switch fileExt {
+	case ".csv":
+		records, err = h.parseCSVFile(file)
+	case ".xlsx", ".xls":
+		records, err = h.parseExcelFile(file)
+	default:
+		utils.SendBadRequest(c, "不支持的文件格式")
 		return
 	}
 
-	if parseError != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件解析失败: " + parseError.Error(),
-			"data":    nil,
-		})
+	if err != nil {
+		utils.SendBadRequest(c, "文件解析失败: "+err.Error())
 		return
 	}
 
@@ -339,20 +264,12 @@ func (h *ActivityHandler) parseExcelFile(file *multipart.FileHeader) ([][]string
 
 func (h *ActivityHandler) processImportData(c *gin.Context, records [][]string, userID string, fileName string) {
 	if len(records) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件至少需要包含标题行和一行数据",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "文件至少需要包含标题行和一行数据")
 		return
 	}
 
 	if len(records) > 1001 { // 标题行 + 1000行数据
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件最多支持1000行数据",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "文件最多支持1000行数据")
 		return
 	}
 
@@ -372,11 +289,7 @@ func (h *ActivityHandler) processImportData(c *gin.Context, records [][]string, 
 	}
 
 	if len(missingHeaders) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件缺少必需的列: " + strings.Join(missingHeaders, ", "),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "文件缺少必需的列: "+strings.Join(missingHeaders, ", "))
 		return
 	}
 
@@ -408,15 +321,11 @@ func (h *ActivityHandler) processImportData(c *gin.Context, records [][]string, 
 	}
 
 	if len(errors) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "数据验证失败",
-			"data": gin.H{
-				"errors":       errors,
-				"total_rows":   len(records) - 1,
-				"valid_rows":   len(activities),
-				"invalid_rows": len(errors),
-			},
+		utils.SendBadRequestWithData(c, "数据验证失败", gin.H{
+			"errors":       errors,
+			"total_rows":   len(records) - 1,
+			"valid_rows":   len(activities),
+			"invalid_rows": len(errors),
 		})
 		return
 	}
@@ -432,7 +341,7 @@ func (h *ActivityHandler) processImportData(c *gin.Context, records [][]string, 
 	}()
 
 	for i, activityReq := range activities {
-		startDate, endDate, err := h.parseActivityDates(activityReq.StartDate, activityReq.EndDate)
+		startDate, endDate, err := utils.ParseDateRange(activityReq.StartDate, activityReq.EndDate)
 		if err != nil {
 			createErrors = append(createErrors, fmt.Sprintf("第%d个活动: %s", i+1, err.Error()))
 			continue
@@ -457,60 +366,41 @@ func (h *ActivityHandler) processImportData(c *gin.Context, records [][]string, 
 			ID:          activity.ID,
 			Title:       activity.Title,
 			Description: activity.Description,
-			StartDate:   activity.StartDate,
-			EndDate:     activity.EndDate,
-			Status:      activity.Status,
 			Category:    activity.Category,
-			OwnerID:     activity.OwnerID,
+			Status:      activity.Status,
 			CreatedAt:   activity.CreatedAt,
-			UpdatedAt:   activity.UpdatedAt,
 		}
+
 		createdActivities = append(createdActivities, response)
 	}
 
 	if len(createErrors) > 0 {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "批量创建活动失败",
-			"data": gin.H{
-				"errors":             createErrors,
-				"created_count":      0,
-				"total_count":        len(activities),
-				"created_activities": []models.ActivityCreateResponse{},
-			},
+		utils.SendBadRequestWithData(c, "部分活动创建失败", gin.H{
+			"errors":           createErrors,
+			"total_activities": len(activities),
+			"created":          len(createdActivities),
+			"failed":           len(createErrors),
 		})
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "提交事务失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "批量导入成功",
-		"data": gin.H{
-			"created_count":      len(createdActivities),
-			"total_count":        len(activities),
-			"created_activities": createdActivities,
-			"file_name":          fileName,
-			"file_type":          filepath.Ext(fileName),
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"message":            "批量导入成功",
+		"total_activities":   len(activities),
+		"created_activities": createdActivities,
+		"file_name":          fileName,
 	})
 }
 
 func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
-	template := [][]string{
-		{"title", "description", "start_date", "end_date", "category"},
-		{"示例活动1", "这是一个示例活动描述", "2024-01-01", "2024-01-31", "创新创业"},
-		{"示例活动2", "另一个示例活动", "2024-02-01", "2024-02-28", "学科竞赛"},
-	}
+	headers := []string{"title", "description", "start_date", "end_date", "category"}
+	sampleData := []string{"示例活动", "这是一个示例活动", "2024-01-01", "2024-12-31", "创新创业实践活动"}
 
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment; filename=activity_template.csv")
@@ -518,78 +408,41 @@ func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
 
-	for _, record := range template {
-		if err := writer.Write(record); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "生成CSV模板失败",
-				"data":    nil,
-			})
-			return
-		}
-	}
+	// 写入标题行
+	writer.Write(headers)
+	// 写入示例数据
+	writer.Write(sampleData)
 }
 
 func (h *ActivityHandler) ImportActivitiesFromCSV(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请上传CSV文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请选择要导入的CSV文件")
 		return
 	}
 
-	if !strings.HasSuffix(file.Filename, ".csv") {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只支持CSV文件格式",
-			"data":    nil,
-		})
+	// 验证文件类型
+	if err := h.validator.ValidateFileType(file.Filename, []string{"csv"}); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if file.Size > 5*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件大小不能超过5MB",
-			"data":    nil,
-		})
+	// 验证文件大小 (5MB)
+	maxSize := int64(5 * 1024 * 1024)
+	if err := h.validator.ValidateFileSize(file.Size, maxSize); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	src, err := file.Open()
+	records, err := h.parseCSVFile(file)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "打开文件失败: " + err.Error(),
-			"data":    nil,
-		})
-		return
-	}
-	defer src.Close()
-
-	reader := csv.NewReader(src)
-	reader.FieldsPerRecord = -1
-
-	records, err := reader.ReadAll()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "CSV文件格式错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "CSV文件解析失败: "+err.Error())
 		return
 	}
 
@@ -600,42 +453,25 @@ func (h *ActivityHandler) GetExcelTemplate(c *gin.Context) {
 	f := excelize.NewFile()
 	defer f.Close()
 
-	sheetName := "活动导入模板"
-	f.SetSheetName("Sheet1", sheetName)
-
+	// 设置标题行
 	headers := []string{"title", "description", "start_date", "end_date", "category"}
 	for i, header := range headers {
 		cell := fmt.Sprintf("%c1", 'A'+i)
-		f.SetCellValue(sheetName, cell, header)
+		f.SetCellValue("Sheet1", cell, header)
 	}
 
-	examples := [][]string{
-		{"创新创业实践活动", "参与创新创业项目，提升创新能力和实践技能", "2024-01-01", "2024-01-31", "创新创业"},
-		{"学科竞赛活动", "参加学科竞赛，获得优异成绩", "2024-02-01", "2024-02-28", "学科竞赛"},
+	// 设置示例数据
+	sampleData := []string{"示例活动", "这是一个示例活动", "2024-01-01", "2024-12-31", "创新创业实践活动"}
+	for i, data := range sampleData {
+		cell := fmt.Sprintf("%c2", 'A'+i)
+		f.SetCellValue("Sheet1", cell, data)
 	}
-
-	for i, example := range examples {
-		for j, value := range example {
-			cell := fmt.Sprintf("%c%d", 'A'+j, i+2)
-			f.SetCellValue(sheetName, cell, value)
-		}
-	}
-
-	f.SetColWidth(sheetName, "A", "A", 20)
-	f.SetColWidth(sheetName, "B", "B", 30)
-	f.SetColWidth(sheetName, "C", "D", 15)
-	f.SetColWidth(sheetName, "E", "E", 15)
-	f.SetColWidth(sheetName, "F", "F", 25)
 
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Header("Content-Disposition", "attachment; filename=activity_template.xlsx")
 
 	if err := f.Write(c.Writer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成Excel模板失败",
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 }
