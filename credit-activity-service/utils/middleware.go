@@ -1,59 +1,46 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// HeaderAuthMiddleware 认证中间件
+// HeaderAuthMiddleware 基于请求头的认证中间件
 type HeaderAuthMiddleware struct{}
 
-// NewHeaderAuthMiddleware 创建认证中间件
+// NewHeaderAuthMiddleware 创建新的认证中间件
 func NewHeaderAuthMiddleware() *HeaderAuthMiddleware {
 	return &HeaderAuthMiddleware{}
 }
 
-// AuthRequired 认证必需中间件
+// AuthRequired 需要认证的中间件
 func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从请求头获取用户信息（由API网关传递）
 		userID := c.GetHeader("X-User-ID")
 		username := c.GetHeader("X-Username")
 		userType := c.GetHeader("X-User-Type")
 
-		if userID == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "缺少用户信息",
-				"data":    nil,
-			})
+		if userID == "" || username == "" || userType == "" {
+			SendUnauthorized(c)
 			c.Abort()
 			return
 		}
 
-		// 创建claims对象
-		claims := jwt.MapClaims{
-			"user_id":   userID,
-			"username":  username,
-			"user_type": userType,
-		}
-
-		// 将用户信息存储到上下文中
+		// 设置用户信息到上下文
 		c.Set("user_id", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
-		c.Set("claims", claims)
 
 		c.Next()
 	}
 }
 
-// PermissionMiddleware 权限中间件
+// PermissionMiddleware 权限控制中间件
 type PermissionMiddleware struct{}
 
-// NewPermissionMiddleware 创建权限中间件
+// NewPermissionMiddleware 创建新的权限中间件
 func NewPermissionMiddleware() *PermissionMiddleware {
 	return &PermissionMiddleware{}
 }
@@ -61,87 +48,23 @@ func NewPermissionMiddleware() *PermissionMiddleware {
 // AllUsers 所有认证用户都可以访问
 func (m *PermissionMiddleware) AllUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 所有认证用户都可以访问
+		// 所有认证用户都可以访问，无需额外检查
 		c.Next()
 	}
 }
 
-// TeacherOrAdmin 教师或管理员权限
-func (m *PermissionMiddleware) TeacherOrAdmin() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userType, exists := c.Get("user_type")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		if userType != "teacher" && userType != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "权限不足",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// AdminOnly 仅管理员权限
-func (m *PermissionMiddleware) AdminOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userType, exists := c.Get("user_type")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		if userType != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "权限不足",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// StudentOnly 仅学生权限
+// StudentOnly 仅学生可以访问
 func (m *PermissionMiddleware) StudentOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userType, exists := c.Get("user_type")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
+			SendUnauthorized(c)
 			c.Abort()
 			return
 		}
 
 		if userType != "student" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "权限不足",
-				"data":    nil,
-			})
+			SendForbidden(c, "仅学生可以访问此功能")
 			c.Abort()
 			return
 		}
@@ -150,43 +73,122 @@ func (m *PermissionMiddleware) StudentOnly() gin.HandlerFunc {
 	}
 }
 
-// ActivityOwnerOrTeacherOrAdmin 活动所有者或教师或管理员权限
+// TeacherOrAdmin 教师或管理员可以访问
+func (m *PermissionMiddleware) TeacherOrAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userType, exists := c.Get("user_type")
+		if !exists {
+			SendUnauthorized(c)
+			c.Abort()
+			return
+		}
+
+		if userType != "teacher" && userType != "admin" {
+			SendForbidden(c, "需要教师或管理员权限")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// AdminOnly 仅管理员可以访问
+func (m *PermissionMiddleware) AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userType, exists := c.Get("user_type")
+		if !exists {
+			SendUnauthorized(c)
+			c.Abort()
+			return
+		}
+
+		if userType != "admin" {
+			SendForbidden(c, "需要管理员权限")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// ActivityOwnerOrTeacherOrAdmin 活动所有者、教师或管理员可以访问
 func (m *PermissionMiddleware) ActivityOwnerOrTeacherOrAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, exists := c.Get("user_id")
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
+			SendUnauthorized(c)
 			c.Abort()
 			return
 		}
 
 		userType, _ := c.Get("user_type")
+		activityID := c.Param("id")
 
-		// 教师或管理员直接通过
+		// 教师或管理员可以直接访问
 		if userType == "teacher" || userType == "admin" {
 			c.Next()
 			return
 		}
 
-		// 对于学生，需要检查是否为活动所有者
-		activityID := c.Param("id")
-		if activityID == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "活动ID不能为空",
-				"data":    nil,
-			})
-			c.Abort()
+		// 学生需要检查是否为活动所有者
+		if userType == "student" {
+			// 这里可以添加数据库查询来检查活动所有者
+			// 暂时使用简单的参数检查
+			if activityID != "" {
+				c.Next()
+				return
+			}
+		}
+
+		SendForbidden(c, "无权限访问此资源")
+		c.Abort()
+	}
+}
+
+// CORS中间件
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-User-ID, X-Username, X-User-Type")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 
-		// 这里需要查询数据库检查是否为活动所有者
-		// 由于中间件无法直接访问数据库，我们将这个检查放在具体的handler中
-		// 这个中间件主要用于路由级别的权限控制
 		c.Next()
 	}
+}
+
+// LoggingMiddleware 日志中间件
+func LoggingMiddleware() gin.HandlerFunc {
+	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// 自定义日志格式
+		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
+			param.ClientIP,
+			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			param.Method,
+			param.Path,
+			param.Request.Proto,
+			param.StatusCode,
+			param.Latency,
+			param.Request.UserAgent(),
+			param.ErrorMessage,
+		)
+	})
+}
+
+// RecoveryMiddleware 恢复中间件
+func RecoveryMiddleware() gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		if err, ok := recovered.(string); ok {
+			SendInternalServerError(c, fmt.Errorf("%s", err))
+		} else {
+			SendInternalServerError(c, fmt.Errorf("未知错误"))
+		}
+		c.Abort()
+	})
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,38 +31,22 @@ func NewAttachmentHandler(db *gorm.DB) *AttachmentHandler {
 func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -86,11 +69,7 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 
 	var attachments []models.Attachment
 	if err := query.Order("uploaded_at DESC").Find(&attachments).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取附件列表失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -135,62 +114,38 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		FileTypeCount: fileTypeCount,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "获取附件列表成功",
-		"data": gin.H{
-			"attachments": responses,
-			"stats":       stats,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"attachments": responses,
+		"stats":       stats,
 	})
 }
 
 func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "未找到上传的文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "未找到上传的文件")
 		return
 	}
 	defer file.Close()
@@ -198,22 +153,14 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	description := c.PostForm("description")
 
 	if err := h.validateFile(header); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	// 读取文件内容并计算MD5
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "读取文件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -224,22 +171,14 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	// 创建存储目录
 	uploadDir := "uploads/attachments"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "创建存储目录失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	md5FilePath := filepath.Join(uploadDir, md5Hash+fileExt)
 	if _, err := os.Stat(md5FilePath); os.IsNotExist(err) {
 		if err := os.WriteFile(md5FilePath, fileBytes, 0644); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "保存文件失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 			return
 		}
 	}
@@ -259,11 +198,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&attachment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "创建附件记录失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -282,88 +217,52 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		DownloadURL:   fmt.Sprintf("/api/activities/%s/attachments/%s/download", activityID, attachment.ID),
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "附件上传成功",
-		"data":    response,
-	})
+	utils.SendCreatedResponse(c, "附件上传成功", response)
 }
 
 func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 	activityID := c.Param("id")
 	if activityID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "获取上传文件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "获取上传文件失败: "+err.Error())
 		return
 	}
 
 	files := form.File["files"]
 	if len(files) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "未找到上传的文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "未找到上传的文件")
 		return
 	}
 
 	if len(files) > models.MaxBatchUploadCount {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": fmt.Sprintf("批量上传文件数量不能超过%d个", models.MaxBatchUploadCount),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, fmt.Sprintf("批量上传文件数量不能超过%d个", models.MaxBatchUploadCount))
 		return
 	}
 
 	uploadDir := "uploads/attachments"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "创建存储目录失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -474,11 +373,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "批量上传失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -489,11 +384,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		Results:      results,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "批量上传完成",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
@@ -501,39 +392,23 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	attachmentID := c.Param("attachment_id")
 
 	if activityID == "" || attachmentID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID或附件ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID或附件ID不能为空")
 		return
 	}
 
 	// 获取当前用户信息
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -541,28 +416,16 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "附件不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "附件不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取附件失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	filePath := filepath.Join("uploads/attachments", attachment.FileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "文件不存在",
-			"data":    nil,
-		})
+		utils.SendNotFound(c, "文件不存在")
 		return
 	}
 
@@ -607,38 +470,22 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 	attachmentID := c.Param("attachment_id")
 
 	if activityID == "" || attachmentID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID或附件ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID或附件ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "活动不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "活动不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取活动失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -646,28 +493,16 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "附件不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "附件不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取附件失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	filePath := filepath.Join("uploads/attachments", attachment.FileName)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "文件不存在",
-			"data":    nil,
-		})
+		utils.SendNotFound(c, "文件不存在")
 		return
 	}
 
@@ -682,11 +517,7 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 	}
 
 	if !previewableTypes[strings.ToLower(attachment.FileType)] {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持预览此类型的文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "不支持预览此类型的文件")
 		return
 	}
 
@@ -717,59 +548,35 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 	attachmentID := c.Param("attachment_id")
 
 	if activityID == "" || attachmentID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID或附件ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID或附件ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "附件不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "附件不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取附件失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	var req models.AttachmentUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请求参数错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	attachment.Description = req.Description
 	if err := h.db.Save(&attachment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "更新附件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -788,11 +595,7 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		DownloadURL:   fmt.Sprintf("/api/activities/%s/attachments/%s/download", activityID, attachment.ID),
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "附件信息更新成功",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
@@ -800,38 +603,22 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 	attachmentID := c.Param("attachment_id")
 
 	if activityID == "" || attachmentID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "活动ID或附件ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "活动ID或附件ID不能为空")
 		return
 	}
 
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var attachment models.Attachment
 	if err := h.db.Where("id = ? AND activity_id = ? AND deleted_at IS NULL", attachmentID, activityID).First(&attachment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "附件不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "附件不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取附件失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
@@ -841,11 +628,7 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		Count(&otherAttachmentsCount)
 
 	if err := h.db.Delete(&attachment).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "删除附件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -861,14 +644,10 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		fmt.Printf("文件被其他活动使用，保留物理文件: %s (其他活动数量: %d)\n", attachment.FileName, otherAttachmentsCount)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "附件删除成功",
-		"data": gin.H{
-			"attachment_id": attachmentID,
-			"deleted_at":    time.Now(),
-			"file_removed":  otherAttachmentsCount == 0,
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"attachment_id": attachmentID,
+		"deleted_at":    time.Now(),
+		"file_removed":  otherAttachmentsCount == 0,
 	})
 }
 

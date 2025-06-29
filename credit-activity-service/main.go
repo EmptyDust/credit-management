@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"credit-management/credit-activity-service/handlers"
 	"credit-management/credit-activity-service/utils"
@@ -45,28 +44,12 @@ func main() {
 	permissionMiddleware := utils.NewPermissionMiddleware()
 
 	log.Println("正在创建路由...")
-	r := gin.Default()
+	r := gin.New()
 
-	r.Use(func(c *gin.Context) {
-		// 调试信息
-		if strings.Contains(c.Request.URL.Path, "/import") {
-			fmt.Printf("=== Import Request Debug ===\n")
-			fmt.Printf("Method: %s\n", c.Request.Method)
-			fmt.Printf("URL: %s\n", c.Request.URL.String())
-			fmt.Printf("Content-Type: %s\n", c.GetHeader("Content-Type"))
-			fmt.Printf("Content-Length: %s\n", c.GetHeader("Content-Length"))
-			fmt.Printf("User-Agent: %s\n", c.GetHeader("User-Agent"))
-		}
-
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-User-ID, X-Username, X-User-Type")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
+	// 使用新的中间件
+	r.Use(utils.RecoveryMiddleware())
+	r.Use(utils.LoggingMiddleware())
+	r.Use(utils.CORSMiddleware())
 
 	api := r.Group("/api")
 	{
@@ -201,7 +184,7 @@ func main() {
 	}
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "service": "credit-activity-service"})
+		utils.SendSuccessResponse(c, gin.H{"status": "ok", "service": "credit-activity-service"})
 	})
 
 	port := getEnv("PORT", "8083")

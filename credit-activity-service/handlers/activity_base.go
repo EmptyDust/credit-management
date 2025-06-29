@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -11,11 +10,17 @@ import (
 )
 
 type ActivityHandler struct {
-	db *gorm.DB
+	db        *gorm.DB
+	validator *utils.Validator
+	base      *utils.BaseHandler
 }
 
 func NewActivityHandler(db *gorm.DB) *ActivityHandler {
-	return &ActivityHandler{db: db}
+	return &ActivityHandler{
+		db:        db,
+		validator: utils.NewValidator(),
+		base:      utils.NewBaseHandler(db),
+	}
 }
 
 func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity, authToken string) models.ActivityResponse {
@@ -137,113 +142,17 @@ func (h *ActivityHandler) getUserInfo(userID string, authToken string) (*models.
 }
 
 func (h *ActivityHandler) validateActivityRequest(req models.ActivityRequest) error {
-	if req.Title == "" {
-		return fmt.Errorf("活动标题不能为空")
-	}
-
-	if len(req.Title) > 200 {
-		return fmt.Errorf("活动标题长度不能超过200个字符")
-	}
-
-	if req.Category != "" {
-		validCategories := models.GetActivityCategories()
-		categoryValid := false
-		for _, category := range validCategories {
-			if category == req.Category {
-				categoryValid = true
-				break
-			}
-		}
-		if !categoryValid {
-			return fmt.Errorf("无效的活动类别")
-		}
-	}
-
-	return nil
-}
-
-func (h *ActivityHandler) parseActivityDates(startDateStr, endDateStr string) (time.Time, time.Time, error) {
-	var startDate, endDate time.Time
-	var err error
-
-	dateFormats := []string{
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-	}
-
-	if startDateStr != "" {
-		parsed := false
-		for _, format := range dateFormats {
-			if startDate, err = time.Parse(format, startDateStr); err == nil {
-				parsed = true
-				break
-			}
-		}
-		if !parsed {
-			return time.Time{}, time.Time{}, fmt.Errorf("开始日期格式错误")
-		}
-	}
-
-	if endDateStr != "" {
-		parsed := false
-		for _, format := range dateFormats {
-			if endDate, err = time.Parse(format, endDateStr); err == nil {
-				parsed = true
-				break
-			}
-		}
-		if !parsed {
-			return time.Time{}, time.Time{}, fmt.Errorf("结束日期格式错误")
-		}
-	}
-
-	if !startDate.IsZero() && !endDate.IsZero() && startDate.After(endDate) {
-		return time.Time{}, time.Time{}, fmt.Errorf("开始日期不能晚于结束日期")
-	}
-
-	return startDate, endDate, nil
+	return h.validator.ValidateActivityRequest(req)
 }
 
 func (h *ActivityHandler) validateUpdateRequest(req models.ActivityUpdateRequest) error {
-	if req.Title != nil && *req.Title == "" {
-		return fmt.Errorf("活动标题不能为空")
-	}
+	return h.validator.ValidateActivityUpdateRequest(req)
+}
 
-	if req.Category != nil {
-		validCategories := models.GetActivityCategories()
-		categoryValid := false
-		for _, category := range validCategories {
-			if category == *req.Category {
-				categoryValid = true
-				break
-			}
-		}
-		if !categoryValid {
-			return fmt.Errorf("无效的活动类别")
-		}
-	}
-
-	return nil
+func (h *ActivityHandler) parseActivityDates(startDateStr, endDateStr string) (time.Time, time.Time, error) {
+	return utils.ParseDateRange(startDateStr, endDateStr)
 }
 
 func (h *ActivityHandler) parseSingleDate(dateStr string) (time.Time, error) {
-	var date time.Time
-	var err error
-
-	dateFormats := []string{
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-	}
-
-	for _, format := range dateFormats {
-		if date, err = time.Parse(format, dateStr); err == nil {
-			return date, nil
-		}
-	}
-
-	return time.Time{}, fmt.Errorf("日期格式错误")
+	return utils.ParseDate(dateStr)
 }

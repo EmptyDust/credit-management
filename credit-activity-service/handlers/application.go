@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -24,11 +23,7 @@ func NewApplicationHandler(db *gorm.DB) *ApplicationHandler {
 func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
@@ -51,11 +46,7 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 	query.Count(&total)
 
 	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取申请列表失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -92,37 +83,25 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 
 	totalPages := (int(total) + limit - 1) / limit
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": models.PaginatedResponse{
-			Data:       responses,
-			Total:      int64(len(responses)), // 使用实际返回的记录数
-			Page:       page,
-			Limit:      limit,
-			TotalPages: totalPages,
-		},
+	utils.SendSuccessResponse(c, models.PaginatedResponse{
+		Data:       responses,
+		Total:      int64(len(responses)), // 使用实际返回的记录数
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
 	})
 }
 
 func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "申请ID不能为空",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "申请ID不能为空")
 		return
 	}
 
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
@@ -133,37 +112,21 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	var application models.Application
 	if err := h.db.Preload("Activity").Where("id = ?", id).First(&application).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"code":    404,
-				"message": "申请不存在",
-				"data":    nil,
-			})
+			utils.SendNotFound(c, "申请不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "获取申请失败: " + err.Error(),
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if userType == "student" && application.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "无权限查看此申请",
-			"data":    nil,
-		})
+		utils.SendForbidden(c, "无权限查看此申请")
 		return
 	}
 
 	userInfo, err := utils.GetUserInfo(application.UserID, authToken)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "申请关联的用户不存在",
-			"data":    nil,
-		})
+		utils.SendNotFound(c, "申请关联的用户不存在")
 		return
 	}
 
@@ -188,11 +151,7 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		UserInfo: userInfo,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
@@ -219,11 +178,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 	query.Count(&total)
 
 	if err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取申请列表失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -259,27 +214,19 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 
 	totalPages := (int(total) + limit - 1) / limit
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": models.PaginatedResponse{
-			Data:       responses,
-			Total:      int64(len(responses)), // 使用实际返回的记录数
-			Page:       page,
-			Limit:      limit,
-			TotalPages: totalPages,
-		},
+	utils.SendSuccessResponse(c, models.PaginatedResponse{
+		Data:       responses,
+		Total:      int64(len(responses)), // 使用实际返回的记录数
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
 	})
 }
 
 func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
@@ -289,11 +236,7 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(applied_credits), 0)").Scan(&stats.TotalCredits)
 	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.AwardedCredits)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    stats,
-	})
+	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
@@ -331,11 +274,7 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 
 	var applications []models.Application
 	if err := query.Order("submitted_at DESC").Find(&applications).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取申请数据失败",
-			"data":    err.Error(),
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -345,11 +284,7 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 	case "excel":
 		h.exportToExcel(c, applications)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持的导出格式，支持的格式：csv, excel",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "不支持的导出格式，支持的格式：csv, excel")
 	}
 }
 

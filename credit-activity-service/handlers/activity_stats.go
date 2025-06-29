@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 	"time"
 
 	"credit-management/credit-activity-service/models"
-
+	"credit-management/credit-activity-service/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,24 +24,16 @@ func (h *ActivityHandler) GetActivityStats(c *gin.Context) {
 	// 统计总学分
 	h.db.Model(&models.ActivityParticipant{}).Select("COALESCE(SUM(credits), 0)").Scan(&stats.TotalCredits)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    stats,
-	})
+	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *ActivityHandler) GetActivityCategories(c *gin.Context) {
 	categories := models.GetActivityCategories()
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": gin.H{
-			"categories":  categories,
-			"count":       len(categories),
-			"description": "活动类别列表",
-		},
+	utils.SendSuccessResponse(c, gin.H{
+		"categories":  categories,
+		"count":       len(categories),
+		"description": "活动类别列表",
 	})
 }
 
@@ -80,11 +71,7 @@ func (h *ActivityHandler) GetActivityTemplates(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    templates,
-	})
+	utils.SendSuccessResponse(c, templates)
 }
 
 func (h *ActivityHandler) GetActivityReport(c *gin.Context) {
@@ -99,20 +86,12 @@ func (h *ActivityHandler) GetActivityReport(c *gin.Context) {
 	if startDate != "" && endDate != "" {
 		start, err = time.Parse("2006-01-02", startDate)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "开始日期格式错误",
-				"data":    nil,
-			})
+			utils.SendBadRequest(c, "开始日期格式错误")
 			return
 		}
 		end, err = time.Parse("2006-01-02", endDate)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"code":    400,
-				"message": "结束日期格式错误",
-				"data":    nil,
-			})
+			utils.SendBadRequest(c, "结束日期格式错误")
 			return
 		}
 	} else {
@@ -130,19 +109,11 @@ func (h *ActivityHandler) GetActivityReport(c *gin.Context) {
 	case "status":
 		report = h.generateStatusReport(start, end)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "不支持的报表类型",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "不支持的报表类型")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "获取报表成功",
-		"data":    report,
-	})
+	utils.SendSuccessResponse(c, report)
 }
 
 // generateMonthlyReport 生成月度报表
