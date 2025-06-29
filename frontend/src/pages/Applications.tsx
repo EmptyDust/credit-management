@@ -37,14 +37,12 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  File,
-  Image,
-  FileVideo,
-  FileAudio,
-  FileText,
   User,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { getFileIcon, formatFileSize } from "@/lib/utils";
+import React from "react";
+import { getStatusBadge } from "@/lib/status-utils";
 
 // Types
 interface Application {
@@ -96,39 +94,6 @@ interface ApplicationAttachment {
   description: string;
   download_url: string;
 }
-
-const getFileIcon = (filename: string) => {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "pdf":
-      return <FileText className="h-4 w-4 text-red-500" />;
-    case "doc":
-    case "docx":
-      return <FileText className="h-4 w-4 text-blue-500" />;
-    case "jpg":
-    case "jpeg":
-    case "png":
-    case "gif":
-      return <Image className="h-4 w-4 text-green-500" />;
-    case "mp4":
-    case "avi":
-    case "mov":
-      return <FileVideo className="h-4 w-4 text-purple-500" />;
-    case "mp3":
-    case "wav":
-      return <FileAudio className="h-4 w-4 text-orange-500" />;
-    default:
-      return <File className="h-4 w-4 text-gray-500" />;
-  }
-};
-
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
 
 export default function ApplicationsPage() {
   const { user } = useAuth();
@@ -183,7 +148,6 @@ export default function ApplicationsPage() {
           : "/applications/all"; // 教师和管理员可以看到所有申请
 
       const response = await apiClient.get(endpoint, { params });
-      console.log("Applications response:", response.data);
 
       // 处理响应数据
       let applicationsData = [];
@@ -199,9 +163,9 @@ export default function ApplicationsPage() {
             page_size: response.data.data.page_size || 10,
             total_pages: response.data.data.total_pages || 0,
           };
-        } else if (Array.isArray(response.data.data)) {
-          // 直接数组结构
-          applicationsData = response.data.data;
+        } else {
+          // 非分页数据结构
+          applicationsData = response.data.data.applications || response.data.data || [];
           paginationData = {
             total: applicationsData.length,
             page: 1,
@@ -209,6 +173,14 @@ export default function ApplicationsPage() {
             total_pages: 1,
           };
         }
+      } else {
+        applicationsData = [];
+        paginationData = {
+          total: 0,
+          page: 1,
+          page_size: 10,
+          total_pages: 0,
+        };
       }
 
       // 处理申请数据
@@ -352,19 +324,6 @@ export default function ApplicationsPage() {
     const attachments = parseAttachments(application.attachments || "[]");
     setSelectedAppAttachments(attachments);
     setDetailDialogOpen(true);
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      unsubmitted: { label: "Unsubmitted", color: "bg-gray-100 text-gray-800" },
-      pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800" },
-      approved: { label: "Approved", color: "bg-green-100 text-green-800" },
-      rejected: { label: "Rejected", color: "bg-red-100 text-red-800" },
-    };
-
-    const config =
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-    return <Badge className={config.color}>{config.label}</Badge>;
   };
 
   return (
@@ -730,7 +689,7 @@ export default function ApplicationsPage() {
                           className="flex items-center justify-between p-2 border rounded"
                         >
                           <div className="flex items-center gap-2">
-                            {getFileIcon(attachment.original_name)}
+                            {React.createElement(getFileIcon(attachment.original_name))}
                             <span className="text-sm">
                               {attachment.original_name}
                             </span>

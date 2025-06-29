@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,6 @@ import {
   FileText,
   Download,
   Trash2,
-  File,
-  Image,
-  FileVideo,
-  FileAudio,
-  Archive,
   Plus,
   Search,
   FolderOpen,
@@ -24,18 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
 import type { Activity } from "@/types/activity";
+import { getFileIcon, formatFileSize } from "@/lib/utils";
 
 interface ActivityAttachmentsProps {
   activity: Activity;
@@ -60,66 +48,6 @@ interface Attachment {
     username: string;
   };
 }
-
-// 获取文件类型图标
-const getFileIcon = (fileCategory: string) => {
-  if (!fileCategory) {
-    return <File className="h-4 w-4" />;
-  }
-  if (fileCategory === "image") {
-    return <Image className="h-4 w-4" />;
-  } else if (fileCategory === "video") {
-    return <FileVideo className="h-4 w-4" />;
-  } else if (fileCategory === "audio") {
-    return <FileAudio className="h-4 w-4" />;
-  } else if (fileCategory === "archive") {
-    return <Archive className="h-4 w-4" />;
-  } else if (
-    fileCategory === "document" ||
-    fileCategory === "spreadsheet" ||
-    fileCategory === "presentation"
-  ) {
-    return <FileText className="h-4 w-4" />;
-  } else {
-    return <File className="h-4 w-4" />;
-  }
-};
-
-// 格式化文件大小
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// 根据文件名获取文件类别
-const getFileCategory = (fileName: string): string => {
-  const ext = fileName.toLowerCase().split(".").pop();
-  if (!ext) return "other";
-
-  // 添加点号以匹配后端逻辑
-  const fileType = "." + ext;
-
-  const imageExts = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-  const videoExts = [".mp4", ".avi", ".mov", ".wmv", ".flv"];
-  const audioExts = [".mp3", ".wav", ".ogg", ".aac"];
-  const archiveExts = [".zip", ".rar", ".7z", ".tar", ".gz"];
-  const documentExts = [".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt"];
-  const spreadsheetExts = [".xls", ".xlsx", ".csv"];
-  const presentationExts = [".ppt", ".pptx"];
-
-  if (imageExts.includes(fileType)) return "image";
-  if (videoExts.includes(fileType)) return "video";
-  if (audioExts.includes(fileType)) return "audio";
-  if (archiveExts.includes(fileType)) return "archive";
-  if (documentExts.includes(fileType)) return "document";
-  if (spreadsheetExts.includes(fileType)) return "spreadsheet";
-  if (presentationExts.includes(fileType)) return "presentation";
-
-  return "other";
-};
 
 export default function ActivityAttachments({
   activity,
@@ -198,6 +126,10 @@ export default function ActivityAttachments({
 
   // 删除附件
   const deleteAttachment = async (attachmentId: string) => {
+    if (!confirm("确定要删除这个附件吗？")) {
+      return;
+    }
+
     try {
       await apiClient.delete(
         `/activities/${activity.id}/attachments/${attachmentId}`
@@ -206,7 +138,7 @@ export default function ActivityAttachments({
       fetchAttachments();
     } catch (error) {
       console.error("Failed to delete attachment:", error);
-      toast.error("删除失败");
+      toast.error("附件删除失败");
     }
   };
 
@@ -230,82 +162,39 @@ export default function ActivityAttachments({
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      toast.success("下载成功");
+      // 更新下载次数
+      fetchAttachments();
     } catch (error) {
       console.error("Failed to download attachment:", error);
-      toast.error("下载失败");
+      toast.error("附件下载失败");
     }
   };
 
   // 获取预览URL
-  const getPreviewUrl = async (
-    attachmentId: string,
-    fileType: string
-  ): Promise<string> => {
-    try {
-      const response = await apiClient.get(
-        `/activities/${activity.id}/attachments/${attachmentId}/preview`,
-        {
-          responseType: "blob",
-        }
-      );
-      // 强制指定 PDF 类型，其他类型保持默认
-      const blob =
-        fileType === ".pdf"
-          ? new Blob([response.data], { type: "application/pdf" })
-          : new Blob([response.data]);
-      return window.URL.createObjectURL(blob);
-    } catch (error) {
-      console.error("Failed to get preview URL:", error);
-      throw error;
-    }
-  };
 
-  // 预览附件
-  const previewAttachment = async (attachment: Attachment) => {
-    setSelectedAttachment(attachment);
-    setShowPreviewDialog(true);
-    setPreviewLoading(true);
-    setPreviewUrl(null);
-
-    try {
-      const url = await getPreviewUrl(attachment.id, attachment.file_type);
-      setPreviewUrl(url);
-    } catch (error) {
-      console.error("Failed to load preview:", error);
-      toast.error("预览加载失败");
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  // 拖拽事件处理
+  // 拖拽处理
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(false);
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       setDragFiles(files);
-      setShowUploadDialog(true);
+      setSelectedFile(files[0]);
     }
   };
 
@@ -318,126 +207,66 @@ export default function ActivityAttachments({
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      dragFiles.forEach((file) => {
-        formData.append("files", file);
-      });
-      formData.append("description", uploadDescription);
+      for (const file of dragFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("description", uploadDescription);
 
-      await apiClient.post(
-        `/activities/${activity.id}/attachments/batch`,
-        formData,
-        {
+        await apiClient.post(`/activities/${activity.id}/attachments`, formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        }
-      );
+        });
+      }
 
-      toast.success("附件上传成功");
+      toast.success(`成功上传 ${dragFiles.length} 个附件`);
       setShowUploadDialog(false);
       setDragFiles([]);
+      setSelectedFile(null);
       setUploadDescription("");
       fetchAttachments();
     } catch (error) {
-      console.error("Failed to upload attachments:", error);
-      toast.error("附件上传失败");
+      console.error("Failed to upload multiple attachments:", error);
+      toast.error("批量上传失败");
     } finally {
       setUploading(false);
     }
-  };
-
-  // 过滤附件
-  const filteredAttachments = attachments.filter((attachment) => {
-    if (!searchQuery) return true;
-    return (
-      attachment.original_name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      attachment.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
-
-  // 统计信息
-  const stats = {
-    total: attachments.length,
-    totalSize: attachments.reduce((sum, a) => sum + a.file_size, 0),
-    imageCount: attachments.filter((a) => a.file_category === "image").length,
-    documentCount: attachments.filter(
-      (a) =>
-        a.file_category === "document" ||
-        a.file_category === "spreadsheet" ||
-        a.file_category === "presentation"
-    ).length,
   };
 
   useEffect(() => {
     fetchAttachments();
   }, [activity.id]);
 
+  // 过滤附件
+  const filteredAttachments = attachments.filter((attachment) =>
+    attachment.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    attachment.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <Card className="rounded-xl shadow-lg">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5" />
-            附件 ({attachments.length})
-            {!canEditAttachments && isOwner && (
-              <Badge variant="secondary" className="ml-2">
-                仅查看模式
-              </Badge>
-            )}
+            <FileText className="h-5 w-5" />
+            附件管理
           </CardTitle>
-          <div className="flex items-center gap-2">
-            {canEditAttachments && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowUploadDialog(true)}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                上传
-              </Button>
-            )}
-          </div>
+          {canEditAttachments && (
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              上传附件
+            </Button>
+          )}
         </div>
-
-        {/* 统计信息 */}
-        {attachments.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                {stats.total}
-              </div>
-              <div className="text-sm text-muted-foreground">总文件</div>
-            </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {formatFileSize(stats.totalSize)}
-              </div>
-              <div className="text-sm text-muted-foreground">总大小</div>
-            </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">
-                {stats.imageCount}
-              </div>
-              <div className="text-sm text-muted-foreground">图片</div>
-            </div>
-            <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">
-                {stats.documentCount}
-              </div>
-              <div className="text-sm text-muted-foreground">文档</div>
-            </div>
-          </div>
-        )}
       </CardHeader>
-
       <CardContent>
-        {/* 搜索 */}
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* 搜索栏 */}
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="搜索附件..."
               value={searchQuery}
@@ -447,249 +276,146 @@ export default function ActivityAttachments({
           </div>
         </div>
 
-        {/* 附件表格 */}
-        {filteredAttachments.length > 0 ? (
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>文件信息</TableHead>
-                  <TableHead>大小</TableHead>
-                  <TableHead>上传者</TableHead>
-                  <TableHead>上传时间</TableHead>
-                  <TableHead className="w-20">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAttachments.map((attachment) => (
-                  <TableRow key={attachment.id}>
-                    <TableCell>
-                      <div
-                        className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
-                        onClick={() => previewAttachment(attachment)}
-                      >
-                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                          {getFileIcon(attachment.file_category)}
-                        </div>
-                        <div>
-                          <div className="font-medium">
-                            {attachment.original_name}
-                          </div>
-                          {attachment.description && (
-                            <div className="text-sm text-muted-foreground">
-                              {attachment.description}
-                            </div>
-                          )}
-                          <div className="text-xs text-muted-foreground">
-                            {attachment.file_category || "未知类型"}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div
-                        className="text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
-                        onClick={() => previewAttachment(attachment)}
-                      >
-                        {formatFileSize(attachment.file_size)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div
-                        className="text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
-                        onClick={() => previewAttachment(attachment)}
-                      >
-                        {attachment.uploader?.name ||
-                          attachment.uploader?.username ||
-                          attachment.uploaded_by}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div
-                        className="cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors"
-                        onClick={() => previewAttachment(attachment)}
-                      >
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(
-                            attachment.uploaded_at
-                          ).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(
-                            attachment.uploaded_at
-                          ).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadAttachment(attachment);
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        {canEditAttachments && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteAttachment(attachment.id);
-                            }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        {/* 附件列表 */}
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-500">加载中...</p>
+          </div>
+        ) : filteredAttachments.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>暂无附件</p>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            {searchQuery ? "没有找到匹配的附件" : "暂无附件"}
+          <div className="space-y-2">
+            {filteredAttachments.map((attachment) => {
+              const FileIcon = getFileIcon(attachment.file_category, true);
+              return (
+                <div
+                  key={attachment.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <FileIcon className="h-5 w-5 text-blue-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {attachment.original_name}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {formatFileSize(attachment.file_size)} • 上传于{" "}
+                        {new Date(attachment.uploaded_at).toLocaleDateString()}
+                      </p>
+                      {attachment.description && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {attachment.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {attachment.download_count} 次下载
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadAttachment(attachment)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    {canEditAttachments && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteAttachment(attachment.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
 
       {/* 上传对话框 */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-2xl rounded-2xl shadow-2xl border-0 bg-white dark:bg-zinc-900">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">上传附件</DialogTitle>
-            <DialogDescription className="text-base text-muted-foreground">
-              选择要上传的文件，支持图片、文档、视频等格式，也可以拖拽文件到下方区域
+            <DialogTitle>上传附件</DialogTitle>
+            <DialogDescription>
+              选择要上传的文件，支持拖拽上传
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-6">
-            {/* 拖拽上传区域 */}
-            {(() => {
-              const fileInputRef = useRef<HTMLInputElement>(null);
-              return (
-                <div
-                  className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 ${
-                    isDragOver
-                      ? "border-blue-500 bg-blue-50 scale-105 shadow-lg"
-                      : "border-zinc-200 hover:border-blue-400"
-                  }`}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="flex flex-col items-center gap-4">
-                    <FolderOpen className="h-16 w-16 text-blue-400" />
-                    <div>
-                      <p className="text-xl font-semibold text-blue-700">
-                        {isDragOver ? "释放文件以上传" : "拖拽或点击上传文件"}
-                      </p>
-                      <p className="text-sm text-zinc-400 mt-1">
-                        支持图片、文档、视频等格式，最大文件大小 50MB
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 my-2">
-                      <div className="h-px bg-zinc-200 flex-1"></div>
-                      <span className="text-xs text-zinc-400"></span>
-                      <div className="h-px bg-zinc-200 flex-1"></div>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setDragFiles([file]);
-                        }
-                      }}
-                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar"
-                      className="hidden"
-                    />
-                  </div>
+          <div className="space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDragOver
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-300 hover:border-gray-400"
+              }`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              {dragFiles.length > 0 ? (
+                <div>
+                  <p className="font-medium">已选择 {dragFiles.length} 个文件</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {dragFiles.map((file) => file.name).join(", ")}
+                  </p>
                 </div>
-              );
-            })()}
-
-            {/* 文件列表 */}
-            {dragFiles.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-zinc-600">
-                  待上传文件
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {dragFiles.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-100 dark:border-zinc-700"
-                    >
-                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                        {getFileIcon(getFileCategory(file.name))}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{file.name}</div>
-                        <div className="text-xs text-zinc-400">
-                          {formatFileSize(file.size)}
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setDragFiles(dragFiles.filter((_, i) => i !== index));
-                        }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+              ) : (
+                <div>
+                  <FolderOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>拖拽文件到此处或点击选择</p>
+                  <input
+                    type="file"
+                    onChange={(e) =>
+                      setSelectedFile(e.target.files?.[0] || null)
+                    }
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="cursor-pointer text-blue-600 hover:text-blue-700"
+                  >
+                    选择文件
+                  </label>
                 </div>
-              </div>
-            )}
-
+              )}
+            </div>
             <div>
-              <label className="text-sm font-medium text-zinc-600">
+              <label className="block text-sm font-medium mb-1">
                 文件描述（可选）
               </label>
               <Input
                 value={uploadDescription}
                 onChange={(e) => setUploadDescription(e.target.value)}
                 placeholder="请输入文件描述"
-                className="mt-2 rounded-lg border-zinc-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </div>
           </div>
-
           <DialogFooter>
             <Button
               variant="outline"
-              className="rounded-lg border-zinc-200"
-              onClick={() => {
-                setShowUploadDialog(false);
-                setDragFiles([]);
-                setUploadDescription("");
-              }}
+              onClick={() => setShowUploadDialog(false)}
             >
               取消
             </Button>
             <Button
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow"
               onClick={
                 dragFiles.length > 1
                   ? uploadMultipleAttachments
                   : uploadAttachment
               }
-              disabled={(dragFiles.length === 0 && !selectedFile) || uploading}
+              disabled={uploading || (!selectedFile && dragFiles.length === 0)}
             >
               {uploading ? "上传中..." : "上传"}
             </Button>
@@ -698,119 +424,31 @@ export default function ActivityAttachments({
       </Dialog>
 
       {/* 预览对话框 */}
-      <Dialog
-        open={showPreviewDialog}
-        onOpenChange={(open) => {
-          setShowPreviewDialog(open);
-          if (!open) {
-            // 清理预览URL
-            if (previewUrl) {
-              window.URL.revokeObjectURL(previewUrl);
-              setPreviewUrl(null);
-            }
-            setSelectedAttachment(null);
-            setPreviewLoading(false);
-          }
-        }}
-      >
-        <DialogContent className="max-w-[1200px] min-h-[700px]">
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>文件预览</DialogTitle>
-            <DialogDescription>
-              {selectedAttachment?.original_name}
-            </DialogDescription>
+            <DialogTitle>
+              预览: {selectedAttachment?.original_name}
+            </DialogTitle>
           </DialogHeader>
-
-          {selectedAttachment && (
-            <div className="space-y-4">
-              {/* 移除文件基本信息，仅保留预览区域 */}
-              <div className="border rounded-lg p-4 min-h-[600px] flex items-center justify-center">
-                {previewLoading ? (
-                  <div className="text-center text-muted-foreground">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                    <p>加载预览中...</p>
-                  </div>
-                ) : previewUrl ? (
-                  <>
-                    {selectedAttachment.file_category === "image" ? (
-                      <img
-                        src={previewUrl}
-                        alt={selectedAttachment.original_name}
-                        className="max-w-full max-h-[650px] object-contain"
-                      />
-                    ) : selectedAttachment.file_category === "video" ? (
-                      <video
-                        src={previewUrl}
-                        controls
-                        className="max-w-full max-h-[650px]"
-                      >
-                        您的浏览器不支持视频播放
-                      </video>
-                    ) : selectedAttachment.file_category === "audio" ? (
-                      <audio src={previewUrl} controls className="w-full">
-                        您的浏览器不支持音频播放
-                      </audio>
-                    ) : selectedAttachment.file_category === "document" &&
-                      selectedAttachment.file_type === ".pdf" ? (
-                      <iframe
-                        src={previewUrl}
-                        className="w-full h-[650px] border-0"
-                        title={selectedAttachment.original_name}
-                      />
-                    ) : selectedAttachment.file_category === "document" &&
-                      selectedAttachment.file_type === ".txt" ? (
-                      <iframe
-                        src={previewUrl}
-                        className="w-full h-[650px] border-0 bg-white"
-                        title={selectedAttachment.original_name}
-                      />
-                    ) : (
-                      <div className="text-center text-muted-foreground">
-                        <FileText className="h-12 w-12 mx-auto mb-2" />
-                        <p>此文件类型不支持预览</p>
-                        <Button
-                          variant="outline"
-                          className="mt-2"
-                          onClick={() => downloadAttachment(selectedAttachment)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          下载查看
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-2" />
-                    <p>预览加载失败</p>
-                    <Button
-                      variant="outline"
-                      className="mt-2"
-                      onClick={() => downloadAttachment(selectedAttachment)}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      下载查看
-                    </Button>
-                  </div>
-                )}
+          <div className="min-h-[400px] flex items-center justify-center">
+            {previewLoading ? (
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-500">加载预览中...</p>
               </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowPreviewDialog(false)}
-            >
-              关闭
-            </Button>
-            {selectedAttachment && (
-              <Button onClick={() => downloadAttachment(selectedAttachment)}>
-                <Download className="h-4 w-4 mr-2" />
-                下载
-              </Button>
+            ) : previewUrl ? (
+              <iframe
+                src={previewUrl}
+                className="w-full h-[600px] border rounded"
+                title="文件预览"
+              />
+            ) : (
+              <div className="text-center text-gray-500">
+                <p>无法预览此文件</p>
+              </div>
             )}
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>

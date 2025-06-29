@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
 import { useNavigate, Link } from "react-router-dom";
-import { LogIn, User, KeyRound, Eye, EyeOff } from "lucide-react";
+import { LogIn, User } from "lucide-react";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const loginSchema = z.object({
   username: z.string().min(1, "用户名不能为空"),
@@ -33,7 +34,6 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
   const { login } = useAuth();
@@ -171,28 +171,7 @@ export default function Login() {
                   <FormItem>
                     <FormLabel>密码</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          {...field}
-                          type={showPassword ? "text" : "password"}
-                          placeholder="请输入密码"
-                          className="pl-10 pr-10"
-                          disabled={loading}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          disabled={loading}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
+                      <PasswordInput {...field} placeholder="请输入密码" disabled={loading} error={form.formState.errors.password?.message} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

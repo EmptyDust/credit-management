@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient, { apiHelpers } from "@/lib/api";
+import apiClient from "@/lib/api";
 import {
   PlusCircle,
   Edit,
@@ -43,8 +43,6 @@ import {
   Award,
   Users,
   AlertCircle,
-  CheckCircle,
-  XCircle,
   Eye,
   Upload,
   Download,
@@ -60,6 +58,9 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import React from "react";
+import { StatCard } from "@/components/ui/stat-card";
 
 // Types
 interface Activity {
@@ -79,13 +80,6 @@ interface Activity {
   };
 }
 
-interface PaginatedResponse {
-  data: Activity[];
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-}
 
 type CreateActivityForm = z.infer<typeof activitySchema>;
 
@@ -96,58 +90,6 @@ const activitySchema = z.object({
     .max(200, "活动名称不能超过200个字符"),
   category: z.string().min(1, "请选择活动类型"),
 });
-
-// 统计卡片样式与仪表盘一致
-const StatCard = ({
-  title,
-  value,
-  icon: Icon,
-  color = "default",
-  subtitle,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  color?: "default" | "success" | "warning" | "danger" | "info" | "purple";
-  subtitle?: string;
-}) => {
-  const colorClasses = {
-    default: "text-muted-foreground",
-    success: "text-green-600",
-    warning: "text-yellow-600",
-    danger: "text-red-600",
-    info: "text-blue-600",
-    purple: "text-purple-600",
-  };
-  const bgClasses = {
-    default: "bg-muted/20",
-    success: "bg-green-100 dark:bg-green-900/20",
-    warning: "bg-yellow-100 dark:bg-yellow-900/20",
-    danger: "bg-red-100 dark:bg-red-900/20",
-    info: "bg-blue-100 dark:bg-blue-900/20",
-    purple: "bg-purple-100 dark:bg-purple-900/20",
-  };
-  return (
-    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div className={`p-3 rounded-xl ${bgClasses[color]}`}>
-          <Icon className={`h-6 w-6 ${colorClasses[color]}`} />
-        </div>
-        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">
-          {value}
-        </div>
-        {subtitle && (
-          <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
@@ -211,53 +153,32 @@ export default function ActivitiesPage() {
       }
 
       const response = await apiClient.get("/activities", { params });
-      console.log("API Response:", response.data); // 调试日志
 
-      // 处理不同的响应数据结构
-      let activitiesData: Activity[] = [];
+      // 处理响应数据
+      let activitiesData = [];
       let paginationData: any = {};
 
-      if (response.data.data && response.data.data.data) {
-        // 嵌套数据结构
-        activitiesData = response.data.data.data;
-        paginationData = {
-          total: response.data.data.total || 0,
-          page: response.data.data.page || 1,
-          page_size: response.data.data.page_size || 10,
-          total_pages: response.data.data.total_pages || 0,
-        };
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        // 直接数组结构
-        activitiesData = response.data.data;
-        paginationData = {
-          total: activitiesData.length,
-          page: 1,
-          page_size: activitiesData.length,
-          total_pages: 1,
-        };
-      } else if (Array.isArray(response.data)) {
-        // 直接数组
-        activitiesData = response.data;
-        paginationData = {
-          total: activitiesData.length,
-          page: 1,
-          page_size: activitiesData.length,
-          total_pages: 1,
-        };
-      } else if (
-        response.data.activities &&
-        Array.isArray(response.data.activities)
-      ) {
-        // 旧格式
-        activitiesData = response.data.activities;
-        paginationData = {
-          total: response.data.total || activitiesData.length,
-          page: response.data.page || 1,
-          page_size: response.data.page_size || activitiesData.length,
-          total_pages: response.data.total_pages || 1,
-        };
+      if (response.data.code === 0 && response.data.data) {
+        if (response.data.data.data && Array.isArray(response.data.data.data)) {
+          // 分页数据结构
+          activitiesData = response.data.data.data;
+          paginationData = {
+            total: response.data.data.total || 0,
+            page: response.data.data.page || 1,
+            page_size: response.data.data.page_size || 10,
+            total_pages: response.data.data.total_pages || 0,
+          };
+        } else {
+          // 非分页数据结构
+          activitiesData = response.data.data.activities || response.data.data || [];
+          paginationData = {
+            total: activitiesData.length,
+            page: 1,
+            page_size: activitiesData.length,
+            total_pages: 1,
+          };
+        }
       } else {
-        // 默认处理
         activitiesData = [];
         paginationData = {
           total: 0,
@@ -356,33 +277,29 @@ export default function ActivitiesPage() {
   };
 
   const handleImport = async () => {
-    if (!importFile) return;
+    if (!importFile) {
+      toast.error("请选择要导入的文件");
+      return;
+    }
 
+    setImporting(true);
     try {
-      setImporting(true);
-
-      // Create FormData manually to ensure proper file upload
       const formData = new FormData();
       formData.append("file", importFile);
 
-      // Debug: Log the FormData contents
-      console.log("Import file:", importFile);
-      console.log("FormData entries:");
-      for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
+      await apiClient.post("/activities/import", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      // Use axios directly for file upload to ensure proper handling
-      const response = await apiClient.post("/activities/import", formData);
-
-      toast.success("批量导入成功");
+      toast.success("活动导入成功");
       setIsImportDialogOpen(false);
       setImportFile(null);
       fetchActivities();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to import activities:", error);
-      console.error("Error details:", error.response?.data);
-      toast.error("批量导入失败");
+      toast.error("活动导入失败");
     } finally {
       setImporting(false);
     }
@@ -422,55 +339,11 @@ export default function ActivitiesPage() {
         toast.success("活动创建成功");
       }
       setIsDialogOpen(false);
+      setEditingActivity(null);
       fetchActivities();
     } catch (error) {
       console.error("Failed to save activity:", error);
       toast.error(editingActivity ? "更新活动失败" : "创建活动失败");
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "draft":
-        return "草稿";
-      case "pending_review":
-        return "待审核";
-      case "approved":
-        return "已通过";
-      case "rejected":
-        return "已拒绝";
-      default:
-        return status;
-    }
-  };
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case "draft":
-        return "bg-gray-100 text-gray-800";
-      case "pending_review":
-        return "bg-yellow-100 text-yellow-800";
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "draft":
-        return <FileText className="w-3 h-3 mr-1 inline" />;
-      case "pending_review":
-        return <Clock className="w-3 h-3 mr-1 inline" />;
-      case "approved":
-        return <CheckCircle className="w-3 h-3 mr-1 inline" />;
-      case "rejected":
-        return <XCircle className="w-3 h-3 mr-1 inline" />;
-      default:
-        return <AlertCircle className="w-3 h-3 mr-1 inline" />;
     }
   };
 
@@ -687,7 +560,7 @@ export default function ActivitiesPage() {
                             activity.status
                           )}`}
                         >
-                          {getStatusIcon(activity.status)}
+                          {React.createElement(getStatusIcon(activity.status))}
                           {getStatusText(activity.status)}
                         </Badge>
                       </TableCell>

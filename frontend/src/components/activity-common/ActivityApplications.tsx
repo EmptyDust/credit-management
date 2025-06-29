@@ -6,10 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   FileText,
-  CheckCircle,
-  XCircle,
-  Clock,
-  AlertCircle,
   User,
   Eye,
   Edit,
@@ -54,59 +50,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
 import type { Activity, Application } from "@/types/activity";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import React from "react";
 
 interface ActivityApplicationsProps {
   activity: Activity;
   onRefresh?: () => void;
 }
-
-// 获取状态显示文本
-const getStatusText = (status: string) => {
-  switch (status) {
-    case "approved":
-      return "已通过";
-    case "pending":
-      return "待审核";
-    case "rejected":
-      return "已拒绝";
-    case "draft":
-      return "草稿";
-    default:
-      return status;
-  }
-};
-
-// 获取状态样式
-const getStatusStyle = (status: string) => {
-  switch (status) {
-    case "approved":
-      return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
-    case "pending":
-      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
-    case "rejected":
-      return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
-    case "draft":
-      return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
-    default:
-      return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
-  }
-};
-
-// 获取状态图标
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case "approved":
-      return <CheckCircle className="w-3 h-3 mr-1 inline" />;
-    case "pending":
-      return <Clock className="w-3 h-3 mr-1 inline" />;
-    case "rejected":
-      return <XCircle className="w-3 h-3 mr-1 inline" />;
-    case "draft":
-      return <FileText className="w-3 h-3 mr-1 inline" />;
-    default:
-      return <AlertCircle className="w-3 h-3 mr-1 inline" />;
-  }
-};
 
 export default function ActivityApplications({
   activity,
@@ -426,7 +376,7 @@ export default function ActivityApplications({
                         application.status
                       )} rounded-lg px-2 py-1`}
                     >
-                      {getStatusIcon(application.status)}
+                      {React.createElement(getStatusIcon(application.status))}
                       {getStatusText(application.status)}
                     </Badge>
                   </TableCell>
@@ -552,7 +502,7 @@ export default function ActivityApplications({
                       selectedApplication.status
                     )} rounded-lg px-2 py-1`}
                   >
-                    {getStatusIcon(selectedApplication.status)}
+                    {React.createElement(getStatusIcon(selectedApplication.status))}
                     {getStatusText(selectedApplication.status)}
                   </Badge>
                 </div>

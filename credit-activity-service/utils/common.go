@@ -30,13 +30,13 @@ func GetUserInfo(userID string, authToken ...string) (*models.UserInfo, error) {
 	}
 
 	studentURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=student&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err := searchUserByType(client, studentURL, authToken...)
+	userInfo, err := searchUserByType(client, studentURL)
 	if err == nil {
 		return userInfo, nil
 	}
 
 	teacherURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=teacher&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err = searchUserByType(client, teacherURL, authToken...)
+	userInfo, err = searchUserByType(client, teacherURL)
 	if err == nil {
 		return userInfo, nil
 	}
@@ -44,7 +44,7 @@ func GetUserInfo(userID string, authToken ...string) (*models.UserInfo, error) {
 	return nil, fmt.Errorf("用户不存在或无法获取用户信息")
 }
 
-func searchUserByType(client *http.Client, apiURL string, authToken ...string) (*models.UserInfo, error) {
+func searchUserByType(client *http.Client, apiURL string) (*models.UserInfo, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)

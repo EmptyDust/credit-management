@@ -8,13 +8,8 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  File,
-  Image,
-  FileVideo,
-  FileAudio,
-  Archive,
-  FileText,
 } from "lucide-react";
+import { getFileIcon, formatFileSize } from "@/lib/utils";
 
 interface UploadProgress {
   fileName: string;
@@ -31,65 +26,6 @@ interface BatchUploadProps {
   className?: string;
   disabled?: boolean;
 }
-
-// 获取文件类型图标
-const getFileIcon = (fileCategory: string) => {
-  if (!fileCategory) {
-    return <File className="h-4 w-4" />;
-  }
-  if (fileCategory === "image") {
-    return <Image className="h-4 w-4" />;
-  } else if (fileCategory === "video") {
-    return <FileVideo className="h-4 w-4" />;
-  } else if (fileCategory === "audio") {
-    return <FileAudio className="h-4 w-4" />;
-  } else if (fileCategory === "archive") {
-    return <Archive className="h-4 w-4" />;
-  } else if (
-    fileCategory === "document" ||
-    fileCategory === "spreadsheet" ||
-    fileCategory === "presentation"
-  ) {
-    return <FileText className="h-4 w-4" />;
-  } else {
-    return <File className="h-4 w-4" />;
-  }
-};
-
-// 格式化文件大小
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// 根据文件名获取文件类别
-const getFileCategory = (fileName: string): string => {
-  const ext = fileName.toLowerCase().split(".").pop();
-  if (!ext) return "other";
-
-  const fileType = "." + ext;
-
-  const imageExts = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
-  const videoExts = [".mp4", ".avi", ".mov", ".wmv", ".flv"];
-  const audioExts = [".mp3", ".wav", ".ogg", ".aac"];
-  const archiveExts = [".zip", ".rar", ".7z", ".tar", ".gz"];
-  const documentExts = [".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt"];
-  const spreadsheetExts = [".xls", ".xlsx", ".csv"];
-  const presentationExts = [".ppt", ".pptx"];
-
-  if (imageExts.includes(fileType)) return "image";
-  if (videoExts.includes(fileType)) return "video";
-  if (audioExts.includes(fileType)) return "audio";
-  if (archiveExts.includes(fileType)) return "archive";
-  if (documentExts.includes(fileType)) return "document";
-  if (spreadsheetExts.includes(fileType)) return "spreadsheet";
-  if (presentationExts.includes(fileType)) return "presentation";
-
-  return "other";
-};
 
 export function BatchUpload({
   onUpload,
@@ -307,7 +243,7 @@ export function BatchUpload({
                 className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-100 dark:border-zinc-700"
               >
                 <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                  {getFileIcon(getFileCategory(file.name))}
+                  {React.createElement(getFileIcon(file.name))}
                 </div>
                 <div className="flex-1">
                   <div className="font-medium text-sm">{file.name}</div>

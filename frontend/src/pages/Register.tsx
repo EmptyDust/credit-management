@@ -29,12 +29,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { 
   UserPlus, 
   User, 
-  KeyRound, 
   Mail, 
   Phone, 
   FileSignature, 
-  Eye, 
-  EyeOff,
   GraduationCap,
   Building,
   Users
@@ -43,6 +40,7 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
+import { PasswordInput } from "@/components/ui/password-input";
 
 // 学生注册表单验证规则
 const studentRegisterSchema = z.object({
@@ -53,6 +51,7 @@ const studentRegisterSchema = z.object({
   password: z.string()
     .min(8, "密码至少8个字符")
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "密码必须包含大小写字母和数字"),
+  confirm_password: z.string(),
   email: z.string().email("请输入有效的邮箱地址"),
   phone: z.string()
     .length(11, "手机号必须是11位数字")
@@ -65,6 +64,9 @@ const studentRegisterSchema = z.object({
   major: z.string().min(1, "请选择专业").max(100, "专业名称最多100个字符"),
   class: z.string().min(1, "请选择班级").max(50, "班级名称最多50个字符"),
   grade: z.string().length(4, "年级必须是4位数字").regex(/^\d{4}$/, "年级必须是4位数字"),
+}).refine((data) => data.password === data.confirm_password, {
+  message: "两次密码输入不一致",
+  path: ["confirm_password"],
 });
 
 type StudentRegisterForm = z.infer<typeof studentRegisterSchema>;
@@ -134,7 +136,6 @@ const majors = {
 };
 
 export default function Register() {
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -143,6 +144,7 @@ export default function Register() {
     defaultValues: {
       username: "",
       password: "",
+      confirm_password: "",
       email: "",
       phone: "",
       real_name: "",
@@ -254,28 +256,21 @@ export default function Register() {
                   <FormItem>
                     <FormLabel>密码</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          {...field}
-                          type={showPassword ? "text" : "password"}
-                          placeholder="请输入密码"
-                          className="pl-10 pr-10"
-                          disabled={loading}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          disabled={loading}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
+                      <PasswordInput {...field} placeholder="请输入密码" error={form.formState.errors.password?.message} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="confirm_password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>确认密码</FormLabel>
+                    <FormControl>
+                      <PasswordInput {...field} placeholder="请再次输入密码" error={form.formState.errors.confirm_password?.message} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

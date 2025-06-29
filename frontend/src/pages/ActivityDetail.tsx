@@ -16,7 +16,6 @@ import type { ActivityWithDetails } from "@/types/activity";
 
 // 导入活动详情组件
 import { ActivityDetailContainer } from "@/components/activity-details/index";
-import type { ActivityDetailContainerRef } from "@/components/activity-details/index";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,7 +49,9 @@ export default function ActivityDetailPage() {
     "approved"
   );
   const [reviewComment, setReviewComment] = useState("");
-  const detailContainerRef = useRef<ActivityDetailContainerRef>(null);
+  const [basicInfo, setBasicInfo] = useState<any>({});
+  const [detailInfo, setDetailInfo] = useState<any>({});
+  const detailContainerRef = useRef<any>(null);
 
   const fetchActivity = async () => {
     if (!id) return;
@@ -77,10 +78,8 @@ export default function ActivityDetailPage() {
     }
   }, [id, searchParams]);
 
-  const isOwner =
-    user &&
-    activity &&
-    (user.user_id === activity.owner_id || user.userType === "admin");
+  const isOwner = user && activity && (user.user_id === activity.owner_id || user.userType === "admin");
+  const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
   const canEdit = isOwner && activity?.status === "draft";
   const canSubmitForReview =
     user &&
@@ -93,7 +92,7 @@ export default function ActivityDetailPage() {
     user.user_id === activity.owner_id &&
     activity?.status !== "draft";
   const canReview =
-    (user?.userType === "teacher" || user?.userType === "admin") &&
+    isReviewer &&
     (activity?.status === "pending_review" ||
       activity?.status === "approved" ||
       activity?.status === "rejected");
@@ -341,14 +340,6 @@ export default function ActivityDetailPage() {
     );
   }
 
-  // 调试输出
-  console.log("user:", user);
-  console.log("activity:", activity);
-  console.log("user.id:", user && user.user_id);
-  console.log("activity.owner_id:", activity && activity.owner_id);
-  console.log("activity.status:", activity && activity.status);
-  console.log("user.userType:", user && user.userType);
-
   if (!activity) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -473,6 +464,10 @@ export default function ActivityDetailPage() {
         onEditModeChange={setIsEditing}
         onRefresh={fetchActivity}
         onSave={handleSave}
+        basicInfo={basicInfo}
+        setBasicInfo={setBasicInfo}
+        detailInfo={detailInfo}
+        setDetailInfo={setDetailInfo}
       />
 
       {/* 审批弹窗 */}

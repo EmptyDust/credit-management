@@ -36,10 +36,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient, { apiHelpers } from "@/lib/api";
+import apiClient from "@/lib/api";
 import {
   PlusCircle,
   Search,
@@ -54,6 +53,9 @@ import {
   Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { StatCard } from "@/components/ui/stat-card";
+import { getStatusBadge } from "@/lib/status-utils";
+import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 
 // Teacher type based on teacher.go
 export type Teacher = {
@@ -93,63 +95,11 @@ const formSchema = z.object({
   user_type: z.literal("teacher"),
 });
 
-// 统计卡片样式与仪表盘一致
-const StatCard = ({
-  title,
-  value,
-  icon: Icon,
-  color = "default",
-  subtitle,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  color?: "default" | "success" | "warning" | "danger" | "info" | "purple";
-  subtitle?: string;
-}) => {
-  const colorClasses = {
-    default: "text-muted-foreground",
-    success: "text-green-600",
-    warning: "text-yellow-600",
-    danger: "text-red-600",
-    info: "text-blue-600",
-    purple: "text-purple-600",
-  };
-  const bgClasses = {
-    default: "bg-muted/20",
-    success: "bg-green-100 dark:bg-green-900/20",
-    warning: "bg-yellow-100 dark:bg-yellow-900/20",
-    danger: "bg-red-100 dark:bg-red-900/20",
-    info: "bg-blue-100 dark:bg-blue-900/20",
-    purple: "bg-purple-100 dark:bg-purple-900/20",
-  };
-  return (
-    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div className={`p-3 rounded-xl ${bgClasses[color]}`}>
-          <Icon className={`h-6 w-6 ${colorClasses[color]}`} />
-        </div>
-        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">
-          {value}
-        </div>
-        {subtitle && (
-          <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
 export default function TeachersPage() {
   const { hasPermission } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -185,13 +135,11 @@ export default function TeachersPage() {
   const fetchTeachers = async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
-      setError("");
 
       // 构建查询参数
       const params: any = {
         page,
         page_size: size,
-        user_type: "teacher",
       };
 
       if (searchQuery) {
@@ -204,22 +152,32 @@ export default function TeachersPage() {
         params.status = statusFilter;
       }
 
-      console.log("Fetching teachers with params:", params);
       const response = await apiClient.get("/search/users", { params });
-      console.log("API response:", response.data);
 
       // 处理响应数据
       let teachersData = [];
       let paginationData: any = {};
 
-      if (response.data?.data?.users) {
-        teachersData = response.data.data.users;
-        paginationData = {
-          total: response.data.data.total || 0,
-          page: response.data.data.page || 1,
-          page_size: response.data.data.page_size || 10,
-          total_pages: response.data.data.total_pages || 0,
-        };
+      if (response.data.code === 0 && response.data.data) {
+        if (response.data.data.data && Array.isArray(response.data.data.data)) {
+          // 分页数据结构
+          teachersData = response.data.data.data;
+          paginationData = {
+            total: response.data.data.total || 0,
+            page: response.data.data.page || 1,
+            page_size: response.data.data.page_size || 10,
+            total_pages: response.data.data.total_pages || 0,
+          };
+        } else {
+          // 非分页数据结构
+          teachersData = response.data.data.users || response.data.data || [];
+          paginationData = {
+            total: teachersData.length,
+            page: 1,
+            page_size: teachersData.length,
+            total_pages: 1,
+          };
+        }
       } else {
         teachersData = [];
         paginationData = {
@@ -231,19 +189,11 @@ export default function TeachersPage() {
       }
 
       setTeachers(teachersData);
-
-      // 更新分页信息
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
-      setCurrentPage(paginationData.page);
-
-      console.log("Teachers loaded:", teachersData.length);
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error || err.message || "获取教师列表失败";
-      setError(errorMessage);
-      console.error("Error fetching teachers:", err);
-      toast.error(errorMessage);
+    } catch (error) {
+      console.error("Failed to fetch teachers:", error);
+      toast.error("获取教师列表失败");
     } finally {
       setLoading(false);
     }
@@ -326,27 +276,15 @@ export default function TeachersPage() {
       setIsDialogOpen(false);
       fetchTeachers();
     } catch (err: any) {
-      // 只保留兜底错误提示，手机号等冲突交给全局拦截器
-      if (!err.response || err.response.status !== 409) {
+      if (err.response?.status === 409) {
+        toast.error("用户名或邮箱已存在");
+      } else {
         toast.error(`教师${editingTeacher ? "更新" : "创建"}失败`);
       }
       console.error(err);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { label: "活跃", color: "bg-green-100 text-green-800" },
-      inactive: { label: "停用", color: "bg-gray-100 text-gray-800" },
-      suspended: { label: "暂停", color: "bg-red-100 text-red-800" },
-    };
-
-    const config =
-      statusConfig[status as keyof typeof statusConfig] ||
-      statusConfig.inactive;
-    return <Badge className={config.color}>{config.label}</Badge>;
   };
 
   const departments = Array.from(
@@ -856,27 +794,13 @@ export default function TeachersPage() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>确认删除教师</DialogTitle>
-            <DialogDescription>
-              您确定要删除这个教师吗？此操作不可撤销。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
-              删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="确认删除教师"
+        itemName={teacherToDelete?.real_name}
+        onConfirm={handleDeleteConfirm}
+      />
 
       {/* Import Dialog */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>

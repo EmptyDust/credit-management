@@ -27,8 +27,6 @@ import {
   Award,
   Clock,
   Lock,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
@@ -57,6 +55,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { getStatusBadge } from "@/lib/status-utils";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const colleges = [
   { value: "计算机学院", label: "计算机学院" },
@@ -177,11 +177,6 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-  const [showPassword, setShowPassword] = useState({
-    current: false,
-    new: false,
-    confirm: false,
-  });
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -306,23 +301,6 @@ export default function ProfilePage() {
     }
   };
 
-  const togglePasswordVisibility = (field: "current" | "new" | "confirm") => {
-    setShowPassword((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      active: { label: "活跃", color: "bg-green-100 text-green-800" },
-      inactive: { label: "停用", color: "bg-gray-100 text-gray-800" },
-    };
-    const config =
-      statusConfig[status as keyof typeof statusConfig] ||
-      statusConfig.inactive;
-    return <Badge className={config.color}>{config.label}</Badge>;
-  };
 
   const getUserTypeLabel = (userType: string) => {
     const labels = {
@@ -565,32 +543,7 @@ export default function ProfilePage() {
                               <FormItem>
                                 <FormLabel>当前密码</FormLabel>
                                 <FormControl>
-                                  <div className="relative">
-                                    <Input
-                                      {...field}
-                                      type={
-                                        showPassword.current
-                                          ? "text"
-                                          : "password"
-                                      }
-                                      placeholder="请输入当前密码"
-                                      className="pr-10"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        togglePasswordVisibility("current")
-                                      }
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                      disabled={changingPassword}
-                                    >
-                                      {showPassword.current ? (
-                                        <EyeOff className="h-4 w-4" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </button>
-                                  </div>
+                                  <PasswordInput {...field} placeholder="请输入当前密码" error={passwordForm.formState.errors.current_password?.message} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -603,30 +556,7 @@ export default function ProfilePage() {
                               <FormItem>
                                 <FormLabel>新密码</FormLabel>
                                 <FormControl>
-                                  <div className="relative">
-                                    <Input
-                                      {...field}
-                                      type={
-                                        showPassword.new ? "text" : "password"
-                                      }
-                                      placeholder="请输入新密码"
-                                      className="pr-10"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        togglePasswordVisibility("new")
-                                      }
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                      disabled={changingPassword}
-                                    >
-                                      {showPassword.new ? (
-                                        <EyeOff className="h-4 w-4" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </button>
-                                  </div>
+                                  <PasswordInput {...field} placeholder="请输入新密码" error={passwordForm.formState.errors.new_password?.message} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -639,32 +569,7 @@ export default function ProfilePage() {
                               <FormItem>
                                 <FormLabel>确认新密码</FormLabel>
                                 <FormControl>
-                                  <div className="relative">
-                                    <Input
-                                      {...field}
-                                      type={
-                                        showPassword.confirm
-                                          ? "text"
-                                          : "password"
-                                      }
-                                      placeholder="请再次输入新密码"
-                                      className="pr-10"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        togglePasswordVisibility("confirm")
-                                      }
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                      disabled={changingPassword}
-                                    >
-                                      {showPassword.confirm ? (
-                                        <EyeOff className="h-4 w-4" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </button>
-                                  </div>
+                                  <PasswordInput {...field} placeholder="请再次输入新密码" error={passwordForm.formState.errors.confirm_password?.message} />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>

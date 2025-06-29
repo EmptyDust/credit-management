@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import apiClient from "@/lib/api";
 import {
@@ -12,7 +11,6 @@ import {
   FileText,
   GitPullRequest,
   Hourglass,
-  TrendingUp,
   Award,
   CheckCircle,
   XCircle,
@@ -27,12 +25,13 @@ import {
   Lightbulb,
   Eye,
   Calendar,
-  MapPin,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
-import type { ActivityWithDetails, ActivityCategory } from "@/types/activity";
+import type { ActivityCategory } from "@/types/activity";
+import { StatCard } from "@/components/ui/stat-card";
+import { getStatusBadge } from "@/lib/status-utils";
 
 interface UserStats {
   total_users: number;
@@ -101,94 +100,6 @@ interface CreditTypeStats {
   paper_patent: number;
 }
 
-const StatCard = ({
-  title,
-  value,
-  icon: Icon,
-  to,
-  description,
-  trend,
-  color = "default",
-  subtitle,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  to?: string;
-  description?: string;
-  trend?: { value: number; isPositive: boolean };
-  color?: "default" | "success" | "warning" | "danger" | "info" | "purple";
-  loading?: boolean;
-  subtitle?: string;
-}) => {
-  const colorClasses = {
-    default: "text-muted-foreground",
-    success: "text-green-600",
-    warning: "text-yellow-600",
-    danger: "text-red-600",
-    info: "text-blue-600",
-    purple: "text-purple-600",
-  };
-
-  const bgClasses = {
-    default: "bg-muted/20",
-    success: "bg-green-100 dark:bg-green-900/20",
-    warning: "bg-yellow-100 dark:bg-yellow-900/20",
-    danger: "bg-red-100 dark:bg-red-900/20",
-    info: "bg-blue-100 dark:bg-blue-900/20",
-    purple: "bg-purple-100 dark:bg-purple-900/20",
-  };
-
-  const content = (
-    <Card className="rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <div className={`p-3 rounded-xl ${bgClasses[color]}`}>
-          <Icon className={`h-6 w-6 ${colorClasses[color]}`} />
-        </div>
-        <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-gray-100">
-          {value}
-        </div>
-        {subtitle && (
-          <div className="text-sm text-muted-foreground mb-2">{subtitle}</div>
-        )}
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-        {trend && (
-          <div className="flex items-center mt-3">
-            <TrendingUp
-              className={`h-4 w-4 mr-1 ${
-                trend.isPositive ? "text-green-600" : "text-red-600"
-              }`}
-            />
-            <span
-              className={`text-xs font-medium ${
-                trend.isPositive ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {trend.isPositive ? "+" : ""}
-              {trend.value}%
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  return to ? (
-    <Link to={to} className="block">
-      {content}
-    </Link>
-  ) : (
-    content
-  );
-};
-
 const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
   const getCategoryIcon = (category: ActivityCategory) => {
     switch (category) {
@@ -204,53 +115,6 @@ const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
         return <BookOpen className="h-4 w-4" />;
       default:
         return <Activity className="h-4 w-4" />;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return (
-          <Badge
-            variant="default"
-            className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-          >
-            已通过
-          </Badge>
-        );
-      case "pending_review":
-        return (
-          <Badge
-            variant="default"
-            className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-          >
-            待审核
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge
-            variant="default"
-            className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-          >
-            已拒绝
-          </Badge>
-        );
-      case "draft":
-        return (
-          <Badge
-            variant="default"
-            className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-          >
-            草稿
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="outline" className="text-xs">
-            {status || "未知"}
-          </Badge>
-        );
     }
   };
 
@@ -447,50 +311,31 @@ export default function Dashboard() {
 
       // Fetch activities to calculate all stats
       try {
-        const activitiesResponse = await apiClient.get("/activities");
-        console.log("Dashboard activities response:", activitiesResponse.data);
+        const activitiesResponse = await apiClient.get("/activities", {
+          params: { page: 1, page_size: 5, status: "approved" },
+        });
 
-        let activities = [];
-        if (
-          activitiesResponse.data.data &&
-          Array.isArray(activitiesResponse.data.data)
-        ) {
-          activities = activitiesResponse.data.data;
-        } else if (
-          activitiesResponse.data.data &&
-          Array.isArray(activitiesResponse.data.data.data)
-        ) {
-          activities = activitiesResponse.data.data.data;
-        } else if (Array.isArray(activitiesResponse.data)) {
-          activities = activitiesResponse.data;
-        } else if (
-          activitiesResponse.data.activities &&
-          Array.isArray(activitiesResponse.data.activities)
-        ) {
-          activities = activitiesResponse.data.activities;
-        } else {
-          console.warn(
-            "Unexpected activities response structure:",
-            activitiesResponse.data
-          );
-          activities = [];
+        let activitiesData: any[] = [];
+        if (activitiesResponse.data.code === 0 && activitiesResponse.data.data) {
+          activitiesData = activitiesResponse.data.data.data || activitiesResponse.data.data.activities || [];
+          setRecentActivities(activitiesData);
         }
 
         // Calculate comprehensive activity stats
-        const totalActivities = activities.length;
-        const activeActivities = activities.filter(
+        const totalActivities = activitiesData.length;
+        const activeActivities = activitiesData.filter(
           (activity: any) => activity.status === "approved"
         ).length;
-        const draftActivities = activities.filter(
+        const draftActivities = activitiesData.filter(
           (activity: any) => activity.status === "draft"
         ).length;
-        const pendingActivities = activities.filter(
+        const pendingActivities = activitiesData.filter(
           (activity: any) => activity.status === "pending_review"
         ).length;
-        const approvedActivities = activities.filter(
+        const approvedActivities = activitiesData.filter(
           (activity: any) => activity.status === "approved"
         ).length;
-        const rejectedActivities = activities.filter(
+        const rejectedActivities = activitiesData.filter(
           (activity: any) => activity.status === "rejected"
         ).length;
 
@@ -503,7 +348,7 @@ export default function Dashboard() {
           论文专利: 0,
         };
 
-        activities.forEach((activity: any) => {
+        activitiesData.forEach((activity: any) => {
           if (
             activity.category &&
             categoryStats.hasOwnProperty(activity.category)
@@ -513,19 +358,19 @@ export default function Dashboard() {
         });
 
         // Calculate total participants and applications
-        const totalParticipants = activities.reduce(
+        const totalParticipants = activitiesData.reduce(
           (sum: number, activity: any) =>
             sum + (activity.participants?.length || 0),
           0
         );
-        const totalApplications = activities.reduce(
+        const totalApplications = activitiesData.reduce(
           (sum: number, activity: any) =>
             sum + (activity.applications?.length || 0),
           0
         );
 
         // Calculate total credits awarded
-        const totalCreditsAwarded = activities.reduce(
+        const totalCreditsAwarded = activitiesData.reduce(
           (sum: number, activity: any) => {
             const approvedApps =
               activity.applications?.filter(
@@ -549,7 +394,7 @@ export default function Dashboard() {
             : 0;
 
         // Prepare recent activities for the card
-        const recentActivitiesData = activities
+        const recentActivitiesData = activitiesData
           .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
           .sort(
             (a: any, b: any) =>
@@ -573,7 +418,7 @@ export default function Dashboard() {
           }));
 
         // Prepare popular activities
-        const popularActivities = activities
+        const popularActivities = activitiesData
           .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
           .sort(
             (a: any, b: any) =>
