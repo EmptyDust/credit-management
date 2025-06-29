@@ -158,3 +158,16 @@ type UserInfo struct {
 	Name string `json:"name,omitempty"`
 	Role string `json:"role,omitempty"`
 }
+
+// BatchRemoveRequest 批量移除参与者请求
+type BatchRemoveRequest struct {
+	UserIDs []string `json:"user_ids" binding:"required"`
+}
+
+// ParticipantActivityResponse 参与者活动响应
+type ParticipantActivityResponse struct {
+	ActivityID string       `json:"activity_id"`
+	Credits    float64      `json:"credits"`
+	JoinedAt   time.Time    `json:"joined_at"`
+	Activity   ActivityInfo `json:"activity"`
+}
