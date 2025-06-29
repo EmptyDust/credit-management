@@ -271,7 +271,6 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 
 	var req models.ParticipantSearchRequest
 
-	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
 	req.UserID = c.Query("user_id")
 	req.MinCredits = c.Query("min_credits")
