@@ -116,12 +116,29 @@ services:
       - credit_network
     restart: unless-stopped
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: credit_management_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    networks:
+      - credit_management_network
+    environment:
+      - TZ=Asia/Shanghai
+
 volumes:
   postgres_data:
     driver: local
   affair_uploads:
     driver: local
   attachment_uploads:
+    driver: local
+  redis_data:
     driver: local
 
 networks:

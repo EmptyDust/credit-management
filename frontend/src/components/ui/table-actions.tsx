@@ -1,5 +1,5 @@
 import { Button } from "./button";
-import { Edit, Trash, Eye, Download, Upload } from "lucide-react";
+import { Edit, Trash, Eye } from "lucide-react";
 
 interface TableAction {
   icon: React.ComponentType<any>;

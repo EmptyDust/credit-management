@@ -1,20 +1,29 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"credit-management/user-service/models"
+	"credit-management/user-service/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
+type UserHandler struct {
+	db *gorm.DB
+}
+
+func NewUserHandler(db *gorm.DB) *UserHandler {
+	return &UserHandler{
+		db: db,
+	}
+}
+
 func (h *UserHandler) GetUser(c *gin.Context) {
 	userID := c.Param("id")
-	currentUserID := getCurrentUserID(c)
+	currentUserID := utils.GetCurrentUserID(c)
 	if userID == "" {
 		userID = currentUserID
 	}
@@ -22,7 +31,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	var userType string
 	err := h.db.Table("users").Select("user_type").Where("user_id = ?", userID).Scan(&userType).Error
 	if err != nil || userType == "" {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
+		utils.SendNotFound(c, "用户不存在")
 		return
 	}
 
@@ -35,82 +44,85 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		case "teacher":
 			viewName = "teacher_complete_info"
 		default:
-
 			// 管理员等其他类型直接查users表所有字段
 			h.db.Table("users").Where("user_id = ?", userID).Find(&result)
-			c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": result})
+			utils.SendSuccessResponse(c, result)
 			return
 		}
 		h.db.Table(viewName).Where("user_id = ?", userID).Find(&result)
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": result})
+		utils.SendSuccessResponse(c, result)
 		return
 	}
 
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
+			utils.SendNotFound(c, "用户不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
-	currentUserRole := getCurrentUserRole(c)
-	if !canViewUserDetails(currentUserRole, user.UserType) {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "权限不足", "data": nil})
+	currentUserRole := utils.GetCurrentUserRole(c)
+	if !utils.CanViewUserDetails(currentUserRole, user.UserType) {
+		utils.SendForbidden(c, "权限不足")
 		return
 	}
 
 	response := h.convertToUserResponse(user)
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
 
 	if userID == "" {
-		claims, exists := c.Get("claims")
+		claims, exists := utils.GetUserClaims(c)
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证", "data": nil})
+			utils.SendUnauthorized(c)
 			return
 		}
-		claimsMap, ok := claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的认证信息", "data": nil})
-			return
-		}
-		userID = claimsMap["user_id"].(string)
+		userID = claims["user_id"].(string)
 	}
 
 	var req models.UserUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
+			utils.SendNotFound(c, "用户不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
+	// 验证邮箱唯一性
 	if req.Email != "" {
 		var existingUser models.User
 		if err := h.db.Where("email = ? AND user_id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
+			utils.SendConflict(c, "邮箱已被使用")
 			return
 		}
 		user.Email = req.Email
 	}
+
+	// 验证学号唯一性
+	if req.StudentID != nil {
+		var existingUser models.User
+		if err := h.db.Where("student_id = ? AND user_id != ?", *req.StudentID, userID).First(&existingUser).Error; err == nil {
+			utils.SendConflict(c, "学号已被使用")
+			return
+		}
+		user.StudentID = req.StudentID
+	}
+
+	// 更新用户信息
 	if req.Phone != "" {
 		user.Phone = &req.Phone
 	}
@@ -122,15 +134,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 	if req.Status != "" {
 		user.Status = req.Status
-	}
-
-	if req.StudentID != nil {
-		var existingUser models.User
-		if err := h.db.Where("student_id = ? AND user_id != ?", *req.StudentID, userID).First(&existingUser).Error; err == nil {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
-			return
-		}
-		user.StudentID = req.StudentID
 	}
 	if req.College != nil {
 		user.College = req.College
@@ -144,7 +147,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	if req.Grade != nil {
 		user.Grade = req.Grade
 	}
-
 	if req.Department != nil {
 		user.Department = req.Department
 	}
@@ -153,45 +155,37 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	if err := h.db.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新用户信息失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	userResponse := h.convertToUserResponse(user)
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    userResponse,
-	})
+	utils.SendSuccessResponse(c, userResponse)
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "用户ID不能为空", "data": nil})
+		utils.SendBadRequest(c, "用户ID不能为空")
 		return
 	}
 
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
+			utils.SendNotFound(c, "用户不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	if err := h.db.Delete(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除用户失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    gin.H{"message": "用户删除成功"},
-	})
+	utils.SendSuccessResponse(c, gin.H{"message": "用户删除成功"})
 }
 
 func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
@@ -200,31 +194,27 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	var users []models.User
 	if err := h.db.Where("user_id IN ?", req.UserIDs).Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	if len(users) != len(req.UserIDs) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "部分用户不存在", "data": nil})
+		utils.SendBadRequest(c, "部分用户不存在")
 		return
 	}
 
 	if err := h.db.Delete(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除用户失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    gin.H{"deleted_count": len(users)},
-	})
+	utils.SendSuccessResponse(c, gin.H{"deleted_count": len(users)})
 }
 
 func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
@@ -234,20 +224,16 @@ func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	if err := h.db.Model(&models.User{}).Where("user_id IN ?", req.UserIDs).Update("status", req.Status).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量更新用户状态失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    gin.H{"updated_count": len(req.UserIDs), "status": req.Status},
-	})
+	utils.SendSuccessResponse(c, gin.H{"updated_count": len(req.UserIDs), "status": req.Status})
 }
 
 func (h *UserHandler) ResetPassword(c *gin.Context) {
@@ -257,41 +243,38 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	if !models.ValidatePasswordComplexity(req.NewPassword) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
+	validator := utils.NewValidator()
+	if err := validator.ValidatePassword(req.NewPassword); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	var user models.User
 	if err := h.db.Where("user_id = ?", req.UserID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "用户不存在", "data": nil})
+			utils.SendNotFound(c, "用户不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+			utils.SendInternalServerError(c, err)
 		}
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	if err := h.db.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码重置失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    gin.H{"message": "密码重置成功"},
-	})
+	utils.SendSuccessResponse(c, gin.H{"message": "密码重置成功"})
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
@@ -301,56 +284,57 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	userID := getCurrentUserID(c)
+	userID := utils.GetCurrentUserID(c)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证", "data": nil})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	var user models.User
 	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户信息失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
+	// 验证原密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "原密码错误", "data": nil})
+		utils.SendBadRequest(c, "原密码错误")
 		return
 	}
 
-	if !models.ValidatePasswordComplexity(req.NewPassword) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
+	// 验证新密码复杂度
+	validator := utils.NewValidator()
+	if err := validator.ValidatePassword(req.NewPassword); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
+	// 加密新密码
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
+	// 更新密码
 	if err := h.db.Model(&user).Update("password", string(hashedPassword)).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码修改失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    gin.H{"message": "密码修改成功"},
-	})
+	utils.SendSuccessResponse(c, gin.H{"message": "密码修改成功"})
 }
 
 func (h *UserHandler) GetUserActivity(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {
-		userID = getCurrentUserID(c)
+		userID = utils.GetCurrentUserID(c)
 		if userID == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证", "data": nil})
+			utils.SendUnauthorized(c)
 			return
 		}
 	}
@@ -358,12 +342,8 @@ func (h *UserHandler) GetUserActivity(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 10
-	}
+	validator := utils.NewValidator()
+	page, pageSize, _ = validator.ValidatePagination(strconv.Itoa(page), strconv.Itoa(pageSize))
 
 	// 这里可以添加用户活动记录的查询逻辑
 	// 例如：登录记录、操作日志等
@@ -378,11 +358,7 @@ func (h *UserHandler) GetUserActivity(c *gin.Context) {
 		"total_pages": 0,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *UserHandler) ExportUsers(c *gin.Context) {
@@ -401,24 +377,41 @@ func (h *UserHandler) ExportUsers(c *gin.Context) {
 
 	var users []models.User
 	if err := query.Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户数据失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	switch format {
 	case "json":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "success",
-			"data":    users,
-		})
+		utils.SendSuccessResponse(c, users)
 	case "csv":
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": "success",
-			"data":    gin.H{"message": "CSV导出功能待实现", "count": len(users)},
-		})
+		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(users)})
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "不支持的导出格式", "data": nil})
+		utils.SendBadRequest(c, "不支持的导出格式")
+	}
+}
+
+// convertToUserResponse 将User模型转换为UserResponse
+func (h *UserHandler) convertToUserResponse(user models.User) models.UserResponse {
+	return models.UserResponse{
+		UserID:       user.UserID,
+		Username:     user.Username,
+		Email:        user.Email,
+		Phone:        utils.DerefString(user.Phone),
+		RealName:     user.RealName,
+		UserType:     user.UserType,
+		Status:       user.Status,
+		Avatar:       utils.DerefString(user.Avatar),
+		LastLoginAt:  user.LastLoginAt,
+		RegisterTime: user.RegisterTime,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		StudentID:    user.StudentID,
+		College:      user.College,
+		Major:        user.Major,
+		Class:        user.Class,
+		Grade:        user.Grade,
+		Department:   user.Department,
+		Title:        user.Title,
 	}
 }
