@@ -3,9 +3,13 @@ package handlers
 import (
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
+	"credit-management/user-service/models"
+	"credit-management/user-service/utils"
 
 	"credit-management/user-service/models"
+	"credit-management/user-service/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,63 +36,73 @@ func isUUID(str string) bool {
 func (h *UserHandler) SearchUsers(c *gin.Context) {
 	var req SearchUsersRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
+		utils.SendBadRequest(c, "请求参数错误")
 		return
 	}
 
-	currentUserRole := getCurrentUserRole(c)
+	// 验证用户类型
+	validator := utils.NewValidator()
+	if err := validator.ValidateUserType(req.UserType); err != nil {
+		utils.SendBadRequest(c, "无效的用户类型")
+		return
+	}
+
+	// 验证分页参数
+	page, pageSize, _ := validator.ValidatePagination(strconv.Itoa(req.Page), strconv.Itoa(req.PageSize))
+	req.Page = page
+	req.PageSize = pageSize
+
+	currentUserRole := utils.GetCurrentUserRole(c)
 	if currentUserRole == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未授权访问", "data": nil})
+		utils.SendUnauthorized(c)
 		return
 	}
 
-	// 根据用户类型和权限确定使用的视图
+	// 权限检查
+	if utils.IsStudent(currentUserRole) {
+		if req.UserType == "teacher" {
+			utils.SendForbidden(c, "权限不足")
+			return
+		}
+	}
+
+	// 确定视图名称
 	var viewName string
 	switch req.UserType {
 	case "student":
-		switch currentUserRole {
-		case "admin":
-			viewName = "student_complete_info"
-		case "teacher":
-			viewName = "student_detail_info"
-		case "student":
-			viewName = "student_basic_info"
-		default:
-			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "权限不足", "data": nil})
-			return
+		if utils.IsAdmin(currentUserRole) {
+			viewName = "student_admin_view"
+		} else if utils.IsTeacher(currentUserRole) {
+			viewName = "student_teacher_view"
+		} else {
+			viewName = "student_student_view"
 		}
 	case "teacher":
-		switch currentUserRole {
-		case "admin":
-			viewName = "teacher_complete_info"
-		case "teacher":
-			viewName = "teacher_basic_info"
-		case "student":
-			viewName = "teacher_basic_info"
-		default:
-			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "权限不足", "data": nil})
+		if utils.IsAdmin(currentUserRole) {
+			viewName = "teacher_admin_view"
+		} else {
+			utils.SendForbidden(c, "权限不足")
 			return
 		}
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的用户类型", "data": nil})
+		utils.SendBadRequest(c, "无效的用户类型")
 		return
 	}
 
+	// 构建查询
 	query := h.db.Table(viewName)
 
+	// 搜索条件
 	if req.Query != "" {
 		if isUUID(req.Query) {
 			query = query.Where("user_id = ?", req.Query)
 		} else {
-			searchQuery := "%" + req.Query + "%"
-			query = query.Where(
-				"username LIKE ? OR real_name LIKE ? OR student_id LIKE ?",
-				searchQuery, searchQuery, searchQuery,
-			)
+			query = query.Where("(username ILIKE ? OR real_name ILIKE ? OR email ILIKE ?)",
+				"%"+req.Query+"%", "%"+req.Query+"%", "%"+req.Query+"%")
 		}
 	}
 
-	// 根据视图类型添加不同的筛选条件
+	// 根据用户类型添加特定过滤条件
 	switch req.UserType {
 	case "student":
 		if req.College != "" {
@@ -103,7 +117,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		if req.Grade != "" {
 			query = query.Where("grade = ?", req.Grade)
 		}
-		if req.Status != "" && (currentUserRole == "admin" || currentUserRole == "teacher") {
+		if req.Status != "" && utils.IsTeacherOrAdmin(currentUserRole) {
 			query = query.Where("status = ?", req.Status)
 		}
 	case "teacher":
@@ -113,7 +127,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		if req.Title != "" {
 			query = query.Where("title = ?", req.Title)
 		}
-		if req.Status != "" && currentUserRole == "admin" {
+		if req.Status != "" && utils.IsAdmin(currentUserRole) {
 			query = query.Where("status = ?", req.Status)
 		}
 	}
@@ -125,7 +139,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	offset := (req.Page - 1) * req.PageSize
 	var users []map[string]interface{}
 	if err := query.Offset(offset).Limit(req.PageSize).Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "搜索用户失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -140,22 +154,15 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		ViewType:   viewName,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    response,
-	})
+	utils.SendSuccessResponse(c, response)
 }
 
 func (h *UserHandler) GetUserStats(c *gin.Context) {
 	var stats models.UserStats
 
 	h.db.Model(&models.User{}).Count(&stats.TotalUsers)
-
 	h.db.Model(&models.User{}).Where("status = ?", "active").Count(&stats.ActiveUsers)
-
 	h.db.Model(&models.User{}).Where("status = ?", "suspended").Count(&stats.SuspendedUsers)
-
 	h.db.Model(&models.User{}).Where("user_type = ?", "student").Count(&stats.StudentUsers)
 	h.db.Model(&models.User{}).Where("user_type = ?", "teacher").Count(&stats.TeacherUsers)
 	h.db.Model(&models.User{}).Where("user_type = ?", "admin").Count(&stats.AdminUsers)
@@ -169,20 +176,14 @@ func (h *UserHandler) GetUserStats(c *gin.Context) {
 	monthStart := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -time.Now().Day()+1)
 	h.db.Model(&models.User{}).Where("created_at >= ?", monthStart).Count(&stats.NewUsersMonth)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    stats,
-	})
+	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *UserHandler) GetStudentStats(c *gin.Context) {
 	var stats models.StudentStats
 
 	h.db.Model(&models.User{}).Where("user_type = ?", "student").Count(&stats.TotalStudents)
-
 	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "student", "active").Count(&stats.ActiveStudents)
-
 	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "student", "graduated").Count(&stats.GraduatedStudents)
 
 	stats.StudentsByCollege = make(map[string]int64)
@@ -230,11 +231,7 @@ func (h *UserHandler) GetStudentStats(c *gin.Context) {
 		stats.StudentsByGrade[stat.Grade] = stat.Count
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    stats,
-	})
+	utils.SendSuccessResponse(c, stats)
 }
 
 func (h *UserHandler) GetTeacherStats(c *gin.Context) {

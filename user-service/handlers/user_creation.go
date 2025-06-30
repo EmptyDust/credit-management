@@ -2,17 +2,16 @@ package handlers
 
 import (
 	"credit-management/user-service/models"
+	"credit-management/user-service/utils"
 	"encoding/csv"
 	"fmt"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -20,70 +19,63 @@ import (
 func (h *UserHandler) Register(c *gin.Context) {
 	var req models.StudentRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	if !models.ValidatePasswordComplexity(req.Password) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
+	validator := utils.NewValidator()
+
+	// 验证密码复杂度
+	if err := validator.ValidatePassword(req.Password); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if !models.ValidatePhoneFormat(req.Phone) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号格式不正确", "data": nil})
+	// 验证手机号格式
+	if err := validator.ValidatePhone(req.Phone); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if !models.ValidateStudentIDFormat(req.StudentID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "学号格式不正确", "data": nil})
+	// 验证学号格式
+	if err := validator.ValidateStudentID(req.StudentID); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if !models.ValidateGradeFormat(req.Grade) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "年级格式不正确", "data": nil})
+	// 验证年级格式
+	if err := validator.ValidateGrade(req.Grade); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	var existingUser models.User
-	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
-		}
+	// 检查用户名唯一性
+	if err := h.checkUsernameUniqueness(req.Username); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
-	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
-		}
+	// 检查邮箱唯一性
+	if err := h.checkEmailUniqueness(req.Email); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
-	if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
-		}
+	// 检查手机号唯一性
+	if err := h.checkPhoneUniqueness(req.Phone); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
-	if err := h.db.Unscoped().Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被删除的用户使用，请使用其他学号", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
-		}
+	// 检查学号唯一性
+	if err := h.checkStudentIDUniqueness(req.StudentID); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -103,80 +95,70 @@ func (h *UserHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建用户失败，请稍后重试", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	userResponse := h.convertToUserResponse(user)
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": gin.H{
-			"message": "学生注册成功",
-			"user":    userResponse,
-		},
+	utils.SendCreatedResponse(c, "学生注册成功", gin.H{
+		"message": "学生注册成功",
+		"user":    userResponse,
 	})
 }
 
 func (h *UserHandler) CreateTeacher(c *gin.Context) {
-	claims, exists := c.Get("claims")
+	claims, exists := utils.GetUserClaims(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证，无法操作", "data": nil})
+		utils.SendUnauthorized(c)
 		return
 	}
-	claimsMap, ok := claims.(jwt.MapClaims)
-	if !ok || claimsMap["user_type"] != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "只有管理员可以创建教师", "data": nil})
+
+	if !utils.IsAdmin(claims["user_type"].(string)) {
+		utils.SendForbidden(c, "只有管理员可以创建教师")
 		return
 	}
 
 	var req models.TeacherRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
-	if !models.ValidatePasswordComplexity(req.Password) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
+	validator := utils.NewValidator()
+
+	// 验证密码复杂度
+	if err := validator.ValidatePassword(req.Password); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if !models.ValidatePhoneFormat(req.Phone) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号格式不正确", "data": nil})
+	// 验证手机号格式
+	if err := validator.ValidatePhone(req.Phone); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	var existingUser models.User
-	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
-		}
+	// 检查用户名唯一性
+	if err := h.checkUsernameUniqueness(req.Username); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
-	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
-		}
+	// 检查邮箱唯一性
+	if err := h.checkEmailUniqueness(req.Email); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
-	if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
-		}
+	// 检查手机号唯一性
+	if err := h.checkPhoneUniqueness(req.Phone); err != nil {
+		utils.SendConflict(c, err.Error())
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -193,114 +175,110 @@ func (h *UserHandler) CreateTeacher(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建用户失败，请稍后重试", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	userResponse := h.convertToUserResponse(user)
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": gin.H{
-			"message": "教师创建成功",
-			"user":    userResponse,
-		},
+	utils.SendCreatedResponse(c, "教师创建成功", gin.H{
+		"message": "教师创建成功",
+		"user":    userResponse,
 	})
 }
 
 // CreateStudent 管理员创建学生
 func (h *UserHandler) CreateStudent(c *gin.Context) {
-	claims, exists := c.Get("claims")
+	claims, exists := utils.GetUserClaims(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未认证，无法操作", "data": nil})
+		utils.SendUnauthorized(c)
 		return
 	}
-	claimsMap, ok := claims.(jwt.MapClaims)
-	if !ok || claimsMap["user_type"] != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "只有管理员可以创建学生", "data": nil})
+
+	if !utils.IsAdmin(claims["user_type"].(string)) {
+		utils.SendForbidden(c, "只有管理员可以创建学生")
 		return
 	}
 
 	var req models.UserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误: " + err.Error(), "data": nil})
+		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
 
 	if req.UserType != "student" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "只能创建学生用户", "data": nil})
+		utils.SendBadRequest(c, "只能创建学生用户")
 		return
 	}
 
-	if !models.ValidatePasswordComplexity(req.Password) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "密码必须包含大小写字母和数字，且长度至少8位", "data": nil})
+	validator := utils.NewValidator()
+
+	// 验证密码复杂度
+	if err := validator.ValidatePassword(req.Password); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
-	if req.Phone != "" && !models.ValidatePhoneFormat(req.Phone) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "手机号格式不正确", "data": nil})
-		return
-	}
-
-	if req.StudentID != "" && !models.ValidateStudentIDFormat(req.StudentID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "学号格式不正确", "data": nil})
-		return
-	}
-
-	if req.Grade != "" && !models.ValidateGradeFormat(req.Grade) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "年级格式不正确", "data": nil})
-		return
-	}
-
-	if err := h.validateUserRequest(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error(), "data": nil})
-		return
-	}
-
-	var existingUser models.User
-	if err := h.db.Unscoped().Where("username = ?", req.Username).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已被删除的用户使用，请选择其他用户名", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "用户名已存在", "data": nil})
-		}
-		return
-	}
-
-	if err := h.db.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		if existingUser.DeletedAt.Valid {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被删除的用户使用，请使用其他邮箱", "data": nil})
-		} else {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "邮箱已被使用", "data": nil})
-		}
-		return
-	}
-
+	// 验证手机号格式（如果提供）
 	if req.Phone != "" {
-		if err := h.db.Unscoped().Where("phone = ?", req.Phone).First(&existingUser).Error; err == nil {
-			if existingUser.DeletedAt.Valid {
-				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被删除的用户使用，请使用其他手机号", "data": nil})
-			} else {
-				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "手机号已被使用", "data": nil})
-			}
+		if err := validator.ValidatePhone(req.Phone); err != nil {
+			utils.SendBadRequest(c, err.Error())
 			return
 		}
 	}
 
+	// 验证学号格式（如果提供）
 	if req.StudentID != "" {
-		if err := h.db.Unscoped().Where("student_id = ?", req.StudentID).First(&existingUser).Error; err == nil {
-			if existingUser.DeletedAt.Valid {
-				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被删除的用户使用，请使用其他学号", "data": nil})
-			} else {
-				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "学号已被使用", "data": nil})
-			}
+		if err := validator.ValidateStudentID(req.StudentID); err != nil {
+			utils.SendBadRequest(c, err.Error())
+			return
+		}
+	}
+
+	// 验证年级格式（如果提供）
+	if req.Grade != "" {
+		if err := validator.ValidateGrade(req.Grade); err != nil {
+			utils.SendBadRequest(c, err.Error())
+			return
+		}
+	}
+
+	// 验证用户请求
+	if err := h.validateUserRequest(&req); err != nil {
+		utils.SendBadRequest(c, err.Error())
+		return
+	}
+
+	// 检查用户名唯一性
+	if err := h.checkUsernameUniqueness(req.Username); err != nil {
+		utils.SendConflict(c, err.Error())
+		return
+	}
+
+	// 检查邮箱唯一性
+	if err := h.checkEmailUniqueness(req.Email); err != nil {
+		utils.SendConflict(c, err.Error())
+		return
+	}
+
+	// 检查手机号唯一性（如果提供）
+	if req.Phone != "" {
+		if err := h.checkPhoneUniqueness(req.Phone); err != nil {
+			utils.SendConflict(c, err.Error())
+			return
+		}
+	}
+
+	// 检查学号唯一性（如果提供）
+	if req.StudentID != "" {
+		if err := h.checkStudentIDUniqueness(req.StudentID); err != nil {
+			utils.SendConflict(c, err.Error())
 			return
 		}
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "密码加密失败", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
@@ -333,19 +311,67 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建用户失败，请稍后重试", "data": nil})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	userResponse := h.convertToUserResponse(user)
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "success",
-		"data": gin.H{
-			"message": "学生创建成功",
-			"user":    userResponse,
-		},
+	utils.SendCreatedResponse(c, "学生创建成功", gin.H{
+		"message": "学生创建成功",
+		"user":    userResponse,
 	})
+}
+
+// 辅助函数：检查用户名唯一性
+func (h *UserHandler) checkUsernameUniqueness(username string) error {
+	var existingUser models.User
+	if err := h.db.Unscoped().Where("username = ?", username).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			return fmt.Errorf("用户名已被删除的用户使用，请选择其他用户名")
+		} else {
+			return fmt.Errorf("用户名已存在")
+		}
+	}
+	return nil
+}
+
+// 辅助函数：检查邮箱唯一性
+func (h *UserHandler) checkEmailUniqueness(email string) error {
+	var existingUser models.User
+	if err := h.db.Unscoped().Where("email = ?", email).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			return fmt.Errorf("邮箱已被删除的用户使用，请使用其他邮箱")
+		} else {
+			return fmt.Errorf("邮箱已被使用")
+		}
+	}
+	return nil
+}
+
+// 辅助函数：检查手机号唯一性
+func (h *UserHandler) checkPhoneUniqueness(phone string) error {
+	var existingUser models.User
+	if err := h.db.Unscoped().Where("phone = ?", phone).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			return fmt.Errorf("手机号已被删除的用户使用，请使用其他手机号")
+		} else {
+			return fmt.Errorf("手机号已被使用")
+		}
+	}
+	return nil
+}
+
+// 辅助函数：检查学号唯一性
+func (h *UserHandler) checkStudentIDUniqueness(studentID string) error {
+	var existingUser models.User
+	if err := h.db.Unscoped().Where("student_id = ?", studentID).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			return fmt.Errorf("学号已被删除的用户使用，请使用其他学号")
+		} else {
+			return fmt.Errorf("学号已被使用")
+		}
+	}
+	return nil
 }
 
 func (h *UserHandler) validateUserRequest(req *models.UserRequest) error {
@@ -380,49 +406,32 @@ func (h *UserHandler) validateUserRequest(req *models.UserRequest) error {
 func (h *UserHandler) ImportUsers(c *gin.Context) {
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	userType := c.PostForm("user_type")
 	if userType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请指定用户类型 (student/teacher)",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")
 		return
 	}
 
-	if userType != "student" && userType != "teacher" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "用户类型只能是 student 或 teacher",
-			"data":    nil,
-		})
+	validator := utils.NewValidator()
+	if err := validator.ValidateUserType(userType); err != nil {
+		utils.SendBadRequest(c, "用户类型只能是 student 或 teacher")
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请上传文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请上传文件")
 		return
 	}
 
-	if file.Size > 10*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件大小不能超过10MB",
-			"data":    nil,
-		})
+	// 验证文件大小
+	maxFileSize := utils.GetMaxFileSize()
+	if err := validator.ValidateFileSize(file.Size, maxFileSize); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
@@ -430,25 +439,24 @@ func (h *UserHandler) ImportUsers(c *gin.Context) {
 	var records [][]string
 	var parseError error
 
+	// 验证文件类型
+	allowedTypes := utils.GetAllowedFileTypes()
+	if err := validator.ValidateFileType(fileName, allowedTypes); err != nil {
+		utils.SendBadRequest(c, "只支持CSV、XLSX、XLS文件格式")
+		return
+	}
+
 	if strings.HasSuffix(fileName, ".csv") {
 		records, parseError = h.parseCSVFile(file)
 	} else if strings.HasSuffix(fileName, ".xlsx") || strings.HasSuffix(fileName, ".xls") {
 		records, parseError = h.parseExcelFile(file)
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只支持CSV、XLSX、XLS文件格式",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "只支持CSV、XLSX、XLS文件格式")
 		return
 	}
 
 	if parseError != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件解析失败: " + parseError.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "文件解析失败: "+parseError.Error())
 		return
 	}
 
@@ -532,28 +540,8 @@ func (h *UserHandler) parseExcelFile(file *multipart.FileHeader) ([][]string, er
 
 func (h *UserHandler) processImportData(c *gin.Context, records [][]string, userType string, fileName string) {
 	if len(records) < 2 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件至少需要包含标题行和一行数据",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "文件至少需要包含标题行和一行数据")
 		return
-	}
-
-	if len(records) > 1001 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件最多支持1000行数据",
-			"data":    nil,
-		})
-		return
-	}
-
-	var expectedHeaders []string
-	if userType == "student" {
-		expectedHeaders = []string{"username", "password", "email", "phone", "real_name", "student_id", "college", "major", "class", "grade"}
-	} else {
-		expectedHeaders = []string{"username", "password", "email", "phone", "real_name", "department", "title"}
 	}
 
 	headers := records[0]
@@ -562,20 +550,33 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 		headerMap[strings.ToLower(strings.TrimSpace(header))] = i
 	}
 
-	missingHeaders := []string{}
-	for _, expected := range expectedHeaders {
-		if _, exists := headerMap[expected]; !exists {
-			missingHeaders = append(missingHeaders, expected)
+	// 验证必需的列
+	requiredColumns := []string{"username", "password", "email", "real_name"}
+	for _, col := range requiredColumns {
+		if _, exists := headerMap[col]; !exists {
+			utils.SendBadRequest(c, fmt.Sprintf("缺少必需的列: %s", col))
+			return
 		}
 	}
 
-	if len(missingHeaders) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件缺少必需的列: " + strings.Join(missingHeaders, ", "),
-			"data":    nil,
-		})
-		return
+	// 根据用户类型验证特定列
+	switch userType {
+	case "student":
+		studentColumns := []string{"student_id", "college", "major", "class", "grade"}
+		for _, col := range studentColumns {
+			if _, exists := headerMap[col]; !exists {
+				utils.SendBadRequest(c, fmt.Sprintf("学生导入缺少必需的列: %s", col))
+				return
+			}
+		}
+	case "teacher":
+		teacherColumns := []string{"department", "title"}
+		for _, col := range teacherColumns {
+			if _, exists := headerMap[col]; !exists {
+				utils.SendBadRequest(c, fmt.Sprintf("教师导入缺少必需的列: %s", col))
+				return
+			}
+		}
 	}
 
 	var users []models.UserRequest
@@ -620,15 +621,11 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 	}
 
 	if len(errors) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "数据验证失败",
-			"data": gin.H{
-				"errors":       errors,
-				"total_rows":   len(records) - 1,
-				"valid_rows":   len(users),
-				"invalid_rows": len(errors),
-			},
+		utils.SendBadRequestWithData(c, "数据验证失败", gin.H{
+			"errors":       errors,
+			"total_rows":   len(records) - 1,
+			"valid_rows":   len(users),
+			"invalid_rows": len(errors),
 		})
 		return
 	}
@@ -684,59 +681,40 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 	// 如果有创建错误，回滚事务
 	if len(createErrors) > 0 {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "批量创建用户失败",
-			"data": gin.H{
-				"errors":        createErrors,
-				"created_count": 0,
-				"total_count":   len(users),
-				"created_users": []models.UserResponse{},
-			},
+		utils.SendBadRequestWithData(c, "批量创建用户失败", gin.H{
+			"errors":        createErrors,
+			"created_count": 0,
+			"total_count":   len(users),
+			"created_users": []models.UserResponse{},
 		})
 		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "提交事务失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "批量导入成功",
-		"data": gin.H{
-			"created_count": len(createdUsers),
-			"total_count":   len(users),
-			"created_users": createdUsers,
-			"user_type":     userType,
-			"file_name":     fileName,
-			"file_type":     filepath.Ext(fileName),
-		},
+	utils.SendCreatedResponse(c, "批量导入成功", gin.H{
+		"created_count": len(createdUsers),
+		"total_count":   len(users),
+		"created_users": createdUsers,
+		"user_type":     userType,
+		"file_name":     fileName,
+		"file_type":     filepath.Ext(fileName),
 	})
 }
 
 func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 	userType := c.Query("user_type")
 	if userType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请指定用户类型 (student/teacher)",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")
 		return
 	}
 
-	if userType != "student" && userType != "teacher" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "用户类型只能是 student 或 teacher",
-			"data":    nil,
-		})
+	validator := utils.NewValidator()
+	if err := validator.ValidateUserType(userType); err != nil {
+		utils.SendBadRequest(c, "用户类型只能是 student 或 teacher")
 		return
 	}
 
@@ -763,11 +741,7 @@ func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 
 	for _, record := range template {
 		if err := writer.Write(record); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "生成CSV模板失败",
-				"data":    nil,
-			})
+			utils.SendInternalServerError(c, err)
 			return
 		}
 	}
@@ -776,20 +750,13 @@ func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 	userType := c.Query("user_type")
 	if userType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请指定用户类型 (student/teacher)",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")
 		return
 	}
 
-	if userType != "student" && userType != "teacher" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "用户类型只能是 student 或 teacher",
-			"data":    nil,
-		})
+	validator := utils.NewValidator()
+	if err := validator.ValidateUserType(userType); err != nil {
+		utils.SendBadRequest(c, "用户类型只能是 student 或 teacher")
 		return
 	}
 
@@ -828,36 +795,11 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 		}
 	}
 
-	if userType == "student" {
-		f.SetColWidth(sheetName, "A", "A", 15) // username
-		f.SetColWidth(sheetName, "B", "B", 15) // password
-		f.SetColWidth(sheetName, "C", "C", 25) // email
-		f.SetColWidth(sheetName, "D", "D", 15) // phone
-		f.SetColWidth(sheetName, "E", "E", 15) // real_name
-		f.SetColWidth(sheetName, "F", "F", 15) // student_id
-		f.SetColWidth(sheetName, "G", "G", 20) // college
-		f.SetColWidth(sheetName, "H", "H", 20) // major
-		f.SetColWidth(sheetName, "I", "I", 15) // class
-		f.SetColWidth(sheetName, "J", "J", 10) // grade
-	} else {
-		f.SetColWidth(sheetName, "A", "A", 15) // username
-		f.SetColWidth(sheetName, "B", "B", 15) // password
-		f.SetColWidth(sheetName, "C", "C", 25) // email
-		f.SetColWidth(sheetName, "D", "D", 15) // phone
-		f.SetColWidth(sheetName, "E", "E", 15) // real_name
-		f.SetColWidth(sheetName, "F", "F", 20) // department
-		f.SetColWidth(sheetName, "G", "G", 15) // title
-	}
-
 	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s_template.xlsx", userType))
 
 	if err := f.Write(c.Writer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成Excel模板失败",
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 }
@@ -865,68 +807,43 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 func (h *UserHandler) ImportUsersFromCSV(c *gin.Context) {
 	_, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未认证",
-			"data":    nil,
-		})
+		utils.SendUnauthorized(c)
 		return
 	}
 
 	userType := c.PostForm("user_type")
 	if userType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请指定用户类型 (student/teacher)",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")
 		return
 	}
 
-	if userType != "student" && userType != "teacher" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "用户类型只能是 student 或 teacher",
-			"data":    nil,
-		})
+	validator := utils.NewValidator()
+	if err := validator.ValidateUserType(userType); err != nil {
+		utils.SendBadRequest(c, "用户类型只能是 student 或 teacher")
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "请上传CSV文件",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "请上传CSV文件")
 		return
 	}
 
 	if !strings.HasSuffix(file.Filename, ".csv") {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "只支持CSV文件格式",
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "只支持CSV文件格式")
 		return
 	}
 
-	if file.Size > 5*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "文件大小不能超过5MB",
-			"data":    nil,
-		})
+	// 验证文件大小
+	maxFileSize := utils.GetMaxFileSize()
+	if err := validator.ValidateFileSize(file.Size, maxFileSize); err != nil {
+		utils.SendBadRequest(c, err.Error())
 		return
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "打开文件失败: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendInternalServerError(c, err)
 		return
 	}
 	defer src.Close()
@@ -936,11 +853,7 @@ func (h *UserHandler) ImportUsersFromCSV(c *gin.Context) {
 
 	records, err := reader.ReadAll()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "CSV文件格式错误: " + err.Error(),
-			"data":    nil,
-		})
+		utils.SendBadRequest(c, "CSV文件格式错误: "+err.Error())
 		return
 	}
 

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { StatCard } from "./stat-card";
 import type { LucideIcon } from "lucide-react";
 
