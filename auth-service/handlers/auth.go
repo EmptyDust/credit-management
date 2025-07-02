@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -12,17 +13,20 @@ import (
 	"gorm.io/gorm"
 
 	"credit-management/auth-service/models"
+	"credit-management/auth-service/utils"
 )
 
 type AuthHandler struct {
 	db        *gorm.DB
 	jwtSecret string
+	redis     *utils.RedisClient
 }
 
-func NewAuthHandler(db *gorm.DB, jwtSecret string) *AuthHandler {
+func NewAuthHandler(db *gorm.DB, jwtSecret string, redis *utils.RedisClient) *AuthHandler {
 	return &AuthHandler{
 		db:        db,
 		jwtSecret: jwtSecret,
+		redis:     redis,
 	}
 }
 
@@ -99,11 +103,27 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
-// ValidateToken 验证JWT token
+// ValidateToken 验证JWT token（增强版，包含黑名单检查）
 func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	var req models.TokenValidationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
+		return
+	}
+
+	// 检查token是否在黑名单中
+	ctx := context.Background()
+	if blacklisted, err := h.redis.IsBlacklisted(ctx, req.Token); err != nil {
+		log.Printf("检查token黑名单失败: %v", err)
+	} else if blacklisted {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    0,
+			"message": "success",
+			"data": models.TokenValidationResponse{
+				Valid:   false,
+				Message: "token已被撤销",
+			},
+		})
 		return
 	}
 
@@ -283,8 +303,59 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 // Logout 用户登出
 func (h *AuthHandler) Logout(c *gin.Context) {
-	// 在实际应用中，这里可以将token加入黑名单
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": nil})
+	// 从请求头获取token
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少认证令牌", "data": nil})
+		return
+	}
+
+	// 检查Bearer前缀
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "认证令牌格式错误", "data": nil})
+		return
+	}
+
+	tokenString := authHeader[7:]
+
+	// 解析JWT token获取过期时间
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return []byte(h.jwtSecret), nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的认证令牌", "data": nil})
+		return
+	}
+
+	// 获取token的过期时间
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的token claims", "data": nil})
+		return
+	}
+
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "token中缺少过期时间", "data": nil})
+		return
+	}
+
+	// 计算剩余时间
+	expTime := time.Unix(int64(exp), 0)
+	remainingTime := time.Until(expTime)
+
+	if remainingTime > 0 {
+		// 将token添加到黑名单
+		ctx := context.Background()
+		if err := h.redis.AddToBlacklist(ctx, tokenString, remainingTime); err != nil {
+			log.Printf("添加token到黑名单失败: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "登出失败", "data": nil})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": gin.H{"message": "登出成功"}})
 }
 
 // ValidatePermission 验证用户权限

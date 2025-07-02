@@ -6,12 +6,13 @@ import (
 	"os"
 	"time"
 
+	"credit-management/auth-service/handlers"
+	"credit-management/auth-service/utils"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"credit-management/auth-service/handlers"
 )
 
 // 连接数据库，带重试机制
@@ -23,7 +24,7 @@ func connectDatabase(dsn string) (*gorm.DB, error) {
 	maxRetries := 30
 	retryInterval := 2 * time.Second
 
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 			Logger: logger.Default.LogMode(logger.Info),
 		})
@@ -72,11 +73,25 @@ func main() {
 		log.Fatal("Failed to run initializations:", err)
 	}
 
+	// Redis连接配置
+	redisHost := getEnv("REDIS_HOST", "localhost")
+	redisPort := getEnv("REDIS_PORT", "6379")
+	redisPassword := getEnv("REDIS_PASSWORD", "")
+	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+
+	// 连接Redis
+	log.Println("Connecting to Redis...")
+	redisClient := utils.NewRedisClient(redisAddr, redisPassword, 0)
+	if redisClient == nil {
+		log.Fatal("Failed to connect to Redis")
+	}
+	defer redisClient.Close()
+
 	// JWT密钥
 	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
 
 	// 创建处理器
-	authHandler := handlers.NewAuthHandler(db, jwtSecret)
+	authHandler := handlers.NewAuthHandler(db, jwtSecret, redisClient)
 
 	// 设置Gin路由
 	r := gin.Default()
