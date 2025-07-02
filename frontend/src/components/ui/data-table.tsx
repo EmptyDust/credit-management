@@ -50,12 +50,16 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   if (loading) {
     return (
-      <TableLoadingStates
-        loading={loading}
-        dataLength={data.length}
-        colSpan={columns.length}
-        emptyMessage={emptyState?.title || "暂无数据"}
-      />
+      <Table>
+        <TableBody>
+          <TableLoadingStates
+            loading={loading}
+            dataLength={data.length}
+            colSpan={columns.length}
+            emptyMessage={emptyState?.title || "暂无数据"}
+          />
+        </TableBody>
+      </Table>
     );
   }
 

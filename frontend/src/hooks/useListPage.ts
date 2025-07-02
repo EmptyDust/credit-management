@@ -5,9 +5,10 @@ interface ListPageOptions<T> {
   endpoint: string;
   setData: (data: T[]) => void;
   errorMessage?: string;
+  userType?: "student" | "teacher"; // 添加用户类型参数
 }
 
-export function useListPage<T>({ endpoint, setData, errorMessage }: ListPageOptions<T>) {
+export function useListPage<T>({ endpoint, setData, errorMessage, userType }: ListPageOptions<T>) {
   const pagination = usePagination(10);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterValue, setFilterValue] = useState<string>("all");
@@ -18,6 +19,11 @@ export function useListPage<T>({ endpoint, setData, errorMessage }: ListPageOpti
       page,
       page_size: size,
     };
+
+    // 为 /search/users 接口添加必需的 user_type 参数
+    if (endpoint === "/search/users" && userType) {
+      params.user_type = userType;
+    }
 
     if (searchQuery) {
       params.query = searchQuery;
@@ -35,7 +41,7 @@ export function useListPage<T>({ endpoint, setData, errorMessage }: ListPageOpti
     }
 
     await pagination.fetchData(endpoint, params, setData, errorMessage);
-  }, [pagination, searchQuery, filterValue, statusFilter, endpoint, setData, errorMessage]);
+  }, [pagination, searchQuery, filterValue, statusFilter, endpoint, setData, errorMessage, userType]);
 
   const handleSearchAndFilter = useCallback(() => {
     pagination.resetToFirstPage(fetchList);

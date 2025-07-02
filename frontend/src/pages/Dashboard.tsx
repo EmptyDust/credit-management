@@ -616,7 +616,7 @@ export default function Dashboard() {
         <Card className="rounded-xl shadow-lg border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Award className="h-6 w-6 text-purple-600" />
+              <Award className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               活动统计
             </CardTitle>
           </CardHeader>
@@ -638,13 +638,13 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20">
-                <div className="text-3xl font-bold text-yellow-600">
+                <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                   {activityStats.total_applications}
                 </div>
                 <div className="text-sm text-muted-foreground">总申请数</div>
               </div>
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
-                <div className="text-3xl font-bold text-purple-600">
+                <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                   {activityStats.total_credits_awarded}
                 </div>
                 <div className="text-sm text-muted-foreground">总授予学分</div>
@@ -747,7 +747,7 @@ export default function Dashboard() {
               <div className="text-sm text-muted-foreground">平均学分/活动</div>
             </div>
             <div className="text-center p-6 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
-              <div className="text-3xl font-bold text-purple-600">
+              <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                 {activityStats.total_applications}
               </div>
               <div className="text-sm text-muted-foreground">总申请数</div>

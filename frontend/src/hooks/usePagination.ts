@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import apiClient from "@/lib/api";
+import { apiHelpers } from "@/lib/api";
 import toast from "react-hot-toast";
 
 interface PaginationState {
@@ -68,36 +69,8 @@ export function usePagination(initialPageSize: number = 10): PaginationState & P
       setLoading(true);
       const response = await apiClient.get(endpoint, { params });
 
-      let data: T[] = [];
-      let paginationData: any = {};
-
-      if (response.data.code === 0 && response.data.data) {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          data = response.data.data.data;
-          paginationData = {
-            total: response.data.data.total || 0,
-            page: response.data.data.page || 1,
-            page_size: response.data.data.page_size || 10,
-            total_pages: response.data.data.total_pages || 0,
-          };
-        } else {
-          data = response.data.data.users || response.data.data.activities || response.data.data || [];
-          paginationData = {
-            total: data.length,
-            page: 1,
-            page_size: data.length,
-            total_pages: 1,
-          };
-        }
-      } else {
-        data = [];
-        paginationData = {
-          total: 0,
-          page: 1,
-          page_size: 10,
-          total_pages: 0,
-        };
-      }
+      // 使用统一的响应处理函数
+      const { data, pagination: paginationData } = apiHelpers.processPaginatedResponse(response);
 
       setData(data);
       setTotalItems(paginationData.total);

@@ -56,6 +56,8 @@ import toast from "react-hot-toast";
 import { StatCard } from "@/components/ui/stat-card";
 import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
+import { ImportDialog } from "@/components/ui/import-dialog";
+import { apiHelpers } from "@/lib/api";
 
 // Teacher type based on teacher.go
 export type Teacher = {
@@ -109,7 +111,6 @@ export default function TeachersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
   // 分页状态
@@ -140,6 +141,7 @@ export default function TeachersPage() {
       const params: any = {
         page,
         page_size: size,
+        user_type: "teacher", 
       };
 
       if (searchQuery) {
@@ -154,39 +156,8 @@ export default function TeachersPage() {
 
       const response = await apiClient.get("/search/users", { params });
 
-      // 处理响应数据
-      let teachersData = [];
-      let paginationData: any = {};
-
-      if (response.data.code === 0 && response.data.data) {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          // 分页数据结构
-          teachersData = response.data.data.data;
-          paginationData = {
-            total: response.data.data.total || 0,
-            page: response.data.data.page || 1,
-            page_size: response.data.data.page_size || 10,
-            total_pages: response.data.data.total_pages || 0,
-          };
-        } else {
-          // 非分页数据结构
-          teachersData = response.data.data.users || response.data.data || [];
-          paginationData = {
-            total: teachersData.length,
-            page: 1,
-            page_size: teachersData.length,
-            total_pages: 1,
-          };
-        }
-      } else {
-        teachersData = [];
-        paginationData = {
-          total: 0,
-          page: 1,
-          page_size: 10,
-          total_pages: 0,
-        };
-      }
+      // 使用统一的响应处理函数
+      const { data: teachersData, pagination: paginationData } = apiHelpers.processPaginatedResponse(response);
 
       setTeachers(teachersData);
       setTotalItems(paginationData.total);
@@ -264,7 +235,7 @@ export default function TeachersPage() {
         await apiClient.put(`/users/${editingTeacher.user_id}`, values);
         toast.success("教师信息更新成功");
       } else {
-        // For creating a new teacher, ensure required fields are included
+        // 使用正确的API端点创建教师
         const createData = {
           ...values,
           password: values.password || "Password123", // Default password that meets requirements
@@ -307,33 +278,11 @@ export default function TeachersPage() {
     }
   };
 
-  const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // 验证文件类型
-      const allowedTypes = [
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "text/csv",
-      ];
-      if (
-        !allowedTypes.includes(file.type) &&
-        !file.name.toLowerCase().endsWith(".csv")
-      ) {
-        toast.error("请选择Excel或CSV文件");
-        return;
-      }
-      setImportFile(file);
-    }
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-
+  const handleImport = async (file: File) => {
     setImporting(true);
     try {
       const formData = new FormData();
-      formData.append("file", importFile);
+      formData.append("file", file);
       formData.append("user_type", "teacher");
 
       const response = await apiClient.post("/users/import", formData, {
@@ -345,7 +294,6 @@ export default function TeachersPage() {
       if (response.data.code === 0) {
         toast.success("批量导入成功");
         setIsImportDialogOpen(false);
-        setImportFile(null);
         fetchTeachers();
       } else {
         toast.error(response.data.message || "导入失败");
@@ -384,7 +332,7 @@ export default function TeachersPage() {
   };
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
+    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">教师列表</h1>
@@ -393,7 +341,7 @@ export default function TeachersPage() {
         <div className="flex items-center gap-2">
           {canManageTeachers && (
             <Button
-              onClick={() => setIsDialogOpen(true)}
+              onClick={() => handleDialogOpen(null)}
               className="rounded-lg shadow transition-all duration-200 hover:scale-105"
             >
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -451,7 +399,7 @@ export default function TeachersPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-white/80 backdrop-blur border-0 shadow-sm">
+      <Card className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -546,7 +494,7 @@ export default function TeachersPage() {
                   <TableRow>
                     <TableCell
                       colSpan={7}
-                      className="text-center py-8 text-red-500"
+                      className="text-center py-8 text-red-500 dark:text-red-400"
                     >
                       {error}
                     </TableCell>
@@ -803,104 +751,15 @@ export default function TeachersPage() {
       />
 
       {/* Import Dialog */}
-      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              批量导入教师
-            </DialogTitle>
-            <DialogDescription>
-              请选择Excel或CSV文件进行批量导入。文件应包含教师的基本信息。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = "/api/users/csv-template?user_type=teacher";
-                  link.download = "teacher_template.csv";
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                下载CSV模板
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = "/api/users/excel-template?user_type=teacher";
-                  link.download = "teacher_template.xlsx";
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                下载Excel模板
-              </Button>
-            </div>
-            <div>
-              <label className="text-sm font-medium">选择文件</label>
-              <Input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleImportFile}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                支持Excel (.xlsx, .xls) 和CSV格式，文件大小不超过10MB
-              </p>
-            </div>
-            {importFile && (
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium">已选择文件：</p>
-                <p className="text-sm text-muted-foreground">
-                  {importFile.name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  大小：{(importFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsImportDialogOpen(false);
-                setImportFile(null);
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={handleImport}
-              disabled={!importFile || importing}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {importing ? (
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  导入中...
-                </div>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  开始导入
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        title="批量导入教师"
+        description="请选择Excel或CSV文件进行批量导入。文件应包含教师的基本信息。"
+        userType="teacher"
+        onImport={handleImport}
+        importing={importing}
+      />
     </div>
   );
 }

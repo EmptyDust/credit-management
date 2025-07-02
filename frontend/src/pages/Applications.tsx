@@ -493,42 +493,12 @@ export default function ApplicationsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
                           {app.applied_credits}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          className={
-                            app.status === "unsubmitted"
-                              ? "bg-gray-100 text-gray-800 rounded-lg px-2 py-1"
-                              : app.status === "pending"
-                              ? "bg-yellow-100 text-yellow-800 rounded-lg px-2 py-1"
-                              : app.status === "approved"
-                              ? "bg-green-100 text-green-800 rounded-lg px-2 py-1"
-                              : "bg-red-100 text-red-800 rounded-lg px-2 py-1"
-                          }
-                        >
-                          {app.status === "unsubmitted" ? (
-                            <Clock className="w-3 h-3 mr-1 inline" />
-                          ) : null}
-                          {app.status === "pending" ? (
-                            <Clock className="w-3 h-3 mr-1 inline" />
-                          ) : null}
-                          {app.status === "approved" ? (
-                            <CheckCircle className="w-3 h-3 mr-1 inline" />
-                          ) : null}
-                          {app.status === "rejected" ? (
-                            <XCircle className="w-3 h-3 mr-1 inline" />
-                          ) : null}
-                          {app.status === "unsubmitted"
-                            ? "Unsubmitted"
-                            : app.status === "pending"
-                            ? "Pending"
-                            : app.status === "approved"
-                            ? "Approved"
-                            : "Rejected"}
-                        </Badge>
+                        {getStatusBadge(app.status)}
                       </TableCell>
                       <TableCell>
                         {app.submission_time?.split("T")[0] || "-"}
