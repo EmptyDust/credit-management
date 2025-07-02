@@ -173,6 +173,47 @@ export const apiHelpers = {
     
     return apiClient.get(`${url}?${params.toString()}`);
   },
+
+  // 统一处理分页响应数据
+  processPaginatedResponse: (response: any) => {
+    if (response.data.code === 0 && response.data.data) {
+      // 标准分页响应格式
+      if (response.data.data.data && Array.isArray(response.data.data.data)) {
+        return {
+          data: response.data.data.data,
+          pagination: {
+            total: response.data.data.total || 0,
+            page: response.data.data.page || 1,
+            page_size: response.data.data.page_size || 10,
+            total_pages: response.data.data.total_pages || 0,
+          }
+        };
+      } else {
+        // 非分页数据格式
+        const data = response.data.data.users || response.data.data || [];
+        return {
+          data,
+          pagination: {
+            total: data.length,
+            page: 1,
+            page_size: data.length,
+            total_pages: 1,
+          }
+        };
+      }
+    }
+    
+    // 默认空响应
+    return {
+      data: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        page_size: 10,
+        total_pages: 0,
+      }
+    };
+  }
 };
 
 export default apiClient; 

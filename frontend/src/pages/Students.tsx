@@ -132,7 +132,8 @@ export default function StudentsPage() {
   const listPage = useListPage({
     endpoint: "/search/users",
     setData: setStudents,
-    errorMessage: "获取学生列表失败"
+    errorMessage: "获取学生列表失败",
+    userType: "student" // 添加用户类型参数
   });
 
   // 使用用户管理hook
@@ -175,7 +176,7 @@ export default function StudentsPage() {
   };
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
+    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
       <PageHeader
         title="学生列表"
         description="管理学生用户信息"
@@ -324,7 +325,7 @@ export default function StudentsPage() {
                   ),
                 },
               ]}
-              loading={userManagement.loading}
+              loading={listPage.loading}
               emptyState={{
                 icon: Users,
                 title: "暂无学生数据",

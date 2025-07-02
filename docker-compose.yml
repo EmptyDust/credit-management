@@ -127,7 +127,7 @@ services:
     command: redis-server /usr/local/etc/redis/redis.conf
     restart: unless-stopped
     networks:
-      - credit_management_network
+      - credit_network
     environment:
       - TZ=Asia/Shanghai
 

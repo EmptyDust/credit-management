@@ -353,7 +353,7 @@ export default function ActivitiesPage() {
   );
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-gray-50 min-h-screen">
+    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">活动列表</h1>
@@ -435,7 +435,7 @@ export default function ActivitiesPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-white/80 backdrop-blur border-0 shadow-sm">
+      <Card className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -565,12 +565,12 @@ export default function ActivitiesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-blue-600 dark:text-blue-400">
                           {activity.participants?.length || 0}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-bold text-green-600">
+                        <span className="font-bold text-green-600 dark:text-green-400">
                           {activity.applications?.length || 0}
                         </span>
                       </TableCell>
@@ -700,7 +700,7 @@ export default function ActivitiesPage() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
+                                      <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
               确认删除
             </DialogTitle>
             <DialogDescription>
