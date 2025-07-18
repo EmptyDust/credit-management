@@ -76,7 +76,7 @@ func main() {
 	// Redis连接配置
 	redisHost := getEnv("REDIS_HOST", "localhost")
 	redisPort := getEnv("REDIS_PORT", "6379")
-	redisPassword := getEnv("REDIS_PASSWORD", "")
+	redisPassword := getEnv("REDIS_PASSWORD", "password")
 	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
 
 	// 连接Redis

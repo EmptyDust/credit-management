@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/backups:/backups
@@ -47,15 +47,21 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=credit_management_postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
       - DB_NAME=credit_management
       - DB_SSLMODE=disable
       - JWT_SECRET=your-secret-key
+
+      - REDIS_HOST=credit_management_redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=password
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - credit_network
@@ -68,7 +74,7 @@ services:
     ports:
       - "8083:8083"
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=credit_management_postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
@@ -90,7 +96,7 @@ services:
     ports:
       - "8084:8084"
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=credit_management_postgres
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=password
@@ -107,6 +113,7 @@ services:
   frontend:
     build: ./frontend
     container_name: credit_management_frontend
+    user: root
     ports:
       - "3000:80"
     depends_on:
@@ -117,10 +124,10 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7.2-alpine
+    image: docker.io/library/redis:7.2-alpine
     container_name: credit_management_redis
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
@@ -130,6 +137,14 @@ services:
       - credit_network
     environment:
       - TZ=Asia/Shanghai
+      - REDIS_HOST=credit_management_redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=password # 新增
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
 
 volumes:
   postgres_data:
