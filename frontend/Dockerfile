@@ -1,5 +1,5 @@
 # 构建阶段
-FROM node:18-alpine AS builder
+FROM docker.io/library/node:18-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -20,38 +20,28 @@ COPY . .
 # 构建应用（添加构建优化）
 RUN pnpm run build
 
+
 # 运行阶段
-FROM nginx:alpine
+FROM docker.io/library/nginx:alpine
 
-# 安装必要的工具
-RUN apk add --no-cache curl
+# 1. 彻底删除所有 entrypoint 相关文件
+RUN rm -rf /docker-entrypoint.sh /docker-entrypoint.d
 
-# 复制构建产物到nginx目录
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 2. 删除所有默认配置
+RUN rm -rf /etc/nginx/conf.d/* /etc/nginx/nginx.conf
 
-# 复制nginx配置
+# 3. 复制你的完整配置
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# 创建非root用户
-RUN addgroup -g 1001 -S nginxgroup && \
-    adduser -u 1001 -S nginxuser -G nginxgroup
+# 复制前端构建产物到 nginx 的 html 目录
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# 更改nginx配置目录权限
-RUN chown -R nginxuser:nginxgroup /var/cache/nginx && \
-    chown -R nginxuser:nginxgroup /var/log/nginx && \
-    chown -R nginxuser:nginxgroup /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && \
-    chown -R nginxuser:nginxgroup /var/run/nginx.pid
+# 4. 修正权限
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx /usr/share/nginx/html /tmp
 
-# 切换到非root用户
-USER nginxuser:nginxgroup
-
-# 暴露端口
+# 5. 非 root 用户
+USER nginx
 EXPOSE 80
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost/ || exit 1
-
-# 启动nginx
-CMD ["nginx", "-g", "daemon off;"] 
+# 6. 直接启动 nginx，跳过 entrypoint
+ENTRYPOINT ["nginx", "-g", "daemon off;"]

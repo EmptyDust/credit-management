@@ -1,5 +1,5 @@
 # 使用官方PostgreSQL镜像作为基础
-FROM postgres:15-alpine
+FROM docker.io/library/postgres:15-alpine
 
 # 设置环境变量
 ENV POSTGRES_DB=credit_management
