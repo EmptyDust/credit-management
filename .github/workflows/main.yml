@@ -1,68 +1,57 @@
 # .github/workflows/deploy.yml
 
-name: Deploy to Server
+name: Deploy with Docker Compose
 
 on:
-  # 当有代码 push 到 main 分支时触发
   push:
-    branches: [ "master" ]
-
-# 设置 ghcr.io 的写入权限
-permissions:
-  contents: read
-  packages: write
+    branches: ["master"] # 监听 master 分支的 push 事件
 
 jobs:
-  # --- 任务1：构建并推送 Docker 镜像 ---
-  build-and-push-image:
-    runs-on: ubuntu-latest # 使用 GitHub 提供的最新 Ubuntu 虚拟机
+  deploy:
+    runs-on: ubuntu-latest # 使用 GitHub 提供的虚拟机
+
     steps:
-      # 1. 检出代码
+      # 步骤1: 检出代码（这一步是为了让Action可以访问到仓库信息，比如仓库URL）
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 登录到 GitHub Container Registry (ghcr.io)
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }} # 使用当前触发工作流的用户名
-          password: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN 是由 GitHub Actions 自动生成的
-
-      # 3. 为镜像名称和标签提取元数据
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }} # 镜像名称格式: ghcr.io/用户名/仓库名
-
-      # 4. 构建镜像并推送到 ghcr.io
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-  # --- 任务2：部署到服务器 ---
-  deploy:
-    needs: build-and-push-image # 依赖于上一个任务的成功
-    runs-on: ubuntu-latest
-    steps:
+      # 步骤2: SSH 连接到服务器并执行部署脚本
       - name: Deploy to Server
-        uses: appleboy/ssh-action@master # 使用一个流行的 SSH Action 插件
+        uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SERVER_HOST }} # 从 secrets 中读取服务器 IP
-          username: ${{ secrets.SERVER_USER }} # 从 secrets 中读取用户名
-          key: ${{ secrets.SERVER_SSH_KEY }} # 从 secrets 中读取 SSH 私钥
+          host: ${{ secrets.SERVER_HOST }} # 从 Secrets 读取服务器 IP
+          username: ${{ secrets.SERVER_USER }} # 从 Secrets 读取用户名
+          key: ${{ secrets.SERVER_SSH_KEY }} # 从 Secrets 读取 SSH 私钥
           script: |
-            # 登录到服务器后要执行的脚本
-            cd ${{ secrets.DOCKER_COMPOSE_PATH }}
-            echo "Pulling latest image..."
-            docker compose pull
-            echo "Restarting containers..."
-            docker compose up -d
-            echo "Cleaning up old images..."
+            # --- 在您的服务器上执行以下命令 ---
+
+            # 1. 定义项目目录和仓库URL
+            # DOCKER_COMPOSE_PATH 应该是在 GitHub Secrets 中设置的路径
+            # 例如: /home/emptydust/credit-management
+            APP_DIR="${{ secrets.DOCKER_COMPOSE_PATH }}"
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+
+            # 2. 检查目录是否存在，如果不存在则从 GitHub 克隆项目
+            if [ ! -d "$APP_DIR" ]; then
+              echo "项目目录不存在，正在克隆仓库..."
+              git clone $REPO_URL "$APP_DIR"
+            fi
+
+            # 3. 进入项目目录并拉取最新代码
+            cd "$APP_DIR"
+            echo "正在拉取最新的代码..."
+            git checkout master
+            git pull origin master
+
+            # 4. 使用 Docker Compose 构建并启动所有服务
+            # --build: 如果服务的代码或 Dockerfile 发生变化，会重新构建镜像
+            # -d: 在后台运行容器
+            # --remove-orphans: 移除在 compose 文件中已不存在的服务的容器
+            echo "正在使用 Docker Compose 构建和部署..."
+            docker compose up --build -d --remove-orphans
+
+            # 5. 清理不再使用的旧镜像，释放磁盘空间
+            echo "正在清理旧的 Docker 镜像..."
             docker image prune -f
-            echo "Deployment complete!"
+
+            echo "🚀 部署完成！"
