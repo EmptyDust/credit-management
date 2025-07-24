@@ -1,0 +1,68 @@
+# .github/workflows/deploy.yml
+
+name: Deploy to Server
+
+on:
+  # 当有代码 push 到 main 分支时触发
+  push:
+    branches: [ "master" ]
+
+# 设置 ghcr.io 的写入权限
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # --- 任务1：构建并推送 Docker 镜像 ---
+  build-and-push-image:
+    runs-on: ubuntu-latest # 使用 GitHub 提供的最新 Ubuntu 虚拟机
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 登录到 GitHub Container Registry (ghcr.io)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }} # 使用当前触发工作流的用户名
+          password: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN 是由 GitHub Actions 自动生成的
+
+      # 3. 为镜像名称和标签提取元数据
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }} # 镜像名称格式: ghcr.io/用户名/仓库名
+
+      # 4. 构建镜像并推送到 ghcr.io
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # --- 任务2：部署到服务器 ---
+  deploy:
+    needs: build-and-push-image # 依赖于上一个任务的成功
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master # 使用一个流行的 SSH Action 插件
+        with:
+          host: ${{ secrets.SERVER_HOST }} # 从 secrets 中读取服务器 IP
+          username: ${{ secrets.SERVER_USER }} # 从 secrets 中读取用户名
+          key: ${{ secrets.SERVER_SSH_KEY }} # 从 secrets 中读取 SSH 私钥
+          script: |
+            # 登录到服务器后要执行的脚本
+            cd ${{ secrets.DOCKER_COMPOSE_PATH }}
+            echo "Pulling latest image..."
+            docker compose pull
+            echo "Restarting containers..."
+            docker compose up -d
+            echo "Cleaning up old images..."
+            docker image prune -f
+            echo "Deployment complete!"
