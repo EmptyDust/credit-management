@@ -621,6 +621,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 自动处理部门表的level字段
+CREATE OR REPLACE FUNCTION set_department_level()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    IF NEW.parent_id IS NULL THEN
+        NEW.level := 0;
+    ELSE
+        SELECT level + 1
+        INTO NEW.level
+        FROM departments
+        WHERE id = NEW.parent_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ========================================
 -- 6. 创建触发器
 -- ========================================
@@ -713,6 +730,14 @@ CREATE TRIGGER trigger_cleanup_orphaned_attachments
     FOR EACH ROW
 EXECUTE FUNCTION cleanup_orphaned_attachments();
 
+-- 自动计算并填充 departments.level
+DROP TRIGGER IF EXISTS trg_set_department_level ON departments;
+
+CREATE TRIGGER trg_set_department_level
+    BEFORE INSERT OR UPDATE OF parent_id
+    ON departments
+    FOR EACH ROW
+EXECUTE FUNCTION set_department_level();
 -- ========================================
 -- 7. 创建视图
 -- ========================================
@@ -927,8 +952,8 @@ WHERE app.deleted_at IS NULL
 -- 8. 初始化数据
 -- ========================================
 -- 上海电力大学
-INSERT INTO departments (id, name, code, dept_type, level, parent_id)
-VALUES (gen_random_uuid(), '上海电力大学', 'SUEP', 'school', 0, NULL)
+INSERT INTO departments (id, name, code, dept_type, parent_id)
+VALUES (gen_random_uuid(), '上海电力大学', 'SUEP', 'school', NULL)
 ON CONFLICT DO NOTHING;
 
 -- 计算机科学与技术学院（挂在 上海电力大学 下）
@@ -937,8 +962,8 @@ WITH parent AS (SELECT id
                 WHERE name = '上海电力大学'
                   AND dept_type = 'school')
 INSERT
-INTO departments (id, name, code, dept_type, level, parent_id)
-SELECT gen_random_uuid(), '计算机科学与技术学院', 'CS', 'college', 1, parent.id
+INTO departments (id, name, code, dept_type, parent_id)
+SELECT gen_random_uuid(), '计算机科学与技术学院', 'CS', 'college', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 
@@ -948,8 +973,8 @@ WITH parent AS (SELECT id
                 WHERE name = '计算机科学与技术学院'
                   AND dept_type = 'college')
 INSERT
-INTO departments (id, name, code, dept_type, level, parent_id)
-SELECT gen_random_uuid(), '软件工程', 'SE', 'major', 2, parent.id
+INTO departments (id, name, code, dept_type, parent_id)
+SELECT gen_random_uuid(), '软件工程', 'SE', 'major', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 
@@ -959,78 +984,81 @@ WITH parent AS (SELECT id
                 WHERE name = '软件工程'
                   AND dept_type = 'major')
 INSERT
-INTO departments (id, name, code, dept_type, level, parent_id)
-SELECT gen_random_uuid(), '202422班', '2024222', 'class', 3, parent.id
+INTO departments (id, name, code, dept_type, parent_id)
+SELECT gen_random_uuid(), '202422班', '2024222', 'class', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 -- 创建默认管理员用户（上海电力大学）
-DO $$
-DECLARE
-    dept_id UUID;
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000000') THEN
-        SELECT id INTO dept_id
-        FROM departments
-        WHERE name = '上海电力大学' AND dept_type = 'school'
-        LIMIT 1;
+DO
+$$
+    DECLARE
+        dept_id UUID;
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000000') THEN
+            SELECT id
+            INTO dept_id
+            FROM departments
+            WHERE name = '上海电力大学'
+              AND dept_type = 'school'
+            LIMIT 1;
 
-        INSERT INTO users (
-            identity_number, username, password, email, phone,
-            real_name, user_type, status, department_id
-        ) VALUES (
-            '00000000', 'admin',
-            '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
-            'admin@example.com', '13800000000',
-            'Administrator', 'admin', 'active', dept_id
-        );
-    END IF;
-END $$;
+            INSERT INTO users (identity_number, username, password, email, phone,
+                               real_name, user_type, status, department_id)
+            VALUES ('00000000', 'admin',
+                    '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
+                    'admin@example.com', '13800000000',
+                    'Administrator', 'admin', 'active', dept_id);
+        END IF;
+    END
+$$;
 
 -- 创建默认教师用户（软件工程专业）
-DO $$
-DECLARE
-    dept_id UUID;
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000001') THEN
-        SELECT id INTO dept_id
-        FROM departments
-        WHERE name = '软件工程' AND dept_type = 'major'
-        LIMIT 1;
+DO
+$$
+    DECLARE
+        dept_id UUID;
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000001') THEN
+            SELECT id
+            INTO dept_id
+            FROM departments
+            WHERE name = '软件工程'
+              AND dept_type = 'major'
+            LIMIT 1;
 
-        INSERT INTO users (
-            identity_number, username, password, email, phone,
-            real_name, user_type, status, department_id, title
-        ) VALUES (
-            '00000001', 'teacher',
-            '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
-            'teacher@example.com', '13800000001',
-            'Default Teacher', 'teacher', 'active', dept_id, '副教授'
-        );
-    END IF;
-END $$;
+            INSERT INTO users (identity_number, username, password, email, phone,
+                               real_name, user_type, status, department_id, title)
+            VALUES ('00000001', 'teacher',
+                    '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
+                    'teacher@example.com', '13800000001',
+                    'Default Teacher', 'teacher', 'active', dept_id, '副教授');
+        END IF;
+    END
+$$;
 
 -- 创建默认学生用户（2024222 班级）
-DO $$
-DECLARE
-    dept_id UUID;
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000002') THEN
-        SELECT id INTO dept_id
-        FROM departments
-        WHERE name = '202422班' AND dept_type = 'class'
-        LIMIT 1;
+DO
+$$
+    DECLARE
+        dept_id UUID;
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000002') THEN
+            SELECT id
+            INTO dept_id
+            FROM departments
+            WHERE name = '202422班'
+              AND dept_type = 'class'
+            LIMIT 1;
 
-        INSERT INTO users (
-            identity_number, username, password, email, phone,
-            real_name, user_type, status, department_id, grade
-        ) VALUES (
-            '00000002', 'student',
-            '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
-            'student@example.com', '13800000002',
-            'Default Student', 'student', 'active', dept_id, '2024'
-        );
-    END IF;
-END $$;
+            INSERT INTO users (identity_number, username, password, email, phone,
+                               real_name, user_type, status, department_id, grade)
+            VALUES ('00000002', 'student',
+                    '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
+                    'student@example.com', '13800000002',
+                    'Default Student', 'student', 'active', dept_id, '2024');
+        END IF;
+    END
+$$;
 
 -- ========================================
 -- 9. 完成提示
