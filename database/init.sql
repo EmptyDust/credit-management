@@ -978,14 +978,14 @@ SELECT gen_random_uuid(), '软件工程', 'SE', 'major', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 
--- 202422班（挂在 软件工程 下）
+-- 2024222（挂在 软件工程 下）
 WITH parent AS (SELECT id
                 FROM departments
                 WHERE name = '软件工程'
                   AND dept_type = 'major')
 INSERT
 INTO departments (id, name, code, dept_type, parent_id)
-SELECT gen_random_uuid(), '202422班', '2024222', 'class', parent.id
+SELECT gen_random_uuid(), '2024222', '2024222', 'class', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 -- 创建默认管理员用户（上海电力大学）
@@ -1046,7 +1046,7 @@ $$
             SELECT id
             INTO dept_id
             FROM departments
-            WHERE name = '202422班'
+            WHERE name = '2024222'
               AND dept_type = 'class'
             LIMIT 1;
 
