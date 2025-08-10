@@ -4,8 +4,10 @@ FROM docker.io/library/node:18-alpine AS builder
 # 设置工作目录
 WORKDIR /app
 
-# 安装pnpm
-RUN npm install -g pnpm
+# 安装pnpm + 设置国内镜像
+RUN npm install -g pnpm \
+    && pnpm config set registry https://registry.npmmirror.com \
+    && pnpm config set store-dir /tmp/.pnpm-store
 
 # 复制package文件
 COPY package*.json ./

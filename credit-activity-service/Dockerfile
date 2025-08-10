@@ -8,8 +8,11 @@ ENV GO111MODULE=on
 # 设置工作目录
 WORKDIR /app
 
+# 换ustc源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
+
 # 安装必要的构建工具
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata wget
 
 # 复制go mod文件
 COPY go.mod go.sum ./
@@ -27,10 +30,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o credit-activity-service .
 
 # 运行阶段
-FROM alpine:latest
+FROM docker.io/library/alpine:latest
+
+# 换ustc源
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
 
 # 安装必要的运行时依赖
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata wget
 
 # 创建非root用户
 RUN addgroup -g 1001 -S appgroup && \
