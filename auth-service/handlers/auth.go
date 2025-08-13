@@ -37,8 +37,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// 检查至少提供了UID或用户名
+	if req.UID == "" && req.Username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须提供 uid 或 username", "data": nil})
+		return
+	}
+
 	var user models.User
-	if err := h.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+	query := h.db
+	if req.UID != "" {
+		// 使用UID查询
+		query = query.Where("identity_number = ?", req.UID)
+	} else {
+		// 使用用户名查询
+		query = query.Where("username = ?", req.Username)
+	}
+
+	if err := query.First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户名或密码错误", "data": nil})
 		return
 	}
