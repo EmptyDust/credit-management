@@ -137,36 +137,11 @@ func NewPermissionMiddleware() *PermissionMiddleware {
 	return &PermissionMiddleware{}
 }
 
-// AdminOnly 仅管理员权限
-func (m *PermissionMiddleware) AdminOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userType, exists := c.Get("user_type")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		if userType != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "需要管理员权限",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
+func (m *PermissionMiddleware) RequireRoles(allowedRoles ...string) gin.HandlerFunc {
+	roleSet := make(map[string]struct{}, len(allowedRoles))
+	for _, role := range allowedRoles {
+		roleSet[role] = struct{}{}
 	}
-}
-
-// TeacherOrAdmin 教师或管理员权限
-func (m *PermissionMiddleware) TeacherOrAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userType, exists := c.Get("user_type")
 		if !exists {
@@ -178,36 +153,7 @@ func (m *PermissionMiddleware) TeacherOrAdmin() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		if userType != "teacher" && userType != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": "需要教师或管理员权限",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// StudentOnly 仅学生权限
-func (m *PermissionMiddleware) StudentOnly() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userType, exists := c.Get("user_type")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		if userType != "student" {
+		if _, ok := roleSet[userType.(string)]; !ok {
 			c.JSON(http.StatusForbidden, gin.H{
 				"code":    403,
 				"message": "权限不足",
@@ -216,37 +162,15 @@ func (m *PermissionMiddleware) StudentOnly() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
 		c.Next()
 	}
 }
 
-// ActivityOwnerOrTeacherOrAdmin 活动所有者或教师或管理员权限
-func (m *PermissionMiddleware) ActivityOwnerOrTeacherOrAdmin() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userType, exists := c.Get("user_type")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "未认证",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		// 教师或管理员直接通过
-		if userType == "teacher" || userType == "admin" {
-			c.Next()
-			return
-		}
-
-		// 对于学生，需要检查是否为活动所有者
-		// 由于API网关无法直接访问数据库，我们将这个检查放在具体的handler中
-		// 这个中间件主要用于路由级别的权限控制
-		c.Next()
-	}
-}
+// 原 ActivityOwnerOrTeacherOrAdmin函数: 活动所有者或教师或管理员权限
+// 教师或管理员直接通过
+// 对于学生，需要检查是否为活动所有者
+// 由于API网关无法直接访问数据库，我们将这个检查放在具体的handler中
+// 这个中间件主要用于路由级别的权限控制
 
 func main() {
 	// 获取服务URL配置
@@ -300,7 +224,7 @@ func main() {
 		// 权限管理服务路由（需要管理员权限）
 		permissions := api.Group("/permissions")
 		permissions.Use(authMiddleware.AuthRequired())
-		permissions.Use(permissionMiddleware.AdminOnly())
+		permissions.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			permissions.POST("/init", createProxyHandler(config.AuthServiceURL))
 			permissions.POST("/roles", createProxyHandler(config.AuthServiceURL))
@@ -331,7 +255,7 @@ func main() {
 
 			// 管理员路由
 			admin := users.Group("")
-			admin.Use(permissionMiddleware.AdminOnly())
+			admin.Use(permissionMiddleware.RequireRoles("admin"))
 			{
 				admin.POST("/teachers", createProxyHandler(config.UserServiceURL))
 				admin.POST("/students", createProxyHandler(config.UserServiceURL))
@@ -349,7 +273,7 @@ func main() {
 
 			// 教师或管理员路由
 			teacherOrAdmin := users.Group("")
-			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
+			teacherOrAdmin.Use(permissionMiddleware.RequireRoles("teacher", "admin"))
 			{
 				teacherOrAdmin.GET("/stats/students", createProxyHandler(config.UserServiceURL))
 				teacherOrAdmin.GET("/stats/teachers", createProxyHandler(config.UserServiceURL))
@@ -368,7 +292,7 @@ func main() {
 		// 学生相关路由（需要管理员权限）
 		students := api.Group("/students")
 		students.Use(authMiddleware.AuthRequired())
-		students.Use(permissionMiddleware.AdminOnly())
+		students.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			students.POST("", createProxyHandler(config.UserServiceURL))
 			students.PUT("/:id", createProxyHandler(config.UserServiceURL))
@@ -378,7 +302,7 @@ func main() {
 		// 教师相关路由（需要管理员权限）
 		teachers := api.Group("/teachers")
 		teachers.Use(authMiddleware.AuthRequired())
-		teachers.Use(permissionMiddleware.AdminOnly())
+		teachers.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			teachers.POST("", createProxyHandler(config.UserServiceURL))
 			teachers.PUT("/:id", createProxyHandler(config.UserServiceURL))
@@ -410,7 +334,7 @@ func main() {
 
 			// 教师或管理员路由
 			teacherOrAdmin := activities.Group("")
-			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
+			teacherOrAdmin.Use(permissionMiddleware.RequireRoles("teacher", "admin"))
 			{
 				teacherOrAdmin.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.PUT("/batch", createProxyHandler(config.CreditActivityServiceURL))
@@ -428,7 +352,7 @@ func main() {
 
 			// 管理员路由
 			admin := activities.Group("")
-			admin.Use(permissionMiddleware.AdminOnly())
+			admin.Use(permissionMiddleware.RequireRoles("admin"))
 			{
 				admin.DELETE("/:id", createProxyHandler(config.CreditActivityServiceURL))
 			}
@@ -443,7 +367,7 @@ func main() {
 
 				// 活动所有者或教师或管理员路由
 				ownerOrTeacherOrAdminParticipants := participants.Group("")
-				ownerOrTeacherOrAdminParticipants.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
+				ownerOrTeacherOrAdminParticipants.Use(permissionMiddleware.RequireRoles("teacher", "admin", "student"))
 				{
 					ownerOrTeacherOrAdminParticipants.POST("", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminParticipants.PUT("/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
@@ -454,7 +378,7 @@ func main() {
 
 				// 学生路由
 				studentOnly := participants.Group("")
-				studentOnly.Use(permissionMiddleware.StudentOnly())
+				studentOnly.Use(permissionMiddleware.RequireRoles("student"))
 				{
 					studentOnly.POST("/leave", createProxyHandler(config.CreditActivityServiceURL))
 				}
@@ -470,7 +394,7 @@ func main() {
 
 				// 活动所有者或教师或管理员路由
 				ownerOrTeacherOrAdminAttachments := attachments.Group("")
-				ownerOrTeacherOrAdminAttachments.Use(permissionMiddleware.ActivityOwnerOrTeacherOrAdmin())
+				ownerOrTeacherOrAdminAttachments.Use(permissionMiddleware.RequireRoles("teacher", "admin", "student"))
 				{
 					ownerOrTeacherOrAdminAttachments.POST("", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminAttachments.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
@@ -491,7 +415,7 @@ func main() {
 
 			// 教师或管理员路由
 			teacherOrAdmin := applications.Group("")
-			teacherOrAdmin.Use(permissionMiddleware.TeacherOrAdmin())
+			teacherOrAdmin.Use(permissionMiddleware.RequireRoles("teacher", "admin"))
 			{
 				teacherOrAdmin.GET("/all", createProxyHandler(config.CreditActivityServiceURL))
 			}
