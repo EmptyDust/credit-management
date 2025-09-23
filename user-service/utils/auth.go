@@ -32,7 +32,7 @@ func GetCurrentUserID(c *gin.Context) string {
 	if !ok {
 		return ""
 	}
-	userID, exists := claimsMap["user_id"]
+	userID, exists := claimsMap["id"]
 	if !exists {
 		return ""
 	}

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-	
+
 	"credit-management/user-service/models"
 	"credit-management/user-service/utils"
 
@@ -68,20 +68,20 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	var viewName string
 	switch req.UserType {
 	case "student":
-		if utils.IsAdmin(currentUserRole) {
-			viewName = "student_admin_view"
-		} else if utils.IsTeacher(currentUserRole) {
-			viewName = "student_teacher_view"
-		} else {
-			viewName = "student_student_view"
-		}
+		// if utils.IsAdmin(currentUserRole) {
+		viewName = "student_complete_info"
+		// } else if utils.IsTeacher(currentUserRole) {
+		// 	viewName = "student_teacher_view"
+		// } else {
+		// 	viewName = "student_student_view"
+		// }
 	case "teacher":
-		if utils.IsAdmin(currentUserRole) {
-			viewName = "teacher_admin_view"
-		} else {
-			utils.SendForbidden(c, "权限不足")
-			return
-		}
+		// if utils.IsAdmin(currentUserRole) {
+		viewName = "teacher_admin_view"
+		// } else {
+		// 	utils.SendForbidden(c, "权限不足")
+		// 	return
+		// }
 	default:
 		utils.SendBadRequest(c, "无效的用户类型")
 		return
@@ -93,7 +93,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	// 搜索条件
 	if req.Query != "" {
 		if isUUID(req.Query) {
-			query = query.Where("user_id = ?", req.Query)
+			query = query.Where("id = ?", req.Query)
 		} else {
 			query = query.Where("(username ILIKE ? OR real_name ILIKE ? OR email ILIKE ?)",
 				"%"+req.Query+"%", "%"+req.Query+"%", "%"+req.Query+"%")

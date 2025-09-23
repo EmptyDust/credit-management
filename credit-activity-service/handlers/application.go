@@ -21,7 +21,7 @@ func NewApplicationHandler(db *gorm.DB) *ApplicationHandler {
 }
 
 func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -34,7 +34,7 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 	)
 
 	applications, total, err := h.getApplicationsWithPagination(
-		h.db.Where("user_id = ?", userID),
+		h.db.Where("id = ?", userID),
 		status,
 		page,
 		limit,
@@ -55,7 +55,7 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -84,7 +84,7 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 
 func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 	activityID := c.Query("activity_id")
-	userID := c.Query("user_id")
+	userID := c.Query("id")
 	page, limit, _ := h.validator.ValidatePagination(
 		c.DefaultQuery("page", "1"),
 		c.DefaultQuery("limit", "10"),
@@ -95,7 +95,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		query = query.Where("activity_id = ?", activityID)
 	}
 	if userID != "" {
-		query = query.Where("user_id = ?", userID)
+		query = query.Where("id = ?", userID)
 	}
 
 	applications, total, err := h.getApplicationsWithPagination(query, "", page, limit)
@@ -158,7 +158,7 @@ func (h *ApplicationHandler) buildApplicationResponse(app models.Application, au
 }
 
 func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -172,11 +172,11 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 		TotalCredits      float64 `json:"total_credits"`
 	}
 
-	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Count(&stats.TotalApplications)
-	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "pending").Count(&stats.PendingCount)
-	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Count(&stats.ApprovedCount)
-	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "rejected").Count(&stats.RejectedCount)
-	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.TotalCredits)
+	h.db.Model(&models.Application{}).Where("id = ?", userID).Count(&stats.TotalApplications)
+	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "pending").Count(&stats.PendingCount)
+	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "approved").Count(&stats.ApprovedCount)
+	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "rejected").Count(&stats.RejectedCount)
+	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "approved").Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.TotalCredits)
 
 	utils.SendSuccessResponse(c, stats)
 }
@@ -184,14 +184,14 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
 	activityID := c.Query("activity_id")
-	userID := c.Query("user_id")
+	userID := c.Query("id")
 
 	query := h.db.Model(&models.Application{}).Preload("Activity")
 	if activityID != "" {
 		query = query.Where("activity_id = ?", activityID)
 	}
 	if userID != "" {
-		query = query.Where("user_id = ?", userID)
+		query = query.Where("id = ?", userID)
 	}
 
 	var applications []models.Application

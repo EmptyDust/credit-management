@@ -17,7 +17,7 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -62,7 +62,7 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -149,7 +149,7 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -188,7 +188,7 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 }
 
 func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return

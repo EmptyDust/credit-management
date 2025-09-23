@@ -29,7 +29,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 
 	var userType string
-	err := h.db.Table("users").Select("user_type").Where("user_id = ?", userID).Scan(&userType).Error
+	err := h.db.Table("users").Select("user_type").Where("id = ?", userID).Scan(&userType).Error
 	if err != nil || userType == "" {
 		utils.SendNotFound(c, "用户不存在")
 		return
@@ -45,17 +45,17 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 			viewName = "teacher_complete_info"
 		default:
 			// 管理员等其他类型直接查users表所有字段
-			h.db.Table("users").Where("user_id = ?", userID).Find(&result)
+			h.db.Table("users").Where("id = ?", userID).Find(&result)
 			utils.SendSuccessResponse(c, result)
 			return
 		}
-		h.db.Table(viewName).Where("user_id = ?", userID).Find(&result)
+		h.db.Table(viewName).Where("id = ?", userID).Find(&result)
 		utils.SendSuccessResponse(c, result)
 		return
 	}
 
 	var user models.User
-	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "用户不存在")
 		} else {
@@ -83,7 +83,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			utils.SendUnauthorized(c)
 			return
 		}
-		userID = claims["user_id"].(string)
+		userID = claims["id"].(string)
 	}
 
 	var req models.UserUpdateRequest
@@ -93,7 +93,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "用户不存在")
 		} else {
@@ -105,7 +105,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	// 验证邮箱唯一性
 	if req.Email != "" {
 		var existingUser models.User
-		if err := h.db.Where("email = ? AND user_id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
+		if err := h.db.Where("email = ? AND id != ?", req.Email, userID).First(&existingUser).Error; err == nil {
 			utils.SendConflict(c, "邮箱已被使用")
 			return
 		}
@@ -115,7 +115,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	// 验证学号唯一性
 	if req.StudentID != nil {
 		var existingUser models.User
-		if err := h.db.Where("student_id = ? AND user_id != ?", *req.StudentID, userID).First(&existingUser).Error; err == nil {
+		if err := h.db.Where("student_id = ? AND id != ?", *req.StudentID, userID).First(&existingUser).Error; err == nil {
 			utils.SendConflict(c, "学号已被使用")
 			return
 		}
@@ -171,7 +171,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "用户不存在")
 		} else {
@@ -190,7 +190,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 	var req struct {
-		UserIDs []string `json:"user_ids" binding:"required,min=1"`
+		UserIDs []string `json:"ids" binding:"required,min=1"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -199,7 +199,7 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 	}
 
 	var users []models.User
-	if err := h.db.Where("user_id IN ?", req.UserIDs).Find(&users).Error; err != nil {
+	if err := h.db.Where("id IN ?", req.UserIDs).Find(&users).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -219,7 +219,7 @@ func (h *UserHandler) BatchDeleteUsers(c *gin.Context) {
 
 func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 	var req struct {
-		UserIDs []string `json:"user_ids" binding:"required,min=1"`
+		UserIDs []string `json:"ids" binding:"required,min=1"`
 		Status  string   `json:"status" binding:"required,oneof=active inactive suspended"`
 	}
 
@@ -228,7 +228,7 @@ func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&models.User{}).Where("user_id IN ?", req.UserIDs).Update("status", req.Status).Error; err != nil {
+	if err := h.db.Model(&models.User{}).Where("id IN ?", req.UserIDs).Update("status", req.Status).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -238,7 +238,7 @@ func (h *UserHandler) BatchUpdateUserStatus(c *gin.Context) {
 
 func (h *UserHandler) ResetPassword(c *gin.Context) {
 	var req struct {
-		UserID      string `json:"user_id" binding:"required"`
+		UserID      string `json:"id" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required,min=8"`
 	}
 
@@ -254,7 +254,7 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Where("user_id = ?", req.UserID).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", req.UserID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "用户不存在")
 		} else {
@@ -295,7 +295,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := h.db.Where("user_id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -350,7 +350,7 @@ func (h *UserHandler) GetUserActivity(c *gin.Context) {
 	// 目前返回空结果，后续可以扩展
 
 	response := gin.H{
-		"user_id":     userID,
+		"id":          userID,
 		"activities":  []interface{}{},
 		"total":       0,
 		"page":        page,

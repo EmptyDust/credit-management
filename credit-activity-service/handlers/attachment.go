@@ -35,7 +35,7 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -127,7 +127,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -182,7 +182,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 			return
 		}
 	}
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 
 	attachment := models.Attachment{
 		ActivityID:   activityID,
@@ -227,7 +227,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -339,7 +339,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 			continue
 		}
 
-		userID, _ := c.Get("user_id")
+		userID, _ := c.Get("id")
 		// 创建附件记录
 		attachment := models.Attachment{
 			ActivityID:   activityID,
@@ -397,7 +397,7 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	}
 
 	// 获取当前用户信息
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -474,7 +474,7 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -552,7 +552,7 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -607,7 +607,7 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return

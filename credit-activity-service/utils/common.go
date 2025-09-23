@@ -21,22 +21,24 @@ func GetEnv(key, defaultValue string) string {
 
 func GetUserInfo(userID string, authToken ...string) (*models.UserInfo, error) {
 	userServiceURL := GetEnv("USER_SERVICE_URL", "http://user-service:8084")
-	if userServiceURL == "" {
-		userServiceURL = "http://localhost:8084"
-	}
 
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
+	// 强制要求提供 auth token
+	if len(authToken) == 0 || strings.TrimSpace(authToken[0]) == "" {
+		return nil, fmt.Errorf("缺少认证令牌 Authorization")
+	}
+
 	studentURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=student&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err := searchUserByType(client, studentURL)
+	userInfo, err := searchUserByType(client, studentURL, authToken[0])
 	if err == nil {
 		return userInfo, nil
 	}
 
 	teacherURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=teacher&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err = searchUserByType(client, teacherURL)
+	userInfo, err = searchUserByType(client, teacherURL, authToken[0])
 	if err == nil {
 		return userInfo, nil
 	}
@@ -44,7 +46,7 @@ func GetUserInfo(userID string, authToken ...string) (*models.UserInfo, error) {
 	return nil, fmt.Errorf("用户不存在或无法获取用户信息")
 }
 
-func searchUserByType(client *http.Client, apiURL string) (*models.UserInfo, error) {
+func searchUserByType(client *http.Client, apiURL string, authToken string) (*models.UserInfo, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)
@@ -53,12 +55,13 @@ func searchUserByType(client *http.Client, apiURL string) (*models.UserInfo, err
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// 总是使用内部服务通信，不传递JWT token
-	req.Header.Set("X-Internal-Service", "credit-activity-service")
-	req.Header.Set("X-User-ID", "system")
-	req.Header.Set("X-Username", "system")
-	req.Header.Set("X-User-Type", "admin")
-	fmt.Printf("使用内部服务通信，URL: %s\n", apiURL)
+	// 强制使用上游传入的 Authorization 头
+	trimmed := strings.TrimSpace(authToken)
+	if trimmed == "" {
+		return nil, fmt.Errorf("缺少认证令牌 Authorization")
+	}
+	req.Header.Set("Authorization", trimmed)
+	fmt.Printf("使用Authorization调用用户服务，URL: %s\n", apiURL)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -101,7 +104,7 @@ func searchUserByType(client *http.Client, apiURL string) (*models.UserInfo, err
 	user := response.Data.Users[0]
 
 	// 从 map[string]interface{} 中提取用户信息
-	userID, _ := user["user_id"].(string)
+	userID, _ := user["id"].(string)
 	username, _ := user["username"].(string)
 	realName, _ := user["real_name"].(string)
 	userType, _ := user["user_type"].(string)

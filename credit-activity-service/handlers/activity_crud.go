@@ -17,7 +17,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -97,7 +97,7 @@ func (h *ActivityHandler) createActivityDetail(activityID string, req models.Act
 }
 
 func (h *ActivityHandler) GetActivities(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	query := c.Query("query")
@@ -127,7 +127,7 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -164,7 +164,7 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return

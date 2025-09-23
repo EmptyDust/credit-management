@@ -29,7 +29,7 @@ func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		// 设置用户信息到上下文
-		c.Set("user_id", userID)
+		c.Set("id", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
 
@@ -116,7 +116,7 @@ func (m *PermissionMiddleware) AdminOnly() gin.HandlerFunc {
 // ActivityOwnerOrTeacherOrAdmin 活动所有者、教师或管理员可以访问
 func (m *PermissionMiddleware) ActivityOwnerOrTeacherOrAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		_, exists := c.Get("user_id")
+		_, exists := c.Get("id")
 		if !exists {
 			SendUnauthorized(c)
 			c.Abort()

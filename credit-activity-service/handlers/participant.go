@@ -24,7 +24,7 @@ func NewParticipantHandler(db *gorm.DB) *ParticipantHandler {
 
 func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	activityID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	var req models.AddParticipantsRequest
@@ -61,7 +61,7 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 
 	for _, targetUserID := range req.UserIDs {
 		var existing models.ActivityParticipant
-		err := h.db.Where("activity_id = ? AND user_id = ?", activityID, targetUserID).First(&existing).Error
+		err := h.db.Where("activity_id = ? AND id = ?", activityID, targetUserID).First(&existing).Error
 		if err == nil {
 			continue
 		}
@@ -106,7 +106,7 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 
 func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 	activityID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	var req models.BatchCreditsRequest
@@ -136,7 +136,7 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 
 	for userID, credits := range req.CreditsMap {
 		var participant models.ActivityParticipant
-		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
+		if err := h.db.Where("activity_id = ? AND id = ?", activityID, userID).First(&participant).Error; err != nil {
 			continue
 		}
 
@@ -170,7 +170,7 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	activityID := c.Param("id")
 	participantID := c.Param("participant_id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	var req models.SingleCreditsRequest
@@ -195,7 +195,7 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	}
 
 	var participant models.ActivityParticipant
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).First(&participant).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).First(&participant).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "参与者不存在")
 		} else {
@@ -229,7 +229,7 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 	activityID := c.Param("id")
 	participantID := c.Param("participant_id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	var activity models.CreditActivity
@@ -247,7 +247,7 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -257,9 +257,9 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 
 func (h *ParticipantHandler) LeaveActivity(c *gin.Context) {
 	activityID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 
-	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND id = ?", activityID, userID).Delete(&models.ActivityParticipant{}).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -309,7 +309,7 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 
 func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 	activityID := c.Param("id")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
 	var req models.BatchRemoveRequest
@@ -335,7 +335,7 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 
 	removedCount := 0
 	for _, participantID := range req.UserIDs {
-		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err == nil {
+		if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err == nil {
 			removedCount++
 		}
 	}
@@ -409,7 +409,7 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 }
 
 func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -423,7 +423,7 @@ func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
 	var participants []models.ActivityParticipant
 	var total int64
 
-	query := h.db.Where("user_id = ?", userID).Preload("Activity")
+	query := h.db.Where("id = ?", userID).Preload("Activity")
 	query.Count(&total)
 
 	offset := (page - 1) * limit

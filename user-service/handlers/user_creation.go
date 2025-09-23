@@ -404,7 +404,7 @@ func (h *UserHandler) validateUserRequest(req *models.UserRequest) error {
 }
 
 func (h *UserHandler) ImportUsers(c *gin.Context) {
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -805,7 +805,7 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 }
 
 func (h *UserHandler) ImportUsersFromCSV(c *gin.Context) {
-	_, exists := c.Get("user_id")
+	_, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
