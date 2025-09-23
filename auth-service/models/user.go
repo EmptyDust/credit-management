@@ -9,7 +9,7 @@ import (
 
 // User 用户模型（认证服务专用）
 type User struct {
-	UserID       string         `json:"user_id" gorm:"column:id;type:uuid;primaryKey;default:gen_random_uuid()"`
+	UserID       string         `json:"id" gorm:"column:id;type:uuid;primaryKey;default:gen_random_uuid()"`
 	UID          string         `json:"uid" gorm:"column:identity_number;type:varchar(18);unique;not null"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
@@ -43,7 +43,7 @@ type UserLoginRequest struct {
 
 // UserResponse 用户响应
 type UserResponse struct {
-	UserID       string     `json:"user_id"`
+	UserID       string     `json:"id"`
 	UID          string     `json:"uid"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`

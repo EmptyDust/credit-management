@@ -20,11 +20,11 @@ func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 		internalService := c.GetHeader("X-Internal-Service")
 		if internalService != "" {
 			// 内部服务通信，设置系统用户信息
-			c.Set("user_id", "system")
+			c.Set("id", "system")
 			c.Set("username", "system")
 			c.Set("user_type", "admin")
 			c.Set("claims", jwt.MapClaims{
-				"user_id":   "system",
+				"id":        "system",
 				"username":  "system",
 				"user_type": "admin",
 			})
@@ -45,13 +45,13 @@ func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 
 		// 创建claims对象
 		claims := jwt.MapClaims{
-			"user_id":   userID,
+			"id":        userID,
 			"username":  username,
 			"user_type": userType,
 		}
 
 		// 将用户信息存储到上下文中
-		c.Set("user_id", userID)
+		c.Set("id", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
 		c.Set("claims", claims)

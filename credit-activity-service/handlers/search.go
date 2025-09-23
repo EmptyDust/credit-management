@@ -24,7 +24,7 @@ func NewSearchHandler(db *gorm.DB) *SearchHandler {
 }
 
 func (h *SearchHandler) SearchActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -54,7 +54,7 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 
 	// 权限过滤：学生只能看到自己创建或参与的活动
 	if userType == "student" {
-		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
+		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE id = ?)", userID, userID)
 	}
 
 	if req.Query != "" {
@@ -132,7 +132,7 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 }
 
 func (h *SearchHandler) SearchApplications(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -145,7 +145,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 
 	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
-	req.UserID = c.Query("user_id")
+	req.UserID = c.Query("id")
 	req.Status = c.Query("status")
 	req.StartDate = c.Query("start_date")
 	req.EndDate = c.Query("end_date")
@@ -165,7 +165,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	dbQuery := h.db.Model(&models.Application{}).Preload("Activity")
 
 	if userType == "student" {
-		dbQuery = dbQuery.Where("user_id = ?", userID)
+		dbQuery = dbQuery.Where("id = ?", userID)
 	}
 
 	if req.Query != "" {
@@ -180,7 +180,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
 	}
 	if req.UserID != "" {
-		dbQuery = dbQuery.Where("user_id = ?", req.UserID)
+		dbQuery = dbQuery.Where("id = ?", req.UserID)
 	}
 	if req.Status != "" {
 		dbQuery = dbQuery.Where("status = ?", req.Status)
@@ -260,7 +260,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 }
 
 func (h *SearchHandler) SearchParticipants(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -272,7 +272,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	var req models.ParticipantSearchRequest
 
 	req.ActivityID = c.Query("activity_id")
-	req.UserID = c.Query("user_id")
+	req.UserID = c.Query("id")
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
@@ -289,7 +289,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	dbQuery := h.db.Model(&models.ActivityParticipant{})
 
 	if userType == "student" {
-		dbQuery = dbQuery.Where("user_id = ?", userID)
+		dbQuery = dbQuery.Where("id = ?", userID)
 	}
 
 	if req.ActivityID != "" {
@@ -297,7 +297,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	}
 
 	if req.UserID != "" {
-		dbQuery = dbQuery.Where("user_id = ?", req.UserID)
+		dbQuery = dbQuery.Where("id = ?", req.UserID)
 	}
 
 	if req.MinCredits != "" {
@@ -350,7 +350,7 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 }
 
 func (h *SearchHandler) SearchAttachments(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -381,7 +381,7 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 
 	// 权限过滤：学生只能看到自己创建或参与活动的附件
 	if userType == "student" {
-		dbQuery = dbQuery.Where("uploaded_by = ? OR activity_id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
+		dbQuery = dbQuery.Where("uploaded_by = ? OR activity_id IN (SELECT activity_id FROM activity_participants WHERE id = ?)", userID, userID)
 	}
 
 	if req.Query != "" {

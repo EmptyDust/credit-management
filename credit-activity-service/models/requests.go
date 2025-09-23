@@ -87,7 +87,7 @@ type ActivityResponse struct {
 type ApplicationResponse struct {
 	ID             string       `json:"id"`
 	ActivityID     string       `json:"activity_id"`
-	UserID         string       `json:"user_id"`
+	UserID         string       `json:"id"`
 	Status         string       `json:"status"`
 	AppliedCredits float64      `json:"applied_credits"`
 	AwardedCredits float64      `json:"awarded_credits"`
@@ -110,13 +110,13 @@ type ActivityInfo struct {
 
 // ParticipantRequest 参与者请求
 type ParticipantRequest struct {
-	UserIDs []string `json:"user_ids" binding:"required"`
+	UserIDs []string `json:"ids" binding:"required"`
 	Credits float64  `json:"credits" binding:"required,gt=0"`
 }
 
 // AddParticipantsRequest 添加参与者请求
 type AddParticipantsRequest struct {
-	UserIDs []string `json:"user_ids" binding:"required"`
+	UserIDs []string `json:"ids" binding:"required"`
 	Credits float64  `json:"credits" binding:"required,min=0"`
 }
 
@@ -132,7 +132,7 @@ type SingleCreditsRequest struct {
 
 // ParticipantResponse 参与者响应
 type ParticipantResponse struct {
-	UserID   string    `json:"user_id"`
+	UserID   string    `json:"id"`
 	Credits  float64   `json:"credits"`
 	JoinedAt time.Time `json:"joined_at"`
 	UserInfo *UserInfo `json:"user_info,omitempty"`
@@ -140,7 +140,7 @@ type ParticipantResponse struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	UserID     string `json:"user_id"`
+	UserID     string `json:"id"`
 	Username   string `json:"username"`
 	RealName   string `json:"real_name"`
 	UserType   string `json:"user_type"`
@@ -161,7 +161,7 @@ type UserInfo struct {
 
 // BatchRemoveRequest 批量移除参与者请求
 type BatchRemoveRequest struct {
-	UserIDs []string `json:"user_ids" binding:"required"`
+	UserIDs []string `json:"ids" binding:"required"`
 }
 
 // ParticipantActivityResponse 参与者活动响应

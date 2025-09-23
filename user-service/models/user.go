@@ -10,7 +10,7 @@ import (
 // User 统一用户模型
 type User struct {
 	// 基础用户信息
-	UserID       string         `json:"user_id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	UserID       string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null;size:20"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex;not null;size:100"`
@@ -36,7 +36,6 @@ type User struct {
 	Department *string `json:"department,omitempty" gorm:"size:100"`
 	Title      *string `json:"title,omitempty" gorm:"size:50"`
 }
-
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if u.UserID == "" {
@@ -114,7 +113,7 @@ type UserUpdateRequest struct {
 
 // UserResponse 用户响应
 type UserResponse struct {
-	UserID       string     `json:"user_id"`
+	UserID       string     `json:"id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`

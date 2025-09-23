@@ -22,7 +22,7 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -74,7 +74,7 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -186,7 +186,7 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 }
 
 func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return

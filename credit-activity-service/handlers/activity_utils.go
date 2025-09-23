@@ -24,7 +24,7 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -138,7 +138,7 @@ func (h *ActivityHandler) SaveAsTemplate(c *gin.Context) {
 }
 
 func (h *ActivityHandler) ImportActivities(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
@@ -415,7 +415,7 @@ func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
 }
 
 func (h *ActivityHandler) ImportActivitiesFromCSV(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := c.Get("id")
 	if !exists {
 		utils.SendUnauthorized(c)
 		return
