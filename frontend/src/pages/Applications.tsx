@@ -33,9 +33,6 @@ import {
   Download,
   Filter,
   RefreshCw,
-  CheckCircle,
-  XCircle,
-  Clock,
   AlertCircle,
   User,
 } from "lucide-react";
@@ -149,6 +146,9 @@ export default function ApplicationsPage() {
 
       const response = await apiClient.get(endpoint, { params });
 
+      // 调试：打印响应数据
+      console.log("Applications API Response:", response.data);
+
       // 处理响应数据
       let applicationsData = [];
       let paginationData: any = {};
@@ -183,36 +183,54 @@ export default function ApplicationsPage() {
         };
       }
 
-      // 处理申请数据
-      const processedApplications = applicationsData.map((app: any) => ({
-        id: app.id,
-        affair_id: app.activity_id,
-        affair_name: app.activity?.title || app.affair_name,
-        student_number: app.user_info?.student_id || app.student_number || "",
-        student_name: app.user_info?.name || app.student_name || "",
-        submission_time: app.submitted_at || app.submission_time,
-        status: app.status,
-        reviewer_id: app.reviewer_id,
-        reviewer_name: app.reviewer_name,
-        review_comment: app.review_comment,
-        review_time: app.reviewed_at || app.review_time,
-        applied_credits: app.applied_credits,
-        approved_credits: app.awarded_credits || app.approved_credits,
-        attachments: app.attachments,
-        user_id: app.user_id,
-        user_info: app.user_info,
-        activity: app.activity,
-      }));
+      // 处理申请数据（确保为数组）
+      const applicationsArray = Array.isArray(applicationsData)
+        ? applicationsData
+        : applicationsData && typeof applicationsData === "object"
+        ? Object.values(applicationsData)
+        : [];
 
+      const processedApplications = applicationsArray
+        .filter((app: any) => app && app.id) // 过滤掉 null/undefined 或没有 id 的项目
+        .map((app: any) => ({
+          id: app.id,
+          affair_id: app.activity_id,
+          affair_name: app.activity?.title || app.affair_name,
+          student_number: app.user_info?.student_id || app.student_number || "",
+          student_name: app.user_info?.name || app.student_name || "",
+          submission_time: app.submitted_at || app.submission_time,
+          status: app.status,
+          reviewer_id: app.reviewer_id,
+          reviewer_name: app.reviewer_name,
+          review_comment: app.review_comment,
+          review_time: app.reviewed_at || app.review_time,
+          applied_credits: app.applied_credits,
+          approved_credits: app.awarded_credits || app.approved_credits,
+          attachments: app.attachments,
+          user_id: app.user_id,
+          user_info: app.user_info,
+          activity: app.activity,
+        }));
+
+      // 调试：打印处理后的数据
+      console.log("Processed Applications:", processedApplications);
+      console.log("Is Array:", Array.isArray(processedApplications));
+      
       setApplications(processedApplications);
 
       // 更新分页信息
-      setTotalItems(paginationData.total);
-      setTotalPages(paginationData.total_pages);
-      setCurrentPage(paginationData.page);
+      const safeTotal = Array.isArray(applicationsArray)
+        ? applicationsArray.length
+        : Number(paginationData.total) || 0;
+      setTotalItems(safeTotal);
+      setTotalPages(Number(paginationData.total_pages) || 1);
+      setCurrentPage(Number(paginationData.page) || 1);
     } catch (err) {
       console.error("Failed to fetch applications:", err);
       toast.error("获取申请列表失败");
+      setApplications([]);
+      setTotalItems(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -241,7 +259,8 @@ export default function ApplicationsPage() {
   }, [user]);
 
   // 本地搜索过滤功能
-  const filteredApplications = applications.filter((app) => {
+  const safeApplications = Array.isArray(applications) ? applications : [];
+  const filteredApplications = safeApplications.filter((app) => {
     if (!searchTerm) return true;
 
     const searchLower = searchTerm.toLowerCase();
@@ -432,7 +451,7 @@ export default function ApplicationsPage() {
                       </div>
                     </td>
                   </tr>
-                ) : statusFilteredApplications.length === 0 ? (
+                ) : !statusFilteredApplications || statusFilteredApplications.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
@@ -442,7 +461,7 @@ export default function ApplicationsPage() {
                     </td>
                   </tr>
                 ) : (
-                  statusFilteredApplications.map((app) => (
+                  (statusFilteredApplications || []).map((app) => (
                     <TableRow
                       key={app.id}
                       className="hover:bg-muted/40 transition-colors"
@@ -648,11 +667,11 @@ export default function ApplicationsPage() {
                   </p>
                 </div>
               )}
-              {selectedAppAttachments.length > 0 && (
+              {selectedAppAttachments && selectedAppAttachments.length > 0 && (
                 <div>
                   <label className="text-sm font-medium">附件</label>
                   <div className="mt-2 space-y-2">
-                    {selectedAppAttachments.map(
+                    {(selectedAppAttachments || []).map(
                       (attachment: ApplicationAttachment) => (
                         <div
                           key={attachment.id}

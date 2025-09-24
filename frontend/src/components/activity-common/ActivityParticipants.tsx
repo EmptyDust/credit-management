@@ -113,10 +113,34 @@ export default function ActivityParticipants({
       const response = await apiClient.get(
         `/activities/${activity.id}/participants`
       );
-      setParticipants(response.data.data?.participants || []);
+      
+      // 调试：打印响应数据
+      console.log("Participants API Response:", response.data);
+      
+      // 处理分页响应数据结构
+      let participantsData = [];
+      if (response.data.code === 0 && response.data.data) {
+        if (response.data.data.data && Array.isArray(response.data.data.data)) {
+          // 分页数据结构
+          participantsData = response.data.data.data;
+        } else if (response.data.data.participants && Array.isArray(response.data.data.participants)) {
+          // 非分页数据结构
+          participantsData = response.data.data.participants;
+        } else {
+          // 如果没有数据或数据不是数组，使用空数组
+          participantsData = [];
+        }
+      }
+      
+      // 调试：打印处理后的数据
+      console.log("Participants Data:", participantsData);
+      console.log("Is Array:", Array.isArray(participantsData));
+      
+      setParticipants(participantsData);
     } catch (error) {
       console.error("Failed to fetch participants:", error);
       toast.error("获取参与者列表失败");
+      setParticipants([]);
     } finally {
       setLoading(false);
     }
@@ -336,7 +360,8 @@ export default function ActivityParticipants({
   };
 
   // 过滤参与者
-  const filteredParticipants = participants.filter((participant) => {
+  const safeParticipants = Array.isArray(participants) ? participants : [];
+  const filteredParticipants = safeParticipants.filter((participant) => {
     if (!searchQuery) return true;
     const userInfo = participant.user_info;
     return (
@@ -468,7 +493,7 @@ export default function ActivityParticipants({
     filteredParticipants,
   ]);
 
-  if (participants.length === 0 && !isOwner) {
+  if ((!Array.isArray(participants) || participants.length === 0) && !isOwner) {
     return (
       <Card className="rounded-xl shadow-lg">
         <CardHeader>
@@ -492,7 +517,7 @@ export default function ActivityParticipants({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            参与者列表 ({participants.length})
+            参与者列表 ({Array.isArray(participants) ? participants.length : 0})
             {!canEditParticipants && isOwner && (
               <Badge variant="secondary" className="ml-2">
                 仅查看模式

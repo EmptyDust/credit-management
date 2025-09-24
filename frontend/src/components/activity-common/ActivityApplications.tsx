@@ -87,7 +87,13 @@ export default function ActivityApplications({
       const response = await apiClient.get(
         `/applications?activity_id=${activity.id}`
       );
-      setApplications(response.data.data?.applications || []);
+      const raw = response.data?.data?.applications ?? response.data?.data ?? [];
+      const appsArray = Array.isArray(raw)
+        ? raw
+        : raw && typeof raw === "object"
+        ? Object.values(raw)
+        : [];
+      setApplications(appsArray as Application[]);
     } catch (error) {
       console.error("Failed to fetch applications:", error);
       toast.error("获取申请列表失败");
