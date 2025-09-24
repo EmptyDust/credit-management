@@ -61,24 +61,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
 import React from "react";
 import { StatCard } from "@/components/ui/stat-card";
-
-// Types
-interface Activity {
-  id: string;
-  title: string;
-  description?: string;
-  status: string;
-  category?: string;
-  created_at: string;
-  updated_at: string;
-  participants?: any[];
-  applications?: any[];
-  owner_id: string;
-  owner_info?: {
-    name: string;
-    role: string;
-  };
-}
+import type { Activity } from "@/types/activity";
 
 
 type CreateActivityForm = z.infer<typeof activitySchema>;
@@ -154,6 +137,9 @@ export default function ActivitiesPage() {
 
       const response = await apiClient.get("/activities", { params });
 
+      // 调试：打印响应数据
+      console.log("API Response:", response.data);
+
       // 处理响应数据
       let activitiesData = [];
       let paginationData: any = {};
@@ -188,12 +174,19 @@ export default function ActivitiesPage() {
         };
       }
 
+      // 调试：打印处理后的数据
+      console.log("Activities Data:", activitiesData);
+      console.log("Is Array:", Array.isArray(activitiesData));
+      
       setActivities(activitiesData);
       setTotalItems(paginationData.total);
       setTotalPages(paginationData.total_pages);
     } catch (error) {
       console.error("Failed to fetch activities:", error);
       toast.error("获取活动列表失败");
+      setActivities([]);
+      setTotalItems(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -348,8 +341,9 @@ export default function ActivitiesPage() {
   };
 
   // 获取所有活动类别
+  const safeActivities = Array.isArray(activities) ? activities : [];
   const categories = Array.from(
-    new Set(activities.map((a) => a.category).filter(Boolean))
+    new Set(safeActivities.map((a) => a.category).filter(Boolean))
   );
 
   return (
@@ -402,12 +396,12 @@ export default function ActivitiesPage() {
           icon={Award}
           color="info"
           subtitle={`已通过: ${
-            activities.filter((a) => a.status === "approved").length
+            safeActivities.filter((a) => a.status === "approved").length
           }`}
         />
         <StatCard
           title="参与学生"
-          value={activities.reduce(
+          value={safeActivities.reduce(
             (sum, activity) => sum + (activity.participants?.length || 0),
             0
           )}
@@ -417,7 +411,7 @@ export default function ActivitiesPage() {
         />
         <StatCard
           title="申请数量"
-          value={activities.reduce(
+          value={safeActivities.reduce(
             (sum, activity) => sum + (activity.applications?.length || 0),
             0
           )}
@@ -427,7 +421,7 @@ export default function ActivitiesPage() {
         />
         <StatCard
           title="待审核"
-          value={activities.filter((a) => a.status === "pending_review").length}
+          value={safeActivities.filter((a) => a.status === "pending_review").length}
           icon={Clock}
           color="warning"
           subtitle="待审核活动"
@@ -467,7 +461,7 @@ export default function ActivitiesPage() {
               <SelectContent>
                 <SelectItem value="all">全部类别</SelectItem>
                 {categories
-                  .filter((category): category is string => Boolean(category))
+                  .filter((category) => Boolean(category))
                   .map((category) => (
                     <SelectItem key={category} value={category}>
                       {category}
@@ -529,7 +523,7 @@ export default function ActivitiesPage() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : activities.length === 0 ? (
+                ) : !safeActivities || safeActivities.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -539,7 +533,7 @@ export default function ActivitiesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  activities.map((activity) => (
+                  safeActivities.map((activity) => (
                     <TableRow key={activity.id}>
                       <TableCell>
                         <div>

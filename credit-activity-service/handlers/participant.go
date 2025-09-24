@@ -277,11 +277,11 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	var participants []models.ActivityParticipant
 	var total int64
 
-	query := h.db.Where("activity_id = ?", activityID)
+	query := h.db.Model(&models.ActivityParticipant{}).Where("activity_id = ?", activityID)
 	query.Count(&total)
 
 	offset := (page - 1) * limit
-	if err := query.Offset(offset).Limit(limit).Order("joined_at DESC").Find(&participants).Error; err != nil {
+	if err := h.db.Where("activity_id = ?", activityID).Offset(offset).Limit(limit).Order("joined_at DESC").Find(&participants).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -291,7 +291,14 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	for _, participant := range participants {
 		userInfo, err := h.getUserInfo(participant.UserID, authToken)
 		if err != nil {
-			continue
+			// 如果获取用户信息失败，创建一个基本的用户信息
+			userInfo = &models.UserInfo{
+				UserID:   participant.UserID,
+				Username: participant.UserID,
+				RealName: "未知用户",
+				UserType: "unknown",
+				Status:   "unknown",
+			}
 		}
 
 		response := models.ParticipantResponse{
