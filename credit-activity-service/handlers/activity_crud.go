@@ -266,7 +266,7 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Delete(&models.CreditActivity{}, id).Error; err != nil {
+	if err := h.db.Delete(&models.CreditActivity{ID: id}).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
