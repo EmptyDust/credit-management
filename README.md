@@ -227,7 +227,7 @@ DELETE /api/attachments/{id}            # 删除文件
 ```sql
 -- 用户表
 users (
-    user_id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY,
     username VARCHAR(20) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -264,7 +264,7 @@ credit_activities (
 activity_participants (
     id UUID PRIMARY KEY,
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     credits DECIMAL(5,2) NOT NULL DEFAULT 0,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
@@ -273,7 +273,7 @@ activity_participants (
 applications (
     id UUID PRIMARY KEY,
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'approved',
     applied_credits DECIMAL(5,2) NOT NULL,
     awarded_credits DECIMAL(5,2) NOT NULL,

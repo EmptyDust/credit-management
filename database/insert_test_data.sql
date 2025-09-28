@@ -18,11 +18,11 @@
 -- ========================================
 
 -- 管理员用户
-INSERT INTO users (user_id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
+INSERT INTO users (id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
 ('11111111-1111-1111-1111-111111111111', 'admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@university.edu.cn', '13800138000', '系统管理员', 'admin', 'active', NULL, NULL, NULL, NULL, NULL, '信息技术部', '系统管理员');
 
 -- 教师用户
-INSERT INTO users (user_id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
+INSERT INTO users (id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
 ('22222222-2222-2222-2222-222222222222', 'teacher1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher1@university.edu.cn', '13800138001', '张教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '计算机学院', '教授'),
 ('22222222-2222-2222-2222-222222222223', 'teacher2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher2@university.edu.cn', '13800138002', '李副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '机械工程学院', '副教授'),
 ('22222222-2222-2222-2222-222222222224', 'teacher3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher3@university.edu.cn', '13800138003', '王讲师', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '经济管理学院', '讲师'),
@@ -30,7 +30,7 @@ INSERT INTO users (user_id, username, password, email, phone, real_name, user_ty
 ('22222222-2222-2222-2222-222222222226', 'teacher5', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher5@university.edu.cn', '13800138005', '刘副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '物理学院', '副教授');
 
 -- 学生用户
-INSERT INTO users (user_id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
+INSERT INTO users (id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
 ('33333333-3333-3333-3333-333333333333', 'student1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student1@university.edu.cn', '13800138006', '张三', 'student', 'active', '20210001', '计算机学院', '计算机科学与技术', '计科2101', '2021', NULL, NULL),
 ('33333333-3333-3333-3333-333333333334', 'student2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student2@university.edu.cn', '13800138007', '李四', 'student', 'active', '20210002', '计算机学院', '软件工程', '软工2101', '2021', NULL, NULL),
 ('33333333-3333-3333-3333-333333333335', 'student3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student3@university.edu.cn', '13800138008', '王五', 'student', 'active', '20210003', '机械工程学院', '机械设计制造及其自动化', '机械2101', '2021', NULL, NULL),
@@ -108,7 +108,7 @@ INSERT INTO paper_patent_details (activity_id, name, category, rank) VALUES
 -- 4. 插入参与者数据
 -- ========================================
 
-INSERT INTO activity_participants (activity_id, user_id, credits) VALUES
+INSERT INTO activity_participants (activity_id, id, credits) VALUES
 -- 互联网+创新创业大赛参与者
 ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333333', 2.0),
 ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333334', 1.5),
@@ -140,7 +140,7 @@ INSERT INTO activity_participants (activity_id, user_id, credits) VALUES
 -- 5. 插入申请数据
 -- ========================================
 
-INSERT INTO applications (activity_id, user_id, status, applied_credits, awarded_credits) VALUES
+INSERT INTO applications (activity_id, id, status, applied_credits, awarded_credits) VALUES
 -- 互联网+创新创业大赛申请
 ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333333', 'approved', 2.0, 2.0),
 ('44444444-4444-4444-4444-444444444444', '33333333-3333-3333-3333-333333333334', 'approved', 2.0, 1.5),

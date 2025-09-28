@@ -580,7 +580,7 @@ export default function ActivitiesPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                         {(hasPermission("manage_activities") ||
-                          user?.user_id === activity.owner_id) && (
+                          user?.id === activity.owner_id) && (
                           <>
                             <Button
                               variant="outline"

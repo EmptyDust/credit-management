@@ -61,7 +61,7 @@ import { apiHelpers } from "@/lib/api";
 
 // Teacher type based on teacher.go
 export type Teacher = {
-  user_id?: string;
+  id?: string;
   username: string;
   real_name: string;
   email?: string;
@@ -228,11 +228,11 @@ export default function TeachersPage() {
     setIsSubmitting(true);
     try {
       if (editingTeacher) {
-        if (!editingTeacher.user_id) {
+        if (!editingTeacher.id) {
           toast.error("无法找到教师ID");
           return;
         }
-        await apiClient.put(`/users/${editingTeacher.user_id}`, values);
+        await apiClient.put(`/users/${editingTeacher.id}`, values);
         toast.success("教师信息更新成功");
       } else {
         // 使用正确的API端点创建教师
@@ -267,7 +267,7 @@ export default function TeachersPage() {
     if (!teacherToDelete) return;
 
     try {
-      await apiClient.delete(`/users/${teacherToDelete.user_id}`);
+      await apiClient.delete(`/users/${teacherToDelete.id}`);
       toast.success("教师删除成功");
       fetchTeachers();
     } catch (err) {

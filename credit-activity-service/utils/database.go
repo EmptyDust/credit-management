@@ -59,7 +59,7 @@ func (h *BaseHandler) CheckActivityExists(id string) error {
 func (h *BaseHandler) CheckUserParticipant(activityID, userID string) error {
 	var count int64
 	err := h.db.Model(&models.ActivityParticipant{}).
-		Where("activity_id = ? AND id = ?", activityID, userID).
+		Where("activity_id = ? AND user_id = ?", activityID, userID).
 		Count(&count).Error
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (h *BaseHandler) GetUserParticipatedActivities(userID string, page, limit i
 	// 获取总数
 	err := h.db.Model(&models.CreditActivity{}).
 		Joins("JOIN activity_participants ON credit_activities.id = activity_participants.activity_id").
-		Where("activity_participants.id = ?", userID).
+		Where("activity_participants.user_id = ?", userID).
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -87,7 +87,7 @@ func (h *BaseHandler) GetUserParticipatedActivities(userID string, page, limit i
 	// 获取数据
 	err = h.db.Model(&models.CreditActivity{}).
 		Joins("JOIN activity_participants ON credit_activities.id = activity_participants.activity_id").
-		Where("activity_participants.id = ?", userID).
+		Where("activity_participants.user_id = ?", userID).
 		Offset((page - 1) * limit).
 		Limit(limit).
 		Order("credit_activities.created_at DESC").
@@ -148,7 +148,7 @@ func (h *BaseHandler) SearchActivities(query, status, category, ownerID string, 
 
 	// 权限过滤
 	if userType == "student" {
-		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE id = ?)", userID, userID)
+		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)", userID, userID)
 	}
 
 	// 搜索条件
@@ -214,7 +214,7 @@ func (h *BaseHandler) GetApplications(userID, userType string, page, limit int) 
 
 	// 权限过滤
 	if userType == "student" {
-		dbQuery = dbQuery.Where("id = ?", userID)
+		dbQuery = dbQuery.Where("user_id = ?", userID)
 	}
 
 	err := dbQuery.Count(&total).Error

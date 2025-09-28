@@ -197,7 +197,7 @@
 │  JWT Token 验证                                                             │
 │      │                                                                     │
 │      ▼                                                                     │
-│  提取用户信息 (user_id, user_type)                                          │
+│  提取用户信息 (id, user_type)                                          │
 │      │                                                                     │
 │      ▼                                                                     │
 │  权限中间件检查                                                             │

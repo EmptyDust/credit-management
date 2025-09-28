@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -24,12 +26,12 @@ func NewSearchHandler(db *gorm.DB) *SearchHandler {
 }
 
 func (h *SearchHandler) SearchActivities(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
-	userType, _ := c.Get("user_type")
+	userType := c.GetString("user_type")
 
 	var req models.ActivitySearchRequest
 
@@ -50,63 +52,97 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 	req.SortBy = c.DefaultQuery("sort_by", "created_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
+	// 构建基础查询
 	dbQuery := h.db.Model(&models.CreditActivity{})
 
 	// 权限过滤：学生只能看到自己创建或参与的活动
 	if userType == "student" {
-		dbQuery = dbQuery.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE id = ?)", userID, userID)
+		dbQuery = h.applyStudentPermissionFilter(dbQuery, userID)
 	}
 
+	// 应用搜索条件
+	dbQuery = h.applySearchConditions(dbQuery, req)
+
+	// 获取总数
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 应用排序和分页
+	var activities []models.CreditActivity
+	query := dbQuery.
+		Order(fmt.Sprintf("%s %s", req.SortBy, strings.ToUpper(req.SortOrder))).
+		Offset((req.Page - 1) * req.PageSize).
+		Limit(req.PageSize)
+
+	if err := query.Find(&activities).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 转换为响应格式
+	responses := h.buildActivityResponses(activities)
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
+
+// applyStudentPermissionFilter 应用学生权限过滤
+func (h *SearchHandler) applyStudentPermissionFilter(query *gorm.DB, userID string) *gorm.DB {
+	return query.Where(
+		"owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)",
+		userID, userID,
+	)
+}
+
+// applySearchConditions 应用搜索条件
+func (h *SearchHandler) applySearchConditions(query *gorm.DB, req models.ActivitySearchRequest) *gorm.DB {
+	// 文本搜索
 	if req.Query != "" {
 		searchQuery := "%" + req.Query + "%"
-		dbQuery = dbQuery.Where(
+		query = query.Where(
 			"title ILIKE ? OR description ILIKE ? OR category ILIKE ?",
 			searchQuery, searchQuery, searchQuery,
 		)
 	}
 
+	// 分类过滤
 	if req.Category != "" {
-		dbQuery = dbQuery.Where("category = ?", req.Category)
+		query = query.Where("category = ?", req.Category)
 	}
 
+	// 状态过滤
 	if req.Status != "" {
-		dbQuery = dbQuery.Where("status = ?", req.Status)
+		query = query.Where("status = ?", req.Status)
 	}
 
+	// 所有者过滤
 	if req.OwnerID != "" {
-		dbQuery = dbQuery.Where("owner_id = ?", req.OwnerID)
+		query = query.Where("owner_id = ?", req.OwnerID)
 	}
 
+	// 开始日期过滤
 	if req.StartDate != "" {
 		if parsedDate, err := time.Parse("2006-01-02", req.StartDate); err == nil {
-			dbQuery = dbQuery.Where("start_date >= ?", parsedDate)
+			query = query.Where("start_date >= ?", parsedDate)
 		}
 	}
 
+	// 结束日期过滤
 	if req.EndDate != "" {
 		if parsedDate, err := time.Parse("2006-01-02", req.EndDate); err == nil {
-			dbQuery = dbQuery.Where("end_date <= ?", parsedDate)
+			query = query.Where("end_date <= ?", parsedDate)
 		}
 	}
 
-	var total int64
-	dbQuery.Count(&total)
+	return query
+}
 
-	orderClause := req.SortBy
-	if req.SortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
+// buildActivityResponses 构建活动响应列表
+func (h *SearchHandler) buildActivityResponses(activities []models.CreditActivity) []models.ActivityResponse {
+	responses := make([]models.ActivityResponse, 0, len(activities))
 
-	offset := (req.Page - 1) * req.PageSize
-	var activities []models.CreditActivity
-	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&activities).Error; err != nil {
-		utils.SendInternalServerError(c, err)
-		return
-	}
-
-	var responses []models.ActivityResponse
 	for _, activity := range activities {
 		response := models.ActivityResponse{
 			ID:             activity.ID,
@@ -128,24 +164,23 @@ func (h *SearchHandler) SearchActivities(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	utils.SendPaginatedResponse(c, responses, total, page, limit)
+	return responses
 }
 
 func (h *SearchHandler) SearchApplications(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
-	userType, _ := c.Get("user_type")
-
+	userType := c.GetString("user_type")
 	authToken := c.GetHeader("Authorization")
 
 	var req models.ApplicationSearchRequest
 
 	req.Query = c.Query("query")
 	req.ActivityID = c.Query("activity_id")
-	req.UserID = c.Query("id")
+	req.UUID = c.Query("id")
 	req.Status = c.Query("status")
 	req.StartDate = c.Query("start_date")
 	req.EndDate = c.Query("end_date")
@@ -162,72 +197,105 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 	req.SortBy = c.DefaultQuery("sort_by", "submitted_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
+	// 构建基础查询
 	dbQuery := h.db.Model(&models.Application{}).Preload("Activity")
 
+	// 应用权限过滤
 	if userType == "student" {
-		dbQuery = dbQuery.Where("id = ?", userID)
+		dbQuery = dbQuery.Where("user_id = ?", userID)
 	}
 
+	// 应用搜索条件
+	dbQuery = h.applyApplicationSearchConditions(dbQuery, req)
+
+	// 获取总数
+	var total int64
+	if err := dbQuery.Count(&total).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 应用排序和分页
+	var applications []models.Application
+	query := dbQuery.
+		Order(fmt.Sprintf("%s %s", req.SortBy, strings.ToUpper(req.SortOrder))).
+		Offset((req.Page - 1) * req.PageSize).
+		Limit(req.PageSize)
+
+	if err := query.Find(&applications).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 转换为响应格式
+	responses := h.buildApplicationResponses(applications, authToken)
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
+
+// applyApplicationSearchConditions 应用申请搜索条件
+func (h *SearchHandler) applyApplicationSearchConditions(query *gorm.DB, req models.ApplicationSearchRequest) *gorm.DB {
+	// 文本搜索
 	if req.Query != "" {
 		searchQuery := "%" + req.Query + "%"
-		dbQuery = dbQuery.Where(
+		query = query.Where(
 			"activity_id IN (SELECT id FROM credit_activities WHERE title ILIKE ? OR description ILIKE ?)",
 			searchQuery, searchQuery,
 		)
 	}
 
+	// 活动ID过滤
 	if req.ActivityID != "" {
-		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
-	}
-	if req.UserID != "" {
-		dbQuery = dbQuery.Where("id = ?", req.UserID)
-	}
-	if req.Status != "" {
-		dbQuery = dbQuery.Where("status = ?", req.Status)
+		query = query.Where("activity_id = ?", req.ActivityID)
 	}
 
+	// 用户ID过滤
+	if req.UUID != "" {
+		query = query.Where("user_id = ?", req.UUID)
+	}
+
+	// 状态过滤
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+
+	// 开始日期过滤
 	if req.StartDate != "" {
 		if start, err := time.Parse("2006-01-02", req.StartDate); err == nil {
-			dbQuery = dbQuery.Where("submitted_at >= ?", start)
+			query = query.Where("submitted_at >= ?", start)
 		}
 	}
+
+	// 结束日期过滤
 	if req.EndDate != "" {
 		if end, err := time.Parse("2006-01-02", req.EndDate); err == nil {
-			dbQuery = dbQuery.Where("submitted_at <= ?", end.Add(24*time.Hour))
+			query = query.Where("submitted_at <= ?", end.Add(24*time.Hour))
 		}
 	}
 
+	// 最小学分过滤
 	if req.MinCredits != "" {
 		if minCredits, err := strconv.ParseFloat(req.MinCredits, 64); err == nil {
-			dbQuery = dbQuery.Where("awarded_credits >= ?", minCredits)
+			query = query.Where("awarded_credits >= ?", minCredits)
 		}
 	}
+
+	// 最大学分过滤
 	if req.MaxCredits != "" {
 		if maxCredits, err := strconv.ParseFloat(req.MaxCredits, 64); err == nil {
-			dbQuery = dbQuery.Where("awarded_credits <= ?", maxCredits)
+			query = query.Where("awarded_credits <= ?", maxCredits)
 		}
 	}
 
-	var total int64
-	dbQuery.Count(&total)
+	return query
+}
 
-	orderClause := req.SortBy
-	if req.SortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
+// buildApplicationResponses 构建申请响应列表
+func (h *SearchHandler) buildApplicationResponses(applications []models.Application, authToken string) []models.ApplicationResponse {
+	responses := make([]models.ApplicationResponse, 0, len(applications))
 
-	offset := (req.Page - 1) * req.PageSize
-	var applications []models.Application
-	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&applications).Error; err != nil {
-		utils.SendInternalServerError(c, err)
-		return
-	}
-
-	var responses []models.ApplicationResponse
 	for _, app := range applications {
-		userInfo, err := utils.GetUserInfo(app.UserID, authToken)
+		userInfo, err := utils.GetUserInfo(app.UUID, authToken)
 		if err != nil {
 			continue
 		}
@@ -235,7 +303,7 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
-			UserID:         app.UserID,
+			UUID:           app.UUID,
 			Status:         app.Status,
 			AppliedCredits: app.AppliedCredits,
 			AwardedCredits: app.AwardedCredits,
@@ -256,23 +324,22 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	utils.SendPaginatedResponse(c, responses, total, page, limit)
+	return responses
 }
 
 func (h *SearchHandler) SearchParticipants(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
-	userType, _ := c.Get("user_type")
-
+	userType := c.GetString("user_type")
 	authToken := c.GetHeader("Authorization")
 
 	var req models.ParticipantSearchRequest
 
 	req.ActivityID = c.Query("activity_id")
-	req.UserID = c.Query("id")
+	req.UUID = c.Query("id")
 	req.MinCredits = c.Query("min_credits")
 	req.MaxCredits = c.Query("max_credits")
 
@@ -286,58 +353,83 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 	req.SortBy = c.DefaultQuery("sort_by", "joined_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
+	// 构建基础查询
 	dbQuery := h.db.Model(&models.ActivityParticipant{})
 
+	// 应用权限过滤
 	if userType == "student" {
-		dbQuery = dbQuery.Where("id = ?", userID)
+		dbQuery = dbQuery.Where("user_id = ?", userID)
 	}
 
-	if req.ActivityID != "" {
-		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
-	}
+	// 应用搜索条件
+	dbQuery = h.applyParticipantSearchConditions(dbQuery, req)
 
-	if req.UserID != "" {
-		dbQuery = dbQuery.Where("id = ?", req.UserID)
-	}
-
-	if req.MinCredits != "" {
-		if minCredits, err := strconv.ParseFloat(req.MinCredits, 64); err == nil {
-			dbQuery = dbQuery.Where("credits >= ?", minCredits)
-		}
-	}
-
-	if req.MaxCredits != "" {
-		if maxCredits, err := strconv.ParseFloat(req.MaxCredits, 64); err == nil {
-			dbQuery = dbQuery.Where("credits <= ?", maxCredits)
-		}
-	}
-
+	// 获取总数
 	var total int64
-	dbQuery.Count(&total)
-
-	orderClause := req.SortBy
-	if req.SortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
-
-	offset := (req.Page - 1) * req.PageSize
-	var participants []models.ActivityParticipant
-	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&participants).Error; err != nil {
+	if err := dbQuery.Count(&total).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	var responses []models.ParticipantResponse
+	// 应用排序和分页
+	var participants []models.ActivityParticipant
+	query := dbQuery.
+		Order(fmt.Sprintf("%s %s", req.SortBy, strings.ToUpper(req.SortOrder))).
+		Offset((req.Page - 1) * req.PageSize).
+		Limit(req.PageSize)
+
+	if err := query.Find(&participants).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 转换为响应格式
+	responses := h.buildParticipantResponses(participants, authToken)
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
+
+// applyParticipantSearchConditions 应用参与者搜索条件
+func (h *SearchHandler) applyParticipantSearchConditions(query *gorm.DB, req models.ParticipantSearchRequest) *gorm.DB {
+	// 活动ID过滤
+	if req.ActivityID != "" {
+		query = query.Where("activity_id = ?", req.ActivityID)
+	}
+
+	// 用户ID过滤
+	if req.UUID != "" {
+		query = query.Where("user_id = ?", req.UUID)
+	}
+
+	// 最小学分过滤
+	if req.MinCredits != "" {
+		if minCredits, err := strconv.ParseFloat(req.MinCredits, 64); err == nil {
+			query = query.Where("credits >= ?", minCredits)
+		}
+	}
+
+	// 最大学分过滤
+	if req.MaxCredits != "" {
+		if maxCredits, err := strconv.ParseFloat(req.MaxCredits, 64); err == nil {
+			query = query.Where("credits <= ?", maxCredits)
+		}
+	}
+
+	return query
+}
+
+// buildParticipantResponses 构建参与者响应列表
+func (h *SearchHandler) buildParticipantResponses(participants []models.ActivityParticipant, authToken string) []models.ParticipantResponse {
+	responses := make([]models.ParticipantResponse, 0, len(participants))
+
 	for _, participant := range participants {
-		userInfo, err := utils.GetUserInfo(participant.UserID, authToken)
+		userInfo, err := utils.GetUserInfo(participant.UUID, authToken)
 		if err != nil {
 			continue
 		}
 
 		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
+			UUID:     participant.UUID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
@@ -346,16 +438,16 @@ func (h *SearchHandler) SearchParticipants(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	utils.SendPaginatedResponse(c, responses, total, page, limit)
+	return responses
 }
 
 func (h *SearchHandler) SearchAttachments(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
-	userType, _ := c.Get("user_type")
+	userType := c.GetString("user_type")
 
 	var req models.AttachmentSearchRequest
 
@@ -377,65 +469,102 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 	req.SortBy = c.DefaultQuery("sort_by", "uploaded_at")
 	req.SortOrder = c.DefaultQuery("sort_order", "desc")
 
+	// 构建基础查询
 	dbQuery := h.db.Model(&models.Attachment{})
 
-	// 权限过滤：学生只能看到自己创建或参与活动的附件
+	// 应用权限过滤
 	if userType == "student" {
-		dbQuery = dbQuery.Where("uploaded_by = ? OR activity_id IN (SELECT activity_id FROM activity_participants WHERE id = ?)", userID, userID)
+		dbQuery = h.applyAttachmentPermissionFilter(dbQuery, userID)
 	}
 
-	if req.Query != "" {
-		searchQuery := "%" + req.Query + "%"
-		dbQuery = dbQuery.Where("file_name ILIKE ? OR original_name ILIKE ? OR description ILIKE ?",
-			searchQuery, searchQuery, searchQuery)
-	}
+	// 应用搜索条件
+	dbQuery = h.applyAttachmentSearchConditions(dbQuery, req)
 
-	if req.ActivityID != "" {
-		dbQuery = dbQuery.Where("activity_id = ?", req.ActivityID)
-	}
-
-	if req.UploaderID != "" {
-		dbQuery = dbQuery.Where("uploaded_by = ?", req.UploaderID)
-	}
-
-	if req.FileType != "" {
-		dbQuery = dbQuery.Where("file_type = ?", req.FileType)
-	}
-
-	if req.FileCategory != "" {
-		dbQuery = dbQuery.Where("file_category = ?", req.FileCategory)
-	}
-
-	if req.MinSize != "" {
-		if minSize, err := strconv.ParseInt(req.MinSize, 10, 64); err == nil {
-			dbQuery = dbQuery.Where("file_size >= ?", minSize)
-		}
-	}
-
-	if req.MaxSize != "" {
-		if maxSize, err := strconv.ParseInt(req.MaxSize, 10, 64); err == nil {
-			dbQuery = dbQuery.Where("file_size <= ?", maxSize)
-		}
-	}
-
+	// 获取总数
 	var total int64
-	dbQuery.Count(&total)
-
-	orderClause := req.SortBy
-	if req.SortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
-
-	offset := (req.Page - 1) * req.PageSize
-	var attachments []models.Attachment
-	if err := dbQuery.Offset(offset).Limit(req.PageSize).Order(orderClause).Find(&attachments).Error; err != nil {
+	if err := dbQuery.Count(&total).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	var responses []models.AttachmentResponse
+	// 应用排序和分页
+	var attachments []models.Attachment
+	query := dbQuery.
+		Order(fmt.Sprintf("%s %s", req.SortBy, strings.ToUpper(req.SortOrder))).
+		Offset((req.Page - 1) * req.PageSize).
+		Limit(req.PageSize)
+
+	if err := query.Find(&attachments).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 转换为响应格式
+	responses := h.buildAttachmentResponses(attachments)
+
+	utils.SendPaginatedResponse(c, responses, total, page, limit)
+}
+
+// applyAttachmentPermissionFilter 应用附件权限过滤
+func (h *SearchHandler) applyAttachmentPermissionFilter(query *gorm.DB, userID string) *gorm.DB {
+	return query.Where(
+		"uploaded_by = ? OR activity_id IN (SELECT activity_id FROM activity_participants WHERE user_id = ?)",
+		userID, userID,
+	)
+}
+
+// applyAttachmentSearchConditions 应用附件搜索条件
+func (h *SearchHandler) applyAttachmentSearchConditions(query *gorm.DB, req models.AttachmentSearchRequest) *gorm.DB {
+	// 文本搜索
+	if req.Query != "" {
+		searchQuery := "%" + req.Query + "%"
+		query = query.Where(
+			"file_name ILIKE ? OR original_name ILIKE ? OR description ILIKE ?",
+			searchQuery, searchQuery, searchQuery,
+		)
+	}
+
+	// 活动ID过滤
+	if req.ActivityID != "" {
+		query = query.Where("activity_id = ?", req.ActivityID)
+	}
+
+	// 上传者ID过滤
+	if req.UploaderID != "" {
+		query = query.Where("uploaded_by = ?", req.UploaderID)
+	}
+
+	// 文件类型过滤
+	if req.FileType != "" {
+		query = query.Where("file_type = ?", req.FileType)
+	}
+
+	// 文件分类过滤
+	if req.FileCategory != "" {
+		query = query.Where("file_category = ?", req.FileCategory)
+	}
+
+	// 最小文件大小过滤
+	if req.MinSize != "" {
+		if minSize, err := strconv.ParseInt(req.MinSize, 10, 64); err == nil {
+			query = query.Where("file_size >= ?", minSize)
+		}
+	}
+
+	// 最大文件大小过滤
+	if req.MaxSize != "" {
+		if maxSize, err := strconv.ParseInt(req.MaxSize, 10, 64); err == nil {
+			query = query.Where("file_size <= ?", maxSize)
+		}
+	}
+
+	return query
+}
+
+// buildAttachmentResponses 构建附件响应列表
+func (h *SearchHandler) buildAttachmentResponses(attachments []models.Attachment) []models.AttachmentResponse {
+	responses := make([]models.AttachmentResponse, 0, len(attachments))
+
 	for _, attachment := range attachments {
 		response := models.AttachmentResponse{
 			ID:            attachment.ID,
@@ -454,5 +583,5 @@ func (h *SearchHandler) SearchAttachments(c *gin.Context) {
 		responses = append(responses, response)
 	}
 
-	utils.SendPaginatedResponse(c, responses, total, page, limit)
+	return responses
 }

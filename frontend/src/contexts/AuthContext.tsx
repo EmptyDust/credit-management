@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 // Define a comprehensive user interface
 interface User {
   id: string;
-  user_id?: string;
+  id?: string;
   username: string;
   userType: "student" | "teacher" | "admin";
   email?: string;
@@ -69,8 +69,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const normalizedUser = {
             ...userData,
             userType: userData.userType || userData.user_type,
-            user_id: userData.user_id || userData.id,
-            id: userData.user_id || userData.id, // 确保id字段也存在
+            id: userData.id || userData.id,
+            id: userData.id || userData.id, // 确保id字段也存在
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -94,8 +94,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const normalizedUser = {
       ...user,
       userType: user.userType,
-      user_id: user.user_id || user.id,
-      id: user.user_id || user.id, // 确保id字段也存在
+      id: user.id || user.id,
+      id: user.id || user.id, // 确保id字段也存在
     };
 
     localStorage.setItem("token", token);
@@ -135,8 +135,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const normalizedUser = {
         ...userData,
         userType: userData.userType || userData.user_type,
-        user_id: userData.user_id || userData.id,
-        id: userData.user_id || userData.id, // 确保id字段也存在
+        id: userData.id || userData.id,
+        id: userData.id || userData.id, // 确保id字段也存在
       };
       setUser(normalizedUser);
       localStorage.setItem("user", JSON.stringify(normalizedUser));

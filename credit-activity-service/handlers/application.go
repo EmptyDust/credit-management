@@ -34,7 +34,7 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 	)
 
 	applications, total, err := h.getApplicationsWithPagination(
-		h.db.Where("id = ?", userID),
+		h.db.Where("user_id = ?", userID),
 		status,
 		page,
 		limit,
@@ -73,7 +73,7 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 		return
 	}
 
-	if userType == "student" && application.UserID != userID {
+	if userType == "student" && application.UUID != userID {
 		utils.SendForbidden(c, "无权限查看此申请")
 		return
 	}
@@ -133,12 +133,12 @@ func (h *ApplicationHandler) buildApplicationResponses(applications []models.App
 }
 
 func (h *ApplicationHandler) buildApplicationResponse(app models.Application, authToken string) models.ApplicationResponse {
-	userInfo, _ := utils.GetUserInfo(app.UserID, authToken)
+	userInfo, _ := utils.GetUserInfo(app.UUID, authToken)
 
 	return models.ApplicationResponse{
 		ID:             app.ID,
 		ActivityID:     app.ActivityID,
-		UserID:         app.UserID,
+		UUID:           app.UUID,
 		Status:         app.Status,
 		AppliedCredits: app.AppliedCredits,
 		AwardedCredits: app.AwardedCredits,

@@ -167,14 +167,14 @@ END $$;
 
 #### 2.1 权限检查的活动删除函数
 
-**函数名**: `delete_activity_with_permission_check(p_activity_id UUID, p_user_id UUID, p_user_type VARCHAR)`
+**函数名**: `delete_activity_with_permission_check(p_activity_id UUID, p_id UUID, p_user_type VARCHAR)`
 
 **功能描述**: 检查用户权限并删除活动及其相关数据
 
 **参数**:
 
 - `p_activity_id UUID`: 要删除的活动 ID
-- `p_user_id UUID`: 执行删除操作的用户 ID
+- `p_id UUID`: 执行删除操作的用户 ID
 - `p_user_type VARCHAR`: 执行删除操作的用户类型
 
 **返回值**: `TEXT`
@@ -239,14 +239,14 @@ END $$;
 
 #### 2.2 批量删除活动函数
 
-**函数名**: `batch_delete_activities(p_activity_ids UUID[], p_user_id UUID, p_user_type VARCHAR)`
+**函数名**: `batch_delete_activities(p_activity_ids UUID[], p_id UUID, p_user_type VARCHAR)`
 
 **功能描述**: 批量删除多个活动（仅管理员可用）
 
 **参数**:
 
 - `p_activity_ids UUID[]`: 要删除的活动 ID 数组
-- `p_user_id UUID`: 执行删除操作的用户 ID
+- `p_id UUID`: 执行删除操作的用户 ID
 - `p_user_type VARCHAR`: 执行删除操作的用户类型
 
 **返回值**: `INTEGER`

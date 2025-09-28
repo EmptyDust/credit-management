@@ -51,7 +51,7 @@ import { StatsGrid } from "@/components/ui/stats-grid";
 
 // Updated Student type based on student.go
 export type Student = {
-  user_id?: string;
+  id?: string;
   username: string;
   real_name: string;
   student_id?: string | null;

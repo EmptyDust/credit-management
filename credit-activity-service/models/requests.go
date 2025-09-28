@@ -87,7 +87,7 @@ type ActivityResponse struct {
 type ApplicationResponse struct {
 	ID             string       `json:"id"`
 	ActivityID     string       `json:"activity_id"`
-	UserID         string       `json:"id"`
+	UUID           string       `json:"uuid"`
 	Status         string       `json:"status"`
 	AppliedCredits float64      `json:"applied_credits"`
 	AwardedCredits float64      `json:"awarded_credits"`
@@ -110,13 +110,13 @@ type ActivityInfo struct {
 
 // ParticipantRequest 参与者请求
 type ParticipantRequest struct {
-	UserIDs []string `json:"ids" binding:"required"`
+	UUIDs   []string `json:"ids" binding:"required"`
 	Credits float64  `json:"credits" binding:"required,gt=0"`
 }
 
 // AddParticipantsRequest 添加参与者请求
 type AddParticipantsRequest struct {
-	UserIDs []string `json:"ids" binding:"required"`
+	UUIDs   []string `json:"ids" binding:"required"`
 	Credits float64  `json:"credits" binding:"required,min=0"`
 }
 
@@ -132,7 +132,7 @@ type SingleCreditsRequest struct {
 
 // ParticipantResponse 参与者响应
 type ParticipantResponse struct {
-	UserID   string    `json:"id"`
+	UUID     string    `json:"id"`
 	Credits  float64   `json:"credits"`
 	JoinedAt time.Time `json:"joined_at"`
 	UserInfo *UserInfo `json:"user_info,omitempty"`
@@ -140,7 +140,7 @@ type ParticipantResponse struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	UserID     string `json:"id"`
+	UUID       string `json:"id"`
 	Username   string `json:"username"`
 	RealName   string `json:"real_name"`
 	UserType   string `json:"user_type"`
@@ -152,16 +152,11 @@ type UserInfo struct {
 	Grade      string `json:"grade,omitempty"`
 	Department string `json:"department,omitempty"`
 	Title      string `json:"title,omitempty"`
-
-	// 向后兼容的字段
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-	Role string `json:"role,omitempty"`
 }
 
 // BatchRemoveRequest 批量移除参与者请求
 type BatchRemoveRequest struct {
-	UserIDs []string `json:"ids" binding:"required"`
+	UUIDs []string `json:"ids" binding:"required"`
 }
 
 // ParticipantActivityResponse 参与者活动响应

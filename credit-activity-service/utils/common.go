@@ -129,7 +129,7 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 	fmt.Printf("成功获取用户信息: %s (%s)\n", username, userType)
 
 	return &models.UserInfo{
-		UserID:     userID,
+		UUID:       userID,
 		Username:   username,
 		RealName:   realName,
 		UserType:   userType,
@@ -141,10 +141,6 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 		Grade:      grade,
 		Department: department,
 		Title:      title,
-		// 向后兼容字段
-		ID:   userID,
-		Name: realName,
-		Role: userType,
 	}, nil
 }
 

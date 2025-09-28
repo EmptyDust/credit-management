@@ -72,7 +72,7 @@ func (CreditActivity) TableName() string {
 type ActivityParticipant struct {
 	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	ActivityID string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	UserID     string         `json:"id" gorm:"type:uuid;not null;index"`
+	UUID       string         `json:"id" gorm:"column:user_id;type:uuid;not null;index"`
 	Credits    float64        `json:"credits" gorm:"type:decimal(5,2);not null;default:0"`
 	JoinedAt   time.Time      `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
 	CreatedAt  time.Time      `json:"created_at"`
@@ -81,7 +81,7 @@ type ActivityParticipant struct {
 
 	// 关联关系
 	Activity CreditActivity `json:"activity" gorm:"foreignKey:ActivityID"`
-	User     UserInfo       `json:"user" gorm:"foreignKey:UserID"`
+	User     UserInfo       `json:"user" gorm:"foreignKey:UUID;references:UUID"`
 }
 
 func (ap *ActivityParticipant) BeforeCreate(tx *gorm.DB) error {
@@ -99,7 +99,7 @@ func (ActivityParticipant) TableName() string {
 type Application struct {
 	ID             string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	ActivityID     string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	UserID         string         `json:"id" gorm:"type:uuid;not null;index"`
+	UUID           string         `json:"id" gorm:"column:user_id;type:uuid;not null;index"`
 	Status         string         `json:"status" gorm:"default:'approved';index"`
 	AppliedCredits float64        `json:"applied_credits" gorm:"type:decimal(5,2);not null"`
 	AwardedCredits float64        `json:"awarded_credits" gorm:"type:decimal(5,2);not null"`

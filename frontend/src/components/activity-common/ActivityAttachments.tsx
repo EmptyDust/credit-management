@@ -69,7 +69,7 @@ export default function ActivityAttachments({
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const isOwner =
-    user && (user.user_id === activity.owner_id || user.userType === "admin");
+    user && (user.id === activity.owner_id || user.userType === "admin");
 
   // 添加活动状态检查：只有草稿状态的活动才能编辑附件
   const canEditAttachments = isOwner && activity.status === "draft";

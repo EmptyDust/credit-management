@@ -43,7 +43,7 @@ export const handleDeleteConfirm = async (
   if (!itemToDelete) return;
 
   try {
-    await deleteApiCall(itemToDelete.user_id || itemToDelete.id);
+    await deleteApiCall(itemToDelete.id || itemToDelete.id);
     toast.success(successMessage);
     onSuccess?.();
   } catch (err) {
