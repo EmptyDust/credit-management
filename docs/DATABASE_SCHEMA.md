@@ -258,7 +258,7 @@ entrepreneurship_practice_details (
 paper_patent_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    name VARCHAR(200),
+    title VARCHAR(200),
     category VARCHAR(100),
     rank VARCHAR(50),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

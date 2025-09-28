@@ -8,22 +8,26 @@ import (
 	"gorm.io/gorm"
 )
 
+type BaseDetail struct {
+	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	ActivityID string         `json:"activity_id" gorm:"type:uuid;not null;index"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+}
+
 // 创新创业实践活动详情表
 // Table: innovation_activity_details
 // 字段：事项、实习公司、课题编号、发证机构、日期、累计学时
 
 type InnovationActivityDetail struct {
-	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	ActivityID string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	Item       string         `json:"item"`
-	Company    string         `json:"company"`
-	ProjectNo  string         `json:"project_no"`
-	Issuer     string         `json:"issuer"`
-	Date       time.Time      `json:"date" gorm:"type:date"`
-	TotalHours float64        `json:"total_hours" gorm:"type:numeric(6,2)"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	BaseDetail
+	Item       string    `json:"item"`
+	Company    string    `json:"company"`
+	ProjectNo  string    `json:"project_no"`
+	Issuer     string    `json:"issuer"`
+	Date       time.Time `json:"date" gorm:"type:date"`
+	TotalHours float64   `json:"total_hours" gorm:"type:numeric(6,2)"`
 }
 
 func (i *InnovationActivityDetail) UnmarshalJSON(data []byte) error {
@@ -74,15 +78,11 @@ func (InnovationActivityDetail) TableName() string {
 // 字段：竞赛级别、竞赛名称、获奖等级、排名
 
 type CompetitionActivityDetail struct {
-	ID          string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	ActivityID  string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	Level       string         `json:"level"`
-	Competition string         `json:"competition"`
-	AwardLevel  string         `json:"award_level"`
-	Rank        string         `json:"rank"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	BaseDetail
+	Level       string `json:"level"`
+	Competition string `json:"competition"`
+	AwardLevel  string `json:"award_level"`
+	Rank        string `json:"rank"`
 }
 
 func (c *CompetitionActivityDetail) BeforeCreate(tx *gorm.DB) error {
@@ -101,14 +101,10 @@ func (CompetitionActivityDetail) TableName() string {
 // 字段：项目名称、项目等级、项目排名
 
 type EntrepreneurshipProjectDetail struct {
-	ID           string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	ActivityID   string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	ProjectName  string         `json:"project_name"`
-	ProjectLevel string         `json:"project_level"`
-	ProjectRank  string         `json:"project_rank"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	BaseDetail
+	ProjectName  string `json:"project_name"`
+	ProjectLevel string `json:"project_level"`
+	ProjectRank  string `json:"project_rank"`
 }
 
 func (e *EntrepreneurshipProjectDetail) BeforeCreate(tx *gorm.DB) error {
@@ -127,14 +123,10 @@ func (EntrepreneurshipProjectDetail) TableName() string {
 // 字段：公司名称、公司法人、本人占股比例
 
 type EntrepreneurshipPracticeDetail struct {
-	ID           string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	ActivityID   string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	CompanyName  string         `json:"company_name"`
-	LegalPerson  string         `json:"legal_person"`
-	SharePercent float64        `json:"share_percent"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	BaseDetail
+	CompanyName  string  `json:"company_name"`
+	LegalPerson  string  `json:"legal_person"`
+	SharePercent float64 `json:"share_percent"`
 }
 
 func (e *EntrepreneurshipPracticeDetail) BeforeCreate(tx *gorm.DB) error {
@@ -153,14 +145,10 @@ func (EntrepreneurshipPracticeDetail) TableName() string {
 // 字段：论文/专利/软件著作权名称、类别、排名
 
 type PaperPatentDetail struct {
-	ID         string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	ActivityID string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-	Name       string         `json:"name"`
-	Category   string         `json:"category"`
-	Rank       string         `json:"rank"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	BaseDetail
+	Title    string `json:"title"`
+	Category string `json:"category"`
+	Rank     string `json:"rank"`
 }
 
 func (p *PaperPatentDetail) BeforeCreate(tx *gorm.DB) error {
