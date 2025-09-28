@@ -77,7 +77,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		// }
 	case "teacher":
 		// if utils.IsAdmin(currentUserRole) {
-		viewName = "teacher_admin_view"
+		viewName = "teacher_complete_info"
 		// } else {
 		// 	utils.SendForbidden(c, "权限不足")
 		// 	return
@@ -93,7 +93,7 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	// 搜索条件
 	if req.Query != "" {
 		if isUUID(req.Query) {
-			query = query.Where("id = ?", req.Query)
+			query = query.Where("uuid = ?", req.Query)
 		} else {
 			query = query.Where("(username ILIKE ? OR real_name ILIKE ? OR email ILIKE ?)",
 				"%"+req.Query+"%", "%"+req.Query+"%", "%"+req.Query+"%")

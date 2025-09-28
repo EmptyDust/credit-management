@@ -60,7 +60,7 @@ export default function Login() {
         if (token && user) {
           // 转换用户数据格式以匹配前端接口
           const normalizedUser = {
-            id: user.user_id,
+            id: user.id,
             username: user.username,
             userType: user.user_type,
             email: user.email,

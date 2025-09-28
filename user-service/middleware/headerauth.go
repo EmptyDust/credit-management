@@ -51,7 +51,7 @@ func (m *HeaderAuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		// 将用户信息存储到上下文中
-		c.Set("id", userID)
+		c.Set("uuid", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
 		c.Set("claims", claims)

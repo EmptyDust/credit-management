@@ -62,7 +62,7 @@ interface ParticipantWithUserInfo extends Participant {
 }
 
 interface UserSearchResult {
-  user_id: string;
+  id: string;
   username: string;
   real_name: string;
   student_id?: string;
@@ -101,7 +101,7 @@ export default function ActivityParticipants({
   const [stats, setStats] = useState<any>(null);
 
   const isOwner =
-    user && (user.user_id === activity.owner_id || user.userType === "admin");
+    user && (user.id === activity.owner_id || user.userType === "admin");
 
   // 添加活动状态检查：只有草稿状态的活动才能编辑参与者
   const canEditParticipants = isOwner && activity.status === "draft";
@@ -179,7 +179,7 @@ export default function ActivityParticipants({
       // 过滤掉已经是参与者的用户
       const filteredUsers = users.filter(
         (user: UserSearchResult) =>
-          !participants.some((p) => p.user_id === user.user_id)
+          !participants.some((p) => p.id === user.id)
       );
       setUserSearchResults(filteredUsers);
     } catch (error) {
@@ -206,7 +206,7 @@ export default function ActivityParticipants({
       const response = await apiClient.post(
         `/activities/${activity.id}/participants`,
         {
-          user_ids: selectedUsers,
+          ids: selectedUsers,
           credits: addDialogCredits,
         }
       );
@@ -251,7 +251,7 @@ export default function ActivityParticipants({
       await apiClient.post(
         `/activities/${activity.id}/participants/batch-remove`,
         {
-          user_ids: selectedParticipants,
+          ids: selectedParticipants,
         }
       );
       toast.success(`成功删除 ${selectedParticipants.length} 名参与者`);
@@ -417,7 +417,7 @@ export default function ActivityParticipants({
           if (allSelected) {
             setSelectedUsers([]);
           } else {
-            setSelectedUsers(userSearchResults.map((u) => u.user_id));
+            setSelectedUsers(userSearchResults.map((u) => u.id));
           }
         } else if (showBatchDialog && filteredParticipants.length > 0) {
           const allSelected =
@@ -425,7 +425,7 @@ export default function ActivityParticipants({
           if (allSelected) {
             setSelectedParticipants([]);
           } else {
-            setSelectedParticipants(filteredParticipants.map((p) => p.user_id));
+            setSelectedParticipants(filteredParticipants.map((p) => p.id));
           }
         }
       }
@@ -456,12 +456,12 @@ export default function ActivityParticipants({
         if (showAddDialog && userSearchResults.length > 0) {
           const currentIndex = userSearchResults.findIndex(
             (u) =>
-              document.activeElement?.getAttribute("data-user-id") === u.user_id
+              document.activeElement?.getAttribute("data-user-id") === u.id
           );
           if (currentIndex > 0) {
             const prevUser = userSearchResults[currentIndex - 1];
             const element = document.querySelector(
-              `[data-user-id="${prevUser.user_id}"]`
+              `[data-user-id="${prevUser.id}"]`
             ) as HTMLElement;
             element?.focus();
           }
@@ -469,12 +469,12 @@ export default function ActivityParticipants({
           const currentIndex = filteredParticipants.findIndex(
             (p) =>
               document.activeElement?.getAttribute("data-participant-id") ===
-              p.user_id
+              p.id
           );
           if (currentIndex > 0) {
             const prevParticipant = filteredParticipants[currentIndex - 1];
             const element = document.querySelector(
-              `[data-participant-id="${prevParticipant.user_id}"]`
+              `[data-participant-id="${prevParticipant.id}"]`
             ) as HTMLElement;
             element?.focus();
           }
@@ -555,7 +555,7 @@ export default function ActivityParticipants({
             )}
             {!isOwner &&
               user &&
-              participants.some((p) => p.user_id === user.user_id) && (
+              participants.some((p) => p.id === user.id) && (
                 <Button variant="outline" size="sm" onClick={leaveActivity}>
                   退出活动
                 </Button>
@@ -610,7 +610,7 @@ export default function ActivityParticipants({
                         onCheckedChange={(checked: boolean) => {
                           if (checked) {
                             setSelectedParticipants(
-                              filteredParticipants.map((p) => p.user_id)
+                              filteredParticipants.map((p) => p.id)
                             );
                           } else {
                             setSelectedParticipants([]);
@@ -630,19 +630,19 @@ export default function ActivityParticipants({
               <TableBody>
                 {filteredParticipants.map((participant) => (
                   <TableRow
-                    key={participant.user_id}
+                    key={participant.id}
                     onClick={() => {
                       if (canEditParticipants) {
                         if (
-                          selectedParticipants.includes(participant.user_id)
+                          selectedParticipants.includes(participant.id)
                         ) {
                           setSelectedParticipants((prev) =>
-                            prev.filter((id) => id !== participant.user_id)
+                            prev.filter((id) => id !== participant.id)
                           );
                         } else {
                           setSelectedParticipants((prev) => [
                             ...prev,
-                            participant.user_id,
+                            participant.id,
                           ]);
                         }
                       }
@@ -650,25 +650,25 @@ export default function ActivityParticipants({
                     tabIndex={0}
                     role="button"
                     aria-label={`选择参与者 ${
-                      participant.user_info?.real_name || participant.user_id
+                      participant.user_info?.real_name || participant.id
                     }`}
-                    data-participant-id={participant.user_id}
+                    data-participant-id={participant.id}
                   >
                     {canEditParticipants && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedParticipants.includes(
-                            participant.user_id
+                            participant.id
                           )}
                           onCheckedChange={(checked: boolean) => {
                             if (checked) {
                               setSelectedParticipants((prev) => [
                                 ...prev,
-                                participant.user_id,
+                                participant.id,
                               ]);
                             } else {
                               setSelectedParticipants((prev) =>
-                                prev.filter((id) => id !== participant.user_id)
+                                prev.filter((id) => id !== participant.id)
                               );
                             }
                           }}
@@ -693,7 +693,7 @@ export default function ActivityParticipants({
                       </div>
                     </TableCell>
                     <TableCell>
-                      {editingCredits[participant.user_id] !== undefined ? (
+                      {editingCredits[participant.id] !== undefined ? (
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
@@ -701,15 +701,15 @@ export default function ActivityParticipants({
                             min="0"
                             max="10"
                             value={
-                              editingCredits[participant.user_id] === undefined
+                              editingCredits[participant.id] === undefined
                                 ? ""
-                                : editingCredits[participant.user_id]
+                                : editingCredits[participant.id]
                             }
                             onChange={(e) => {
                               const value = e.target.value;
                               setEditingCredits((prev) => ({
                                 ...prev,
-                                [participant.user_id]:
+                                [participant.id]:
                                   value === "" ? "" : parseFloat(value),
                               }));
                             }}
@@ -719,7 +719,7 @@ export default function ActivityParticipants({
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              const val = editingCredits[participant.user_id];
+                              const val = editingCredits[participant.id];
                               if (
                                 val === "" ||
                                 val === undefined ||
@@ -728,7 +728,7 @@ export default function ActivityParticipants({
                                 toast.error("请输入有效的学分");
                                 return;
                               }
-                              setCredits(participant.user_id, Number(val));
+                              setCredits(participant.id, Number(val));
                             }}
                           >
                             <Check className="h-3 w-3" />
@@ -739,7 +739,7 @@ export default function ActivityParticipants({
                             onClick={() =>
                               setEditingCredits((prev) => ({
                                 ...prev,
-                                [participant.user_id]: undefined,
+                                [participant.id]: undefined,
                               }))
                             }
                           >
@@ -758,7 +758,7 @@ export default function ActivityParticipants({
                               onClick={() =>
                                 setEditingCredits((prev) => ({
                                   ...prev,
-                                  [participant.user_id]: participant.credits,
+                                  [participant.id]: participant.credits,
                                 }))
                               }
                             >
@@ -791,7 +791,7 @@ export default function ActivityParticipants({
                               onClick={() =>
                                 setEditingCredits((prev) => ({
                                   ...prev,
-                                  [participant.user_id]: participant.credits,
+                                  [participant.id]: participant.credits,
                                 }))
                               }
                             >
@@ -800,7 +800,7 @@ export default function ActivityParticipants({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
-                                removeParticipant(participant.user_id)
+                                removeParticipant(participant.id)
                               }
                               className="text-red-600"
                             >
@@ -889,7 +889,7 @@ export default function ActivityParticipants({
                             onCheckedChange={(checked: boolean) => {
                               if (checked) {
                                 setSelectedUsers(
-                                  userSearchResults.map((u) => u.user_id)
+                                  userSearchResults.map((u) => u.id)
                                 );
                               } else {
                                 setSelectedUsers([]);
@@ -905,16 +905,16 @@ export default function ActivityParticipants({
                     <TableBody>
                       {userSearchResults.map((user) => (
                         <TableRow
-                          key={user.user_id}
+                          key={user.id}
                           onClick={() => {
-                            if (selectedUsers.includes(user.user_id)) {
+                            if (selectedUsers.includes(user.id)) {
                               setSelectedUsers((prev) =>
-                                prev.filter((id) => id !== user.user_id)
+                                prev.filter((id) => id !== user.id)
                               );
                             } else {
                               setSelectedUsers((prev) => [
                                 ...prev,
-                                user.user_id,
+                                user.id,
                               ]);
                             }
                           }}
@@ -922,20 +922,20 @@ export default function ActivityParticipants({
                           tabIndex={0}
                           role="button"
                           aria-label={`选择用户 ${user.real_name}`}
-                          data-user-id={user.user_id}
+                          data-user-id={user.id}
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
-                              checked={selectedUsers.includes(user.user_id)}
+                              checked={selectedUsers.includes(user.id)}
                               onCheckedChange={(checked: boolean) => {
                                 if (checked) {
                                   setSelectedUsers((prev) => [
                                     ...prev,
-                                    user.user_id,
+                                    user.id,
                                   ]);
                                 } else {
                                   setSelectedUsers((prev) =>
-                                    prev.filter((id) => id !== user.user_id)
+                                    prev.filter((id) => id !== user.id)
                                   );
                                 }
                               }}

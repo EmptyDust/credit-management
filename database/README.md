@@ -164,7 +164,7 @@ SELECT update_activity_and_sync_applications(1, '新活动标题', '新活动描
 UPDATE credit_activities SET title = '新标题' WHERE id = 1;
 
 -- 更新参与者状态，观察申请自动创建
-UPDATE activity_participants SET status = 'approved' WHERE activity_id = 1 AND user_id = 'user-id-1';
+UPDATE activity_participants SET status = 'approved' WHERE activity_id = 1 AND id = 'user-id-1';
 
 -- 测试用户数据验证
 INSERT INTO users (username, password, email, real_name, user_type)

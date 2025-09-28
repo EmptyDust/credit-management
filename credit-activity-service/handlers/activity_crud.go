@@ -17,8 +17,8 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -41,7 +41,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		EndDate:     endDate,
 		Status:      models.StatusDraft,
 		Category:    req.Category,
-		OwnerID:     userID.(string),
+		OwnerID:     userID,
 	}
 
 	if err := h.db.Create(&activity).Error; err != nil {
@@ -97,8 +97,16 @@ func (h *ActivityHandler) createActivityDetail(activityID string, req models.Act
 }
 
 func (h *ActivityHandler) GetActivities(c *gin.Context) {
-	userID, _ := c.Get("id")
-	userType, _ := c.Get("user_type")
+	userID := c.GetString("id")
+	if userID == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
+	userType := c.GetString("user_type")
+	if userType == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
 
 	query := c.Query("query")
 	status := c.Query("status")
@@ -110,7 +118,7 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 		c.DefaultQuery("page_size", c.DefaultQuery("limit", "10")),
 	)
 
-	activities, total, err := h.base.SearchActivities(query, status, category, ownerID, userID.(string), userType.(string), page, limit)
+	activities, total, err := h.base.SearchActivities(query, status, category, ownerID, userID, userType, page, limit)
 	if err != nil {
 		utils.SendInternalServerError(c, err)
 		return
@@ -127,13 +135,17 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
 
-	userType, _ := c.Get("user_type")
+	userType := c.GetString("user_type")
+	if userType == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
 
 	activity, err := h.base.GetActivityByIDWithParticipants(id)
 	if err != nil {
@@ -147,7 +159,7 @@ func (h *ActivityHandler) GetActivity(c *gin.Context) {
 
 	// 权限检查
 	if userType == "student" && activity.OwnerID != userID {
-		if err := h.base.CheckUserParticipant(id, userID.(string)); err != nil {
+		if err := h.base.CheckUserParticipant(id, userID); err != nil {
 			utils.SendForbidden(c, "无权限查看此活动")
 			return
 		}

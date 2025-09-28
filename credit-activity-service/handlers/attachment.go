@@ -35,8 +35,8 @@ func (h *AttachmentHandler) GetAttachments(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -127,8 +127,8 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -182,7 +182,6 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 			return
 		}
 	}
-	userID, _ := c.Get("id")
 
 	attachment := models.Attachment{
 		ActivityID:   activityID,
@@ -193,7 +192,7 @@ func (h *AttachmentHandler) UploadAttachment(c *gin.Context) {
 		FileCategory: models.GetFileCategory(fileExt),
 		MD5Hash:      md5Hash,
 		Description:  description,
-		UploadedBy:   userID.(string),
+		UploadedBy:   userID,
 		UploadedAt:   time.Now(),
 	}
 
@@ -227,8 +226,8 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -339,7 +338,6 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 			continue
 		}
 
-		userID, _ := c.Get("id")
 		// 创建附件记录
 		attachment := models.Attachment{
 			ActivityID:   activityID,
@@ -350,7 +348,7 @@ func (h *AttachmentHandler) BatchUploadAttachments(c *gin.Context) {
 			FileCategory: models.GetFileCategory(fileExt),
 			MD5Hash:      md5Hash,
 			Description:  "", // 批量上传时默认为空描述
-			UploadedBy:   userID.(string),
+			UploadedBy:   userID,
 			UploadedAt:   time.Now(),
 		}
 
@@ -397,8 +395,8 @@ func (h *AttachmentHandler) DownloadAttachment(c *gin.Context) {
 	}
 
 	// 获取当前用户信息
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -474,8 +472,8 @@ func (h *AttachmentHandler) PreviewAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -552,8 +550,8 @@ func (h *AttachmentHandler) UpdateAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -607,8 +605,8 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		return
 	}
 
-	_, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}

@@ -24,7 +24,7 @@ type ProxyConfig struct {
 
 // JWTClaims 自定义JWT claims结构
 type JWTClaims struct {
-	UserID   string `json:"id"`
+	UUID     string `json:"uuid"`
 	Username string `json:"username"`
 	UserType string `json:"user_type"`
 	jwt.RegisteredClaims
@@ -110,7 +110,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		// 验证用户ID
-		if claims.UserID == "" {
+		if claims.UUID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code":    401,
 				"message": "token中缺少用户ID",
@@ -121,7 +121,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		}
 
 		// 将用户信息存储到上下文中
-		c.Set("id", claims.UserID)
+		c.Set("uuid", claims.UUID)
 		c.Set("username", claims.Username)
 		c.Set("user_type", claims.UserType)
 		c.Set("claims", claims)
@@ -371,8 +371,8 @@ func main() {
 				{
 					ownerOrTeacherOrAdminParticipants.POST("", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminParticipants.PUT("/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
-					ownerOrTeacherOrAdminParticipants.PUT("/:id/credits", createProxyHandler(config.CreditActivityServiceURL))
-					ownerOrTeacherOrAdminParticipants.DELETE("/:id", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.PUT("/:uuid/credits", createProxyHandler(config.CreditActivityServiceURL))
+					ownerOrTeacherOrAdminParticipants.DELETE("/:uuid", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminParticipants.POST("/batch-remove", createProxyHandler(config.CreditActivityServiceURL))
 				}
 
@@ -521,7 +521,7 @@ func createProxyHandler(targetURL string) gin.HandlerFunc {
 		}
 
 		// 将用户信息传递给下游服务
-		if userID, exists := c.Get("id"); exists {
+		if userID, exists := c.Get("uuid"); exists {
 			c.Request.Header.Set("X-User-ID", userID.(string))
 		}
 		if username, exists := c.Get("username"); exists {

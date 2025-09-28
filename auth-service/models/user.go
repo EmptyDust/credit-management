@@ -9,8 +9,8 @@ import (
 
 // User 用户模型（认证服务专用）
 type User struct {
-	UserID       string         `json:"id" gorm:"column:id;type:uuid;primaryKey;default:gen_random_uuid()"`
-	UID          string         `json:"uid" gorm:"column:identity_number;type:varchar(18);unique;not null"`
+	UUID         string         `json:"uuid" gorm:"column:uuid;type:uuid;primaryKey;default:gen_random_uuid()"`
+	ID           string         `json:"id" gorm:"column:id;type:varchar(18);unique;not null"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex;not null"`
@@ -28,23 +28,23 @@ type User struct {
 
 // BeforeCreate 在创建前自动生成UUID
 func (u *User) BeforeCreate(tx *gorm.DB) error {
-	if u.UserID == "" {
-		u.UserID = uuid.New().String()
+	if u.UUID == "" {
+		u.UUID = uuid.New().String()
 	}
 	return nil
 }
 
 // UserLoginRequest 用户登录请求
 type UserLoginRequest struct {
-	UID      string `json:"uid"`                         // 支持接收uid字段
+	ID       string `json:"id"`                          // 支持接收id字段
 	Username string `json:"username"`                    // 可选用户名
 	Password string `json:"password" binding:"required"` // 密码保持必需
 }
 
 // UserResponse 用户响应
 type UserResponse struct {
-	UserID       string     `json:"id"`
-	UID          string     `json:"uid"`
+	UUID         string     `json:"uuid"`
+	ID           string     `json:"id"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`

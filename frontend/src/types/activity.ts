@@ -108,7 +108,7 @@ export interface ActivityWithDetails extends Activity {
 
 // 参与者信息
 export interface Participant {
-  user_id: string;
+  id: string;
   credits: number;
   joined_at: string;
   user_info?: UserInfo;
@@ -118,7 +118,7 @@ export interface Participant {
 export interface Application {
   id: string;
   activity_id: string;
-  user_id: string;
+  id: string;
   status: string;
   applied_credits: number;
   awarded_credits: number;

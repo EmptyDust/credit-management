@@ -22,8 +22,8 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -74,8 +74,8 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -112,7 +112,7 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 			EndDate:     endDate,
 			Status:      models.StatusDraft,
 			Category:    activityReq.Category,
-			OwnerID:     userID.(string),
+			OwnerID:     userID,
 		}
 		if err := tx.Create(&activity).Error; err != nil {
 			errors = append(errors, fmt.Sprintf("第%d个活动创建失败: %s", i+1, err.Error()))
@@ -186,8 +186,8 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 }
 
 func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}

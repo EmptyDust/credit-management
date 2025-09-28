@@ -85,7 +85,7 @@ MIT
 
 - `POST /api/users/batch_delete`
 - 权限：仅管理员
-- 请求体：`{"user_ids": ["uuid1", "uuid2", ...]}`
+- 请求体：`{"ids": ["uuid1", "uuid2", ...]}`
 - 返回：删除数量
 - 说明：批量软删除用户。前端尚未实现。
 
@@ -93,7 +93,7 @@ MIT
 
 - `POST /api/users/batch_status`
 - 权限：仅管理员
-- 请求体：`{"user_ids": ["uuid1", ...], "status": "active|inactive|suspended"}`
+- 请求体：`{"ids": ["uuid1", ...], "status": "active|inactive|suspended"}`
 - 返回：更新数量及状态
 - 说明：批量修改用户状态。前端尚未实现。
 
@@ -101,7 +101,7 @@ MIT
 
 - `POST /api/users/reset_password`
 - 权限：仅管理员
-- 请求体：`{"user_id": "uuid", "new_password": "xxxx"}`
+- 请求体：`{"id": "uuid", "new_password": "xxxx"}`
 - 返回：成功消息
 - 说明：管理员可重置任意用户密码。前端尚未实现。
 

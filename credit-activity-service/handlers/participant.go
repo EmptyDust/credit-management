@@ -49,7 +49,7 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	}
 
 	authToken := c.GetHeader("Authorization")
-	for _, targetUserID := range req.UserIDs {
+	for _, targetUserID := range req.UUIDs {
 		if !h.isStudent(targetUserID, authToken) {
 			utils.SendBadRequest(c, "只能添加学生用户作为参与者")
 			return
@@ -59,16 +59,16 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	var participants []models.ActivityParticipant
 	var addedCount int
 
-	for _, targetUserID := range req.UserIDs {
+	for _, targetUserID := range req.UUIDs {
 		var existing models.ActivityParticipant
-		err := h.db.Where("activity_id = ? AND id = ?", activityID, targetUserID).First(&existing).Error
+		err := h.db.Where("activity_id = ? AND user_id = ?", activityID, targetUserID).First(&existing).Error
 		if err == nil {
 			continue
 		}
 
 		participant := models.ActivityParticipant{
 			ActivityID: activityID,
-			UserID:     targetUserID,
+			UUID:       targetUserID,
 			Credits:    req.Credits,
 			JoinedAt:   time.Now(),
 		}
@@ -83,13 +83,13 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 
 	var responses []models.ParticipantResponse
 	for _, participant := range participants {
-		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		userInfo, err := h.getUserInfo(participant.UUID, authToken)
 		if err != nil {
 			continue
 		}
 
 		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
+			UUID:     participant.UUID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
@@ -136,7 +136,7 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 
 	for userID, credits := range req.CreditsMap {
 		var participant models.ActivityParticipant
-		if err := h.db.Where("activity_id = ? AND id = ?", activityID, userID).First(&participant).Error; err != nil {
+		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).First(&participant).Error; err != nil {
 			continue
 		}
 
@@ -145,13 +145,13 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 			continue
 		}
 
-		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		userInfo, err := h.getUserInfo(participant.UUID, authToken)
 		if err != nil {
 			continue
 		}
 
 		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
+			UUID:     participant.UUID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
@@ -195,7 +195,7 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	}
 
 	var participant models.ActivityParticipant
-	if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).First(&participant).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).First(&participant).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "参与者不存在")
 		} else {
@@ -210,14 +210,14 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 		return
 	}
 
-	userInfo, err := h.getUserInfo(participant.UserID, c.GetHeader("Authorization"))
+	userInfo, err := h.getUserInfo(participant.UUID, c.GetHeader("Authorization"))
 	if err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
 	response := models.ParticipantResponse{
-		UserID:   participant.UserID,
+		UUID:     participant.UUID,
 		Credits:  participant.Credits,
 		JoinedAt: participant.JoinedAt,
 		UserInfo: userInfo,
@@ -247,7 +247,7 @@ func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -259,7 +259,7 @@ func (h *ParticipantHandler) LeaveActivity(c *gin.Context) {
 	activityID := c.Param("id")
 	userID, _ := c.Get("id")
 
-	if err := h.db.Where("activity_id = ? AND id = ?", activityID, userID).Delete(&models.ActivityParticipant{}).Error; err != nil {
+	if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, userID).Delete(&models.ActivityParticipant{}).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -289,12 +289,12 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 	var responses []models.ParticipantResponse
 	authToken := c.GetHeader("Authorization")
 	for _, participant := range participants {
-		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		userInfo, err := h.getUserInfo(participant.UUID, authToken)
 		if err != nil {
 			// 如果获取用户信息失败，创建一个基本的用户信息
 			userInfo = &models.UserInfo{
-				UserID:   participant.UserID,
-				Username: participant.UserID,
+				UUID:     participant.UUID,
+				Username: participant.User.Username,
 				RealName: "未知用户",
 				UserType: "unknown",
 				Status:   "unknown",
@@ -302,7 +302,7 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 		}
 
 		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
+			UUID:     participant.UUID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
@@ -341,15 +341,15 @@ func (h *ParticipantHandler) BatchRemoveParticipants(c *gin.Context) {
 	}
 
 	removedCount := 0
-	for _, participantID := range req.UserIDs {
-		if err := h.db.Where("activity_id = ? AND id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err == nil {
+	for _, participantID := range req.UUIDs {
+		if err := h.db.Where("activity_id = ? AND user_id = ?", activityID, participantID).Delete(&models.ActivityParticipant{}).Error; err == nil {
 			removedCount++
 		}
 	}
 
 	utils.SendSuccessResponse(c, gin.H{
 		"removed_count":   removedCount,
-		"total_requested": len(req.UserIDs),
+		"total_requested": len(req.UUIDs),
 	})
 }
 
@@ -387,13 +387,13 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 		var responses []models.ParticipantResponse
 		authToken := c.GetHeader("Authorization")
 		for _, participant := range participants {
-			userInfo, err := h.getUserInfo(participant.UserID, authToken)
+			userInfo, err := h.getUserInfo(participant.UUID, authToken)
 			if err != nil {
 				continue
 			}
 
 			response := models.ParticipantResponse{
-				UserID:   participant.UserID,
+				UUID:     participant.UUID,
 				Credits:  participant.Credits,
 				JoinedAt: participant.JoinedAt,
 				UserInfo: userInfo,
@@ -430,7 +430,7 @@ func (h *ParticipantHandler) GetUserParticipatedActivities(c *gin.Context) {
 	var participants []models.ActivityParticipant
 	var total int64
 
-	query := h.db.Where("id = ?", userID).Preload("Activity")
+	query := h.db.Where("user_id = ?", userID).Preload("Activity")
 	query.Count(&total)
 
 	offset := (page - 1) * limit

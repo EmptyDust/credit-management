@@ -115,8 +115,8 @@ func main() {
 				{
 					ownerOrTeacherOrAdmin.POST("/participants", participantHandler.AddParticipants)
 					ownerOrTeacherOrAdmin.PUT("/participants/batch-credits", participantHandler.BatchSetCredits)
-					ownerOrTeacherOrAdmin.PUT("/participants/:id/credits", participantHandler.SetSingleCredits)
-					ownerOrTeacherOrAdmin.DELETE("/participants/:id", participantHandler.RemoveParticipant)
+					ownerOrTeacherOrAdmin.PUT("/participants/:uuid/credits", participantHandler.SetSingleCredits)
+					ownerOrTeacherOrAdmin.DELETE("/participants/:uuid", participantHandler.RemoveParticipant)
 					ownerOrTeacherOrAdmin.POST("/participants/batch-remove", participantHandler.BatchRemoveParticipants)
 				}
 

@@ -49,13 +49,13 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 
 	var participantResponses []models.ParticipantResponse
 	for _, participant := range participants {
-		userInfo, err := h.getUserInfo(participant.UserID, authToken)
+		userInfo, err := h.getUserInfo(participant.UUID, authToken)
 		if err != nil {
 			continue
 		}
 
 		response := models.ParticipantResponse{
-			UserID:   participant.UserID,
+			UUID:     participant.UUID,
 			Credits:  participant.Credits,
 			JoinedAt: participant.JoinedAt,
 			UserInfo: userInfo,
@@ -70,7 +70,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 
 	var applicationResponses []models.ApplicationResponse
 	for _, application := range applications {
-		userInfo, err := h.getUserInfo(application.UserID, authToken)
+		userInfo, err := h.getUserInfo(application.UUID, authToken)
 		if err != nil {
 			continue
 		}
@@ -78,7 +78,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 		response := models.ApplicationResponse{
 			ID:             application.ID,
 			ActivityID:     application.ActivityID,
-			UserID:         application.UserID,
+			UUID:           application.UUID,
 			Status:         application.Status,
 			AppliedCredits: application.AppliedCredits,
 			AwardedCredits: application.AwardedCredits,

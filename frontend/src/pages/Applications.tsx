@@ -57,7 +57,7 @@ interface Application {
   applied_credits: number;
   approved_credits: number;
   attachments?: string; // JSON string of attachments
-  user_id?: string; // 用户ID，用于查询用户信息
+  id?: string; // 用户ID，用于查询用户信息
   user_info?: {
     username: string;
     name: string;
@@ -207,7 +207,7 @@ export default function ApplicationsPage() {
           applied_credits: app.applied_credits,
           approved_credits: app.awarded_credits || app.approved_credits,
           attachments: app.attachments,
-          user_id: app.user_id,
+          id: app.id,
           user_info: app.user_info,
           activity: app.activity,
         }));
@@ -475,13 +475,13 @@ export default function ApplicationsPage() {
                             <div className="font-medium">
                               {app.user_info?.name ||
                                 app.student_name ||
-                                `用户 ${app.user_id}`}
+                                `用户 ${app.id}`}
                             </div>
                             <div className="text-sm text-muted-foreground">
                               {app.user_info?.student_id ||
                                 app.student_number ||
                                 app.user_info?.username ||
-                                app.user_id}
+                                app.id}
                             </div>
                             {app.user_info?.college && (
                               <div className="text-xs text-muted-foreground">

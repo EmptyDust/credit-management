@@ -54,7 +54,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			return
 		}
 
-		userID, ok := claims["id"].(string)
+		userID, ok := claims["uuid"].(string)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
 			c.Abort()
@@ -64,7 +64,7 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 		username, _ := claims["username"].(string)
 		userType, _ := claims["user_type"].(string)
 
-		c.Set("id", userID)
+		c.Set("uuid", userID)
 		c.Set("username", username)
 		c.Set("user_type", userType)
 

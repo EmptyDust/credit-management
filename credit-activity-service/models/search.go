@@ -18,7 +18,7 @@ type ActivitySearchRequest struct {
 type ApplicationSearchRequest struct {
 	Query      string `json:"query" form:"query"`             // 关键词搜索
 	ActivityID string `json:"activity_id" form:"activity_id"` // 活动ID
-	UserID     string `json:"id" form:"id"`                   // 用户ID
+	UUID       string `json:"id" form:"id"`                   // 用户UUID
 	Status     string `json:"status" form:"status"`           // 申请状态
 	StartDate  string `json:"start_date" form:"start_date"`   // 开始日期
 	EndDate    string `json:"end_date" form:"end_date"`       // 结束日期
@@ -34,7 +34,7 @@ type ApplicationSearchRequest struct {
 type ParticipantSearchRequest struct {
 	Query      string `json:"query" form:"query"`             // 关键词搜索
 	ActivityID string `json:"activity_id" form:"activity_id"` // 活动ID
-	UserID     string `json:"id" form:"id"`                   // 用户ID
+	UUID       string `json:"id" form:"id"`                   // 用户UUID
 	MinCredits string `json:"min_credits" form:"min_credits"` // 最小学分
 	MaxCredits string `json:"max_credits" form:"max_credits"` // 最大学分
 	Page       int    `json:"page" form:"page"`               // 页码

@@ -61,8 +61,9 @@ CREATE TABLE IF NOT EXISTS departments
 -- 创建用户表（统一用户、学生、教师信息）
 CREATE TABLE IF NOT EXISTS users
 (
-    id              UUID PRIMARY KEY             DEFAULT gen_random_uuid(),
-    identity_number VARCHAR(18) UNIQUE  NOT NULL,
+    uuid            UUID PRIMARY KEY             DEFAULT gen_random_uuid(),
+    -- 学号或工号
+    id              VARCHAR(18) UNIQUE  NOT NULL,
     username        VARCHAR(20) UNIQUE  NOT NULL,
     password        TEXT                NOT NULL,
     email           VARCHAR(100) UNIQUE NOT NULL CHECK (email ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'),
@@ -92,8 +93,8 @@ CREATE TABLE IF NOT EXISTS credit_activities
     end_date        DATE         NOT NULL CHECK (end_date >= start_date),
     status          VARCHAR(20)  NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected')),
     category        VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(category)) > 0),
-    owner_id        UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    reviewer_id     UUID         REFERENCES users (id) ON DELETE SET NULL,
+    owner_id        UUID         NOT NULL REFERENCES users (uuid) ON DELETE CASCADE,
+    reviewer_id     UUID         REFERENCES users (uuid) ON DELETE SET NULL,
     review_comments TEXT,
     reviewed_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -106,7 +107,7 @@ CREATE TABLE IF NOT EXISTS activity_participants
 (
     id          UUID PRIMARY KEY       DEFAULT gen_random_uuid(),
     activity_id UUID          NOT NULL REFERENCES credit_activities (id) ON DELETE CASCADE,
-    user_id     UUID          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id UUID          NOT NULL REFERENCES users (uuid) ON DELETE CASCADE,
     credits     DECIMAL(5, 2) NOT NULL DEFAULT 0 CHECK (credits >= 0),
     joined_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at  TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -119,7 +120,7 @@ CREATE TABLE IF NOT EXISTS applications
 (
     id              UUID PRIMARY KEY       DEFAULT gen_random_uuid(),
     activity_id     UUID          NOT NULL REFERENCES credit_activities (id) ON DELETE CASCADE,
-    user_id         UUID          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    user_id    UUID          NOT NULL REFERENCES users (uuid) ON DELETE CASCADE,
     status          VARCHAR(20)   NOT NULL DEFAULT 'approved' CHECK (status IN ('approved')),
     applied_credits DECIMAL(5, 2) NOT NULL CHECK (applied_credits >= 0),
     awarded_credits DECIMAL(5, 2) NOT NULL CHECK (awarded_credits >= 0),
@@ -127,7 +128,7 @@ CREATE TABLE IF NOT EXISTS applications
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at      TIMESTAMPTZ,
-    UNIQUE (activity_id, id)
+    UNIQUE (activity_id, user_id)
 );
 
 -- 创建附件表
@@ -147,7 +148,7 @@ CREATE TABLE IF NOT EXISTS attachments
                                                 ('document', 'image', 'video', 'audio', 'archive', 'spreadsheet',
                                                  'presentation', 'other')),
     description    TEXT,
-    uploaded_by    UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    uploaded_by    UUID         NOT NULL REFERENCES users (uuid) ON DELETE CASCADE,
     uploaded_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     download_count INTEGER      NOT NULL DEFAULT 0 CHECK (download_count >= 0),
     md5_hash       VARCHAR(32),
@@ -247,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_users_type_status ON users (user_type, status);
 
 -- 复合/专用
 CREATE INDEX IF NOT EXISTS idx_users_status_type_username ON users (status, user_type, username); -- 状态+身份+用户名（后台列表/搜索）
-CREATE INDEX IF NOT EXISTS idx_users_identity_number ON users (identity_number); -- 学号/工号精确查找
+CREATE INDEX IF NOT EXISTS idx_users_id ON users (id); -- 学号/工号精确查找
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone); -- 手机号登录
 CREATE INDEX IF NOT EXISTS idx_users_department_id ON users (department_id); -- 按学院/专业/班级查人
 CREATE INDEX IF NOT EXISTS idx_users_grade ON users (grade) WHERE grade IS NOT NULL;-- 按年级查学生
@@ -277,13 +278,13 @@ CREATE INDEX IF NOT EXISTS idx_activities_category_status ON credit_activities (
 
 -- 参与者表索引
 CREATE INDEX IF NOT EXISTS idx_activity_participants_activity_id ON activity_participants (activity_id);
-CREATE INDEX IF NOT EXISTS idx_activity_participants_id ON activity_participants (id);
+CREATE INDEX IF NOT EXISTS idx_activity_participants_user_id ON activity_participants (user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_participants_deleted_at ON activity_participants (deleted_at);
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_activity_participants_active ON activity_participants (activity_id, id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_activity_participants_active ON activity_participants (activity_id, user_id) WHERE deleted_at IS NULL;
 
 -- 申请表索引
 CREATE INDEX IF NOT EXISTS idx_applications_activity_id ON applications (activity_id);
-CREATE INDEX IF NOT EXISTS idx_applications_id ON applications (id);
+CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications (user_id);
 CREATE INDEX IF NOT EXISTS idx_applications_status ON applications (status);
 CREATE INDEX IF NOT EXISTS idx_applications_deleted_at ON applications (deleted_at);
 
@@ -434,11 +435,11 @@ BEGIN
     -- 只有当状态从非approved变为approved时才触发
     IF OLD.status != 'approved' AND NEW.status = 'approved' THEN
         -- 为所有参与者生成申请（只插入不存在的记录）
-        INSERT INTO applications (id, activity_id, id, status, applied_credits, awarded_credits, submitted_at,
+        INSERT INTO applications (id, activity_id, user_id, status, applied_credits, awarded_credits, submitted_at,
                                   created_at, updated_at)
         SELECT gen_random_uuid(),
                ap.activity_id,
-               ap.id,
+               ap.user_id,
                'approved',
                ap.credits,
                ap.credits,
@@ -451,7 +452,7 @@ BEGIN
           AND NOT EXISTS (SELECT 1
                           FROM applications
                           WHERE activity_id = ap.activity_id
-                            AND id = ap.id
+                            AND user_id = ap.user_id
                             AND deleted_at IS NULL);
     END IF;
 
@@ -506,7 +507,7 @@ $$ LANGUAGE plpgsql;
 -- 单个活动删除权限检查函数
 CREATE OR REPLACE FUNCTION delete_activity_with_permission_check(
     p_activity_id UUID,
-    p_id UUID,
+    p_uuid UUID,
     p_user_type VARCHAR
 ) RETURNS TEXT AS
 $$
@@ -526,7 +527,7 @@ BEGIN
     END IF;
 
     -- 权限检查：只有活动创建者和管理员可以删除活动
-    IF v_activity_record.owner_id != p_id AND p_user_type != 'admin' THEN
+    IF v_activity_record.owner_id != p_uuid AND p_user_type != 'admin' THEN
         RETURN '无权限删除该活动';
     END IF;
 
@@ -549,7 +550,7 @@ $$ LANGUAGE plpgsql;
 -- 批量删除活动函数
 CREATE OR REPLACE FUNCTION batch_delete_activities(
     p_activity_ids UUID[],
-    p_id UUID,
+    p_uuid UUID,
     p_user_type VARCHAR
 ) RETURNS INTEGER AS
 $$
@@ -744,10 +745,10 @@ EXECUTE FUNCTION set_department_level();
 
 -- 学生基本信息视图
 CREATE OR REPLACE VIEW student_basic_info AS
-SELECT u.id,
+SELECT u.uuid,
        u.username,
        u.real_name,
-       u.identity_number AS student_id,
+       u.id AS student_id,
        college.name      AS college, -- 学院
        major.name        AS major,   -- 专业
        class.name        AS class,   -- 班级
@@ -771,12 +772,12 @@ WHERE u.user_type = 'student'
 
 -- 学生详细信息视图
 CREATE OR REPLACE VIEW student_detail_info AS
-SELECT u.id,
+SELECT u.uuid,
        u.username,
        u.real_name,
        u.email,
        u.phone,
-       u.identity_number AS student_id, -- 学号
+       u.id AS student_id, -- 学号
        college.name      AS college,    -- 学院
        major.name        AS major,      -- 专业
        class.name        AS class,      -- 班级
@@ -802,7 +803,7 @@ WHERE u.user_type = 'student'
 
 -- 学生完整信息视图
 CREATE OR REPLACE VIEW student_complete_info AS
-SELECT u.id,
+SELECT u.uuid,
        u.username,
        u.email,
        u.phone,
@@ -813,7 +814,7 @@ SELECT u.id,
        u.last_login_at,
        u.created_at,
        u.updated_at,
-       u.identity_number AS student_id, -- 学号
+       u.id AS student_id, -- 学号
        college.name      AS college,    -- 学院
        major.name        AS major,      -- 专业
        class.name        AS class,      -- 班级
@@ -837,8 +838,8 @@ WHERE u.user_type = 'student'
 -- 教师基本信息视图
 -- 教师基本信息视图
 CREATE OR REPLACE VIEW teacher_basic_info AS
-SELECT u.id,
-       u.identity_number AS employee_id,
+SELECT u.uuid,
+       u.id AS employee_id,
        u.username,
        u.real_name,
        d.name            AS department,
@@ -851,8 +852,8 @@ WHERE u.user_type = 'teacher'
 
 -- 教师详细信息视图
 CREATE OR REPLACE VIEW teacher_detail_info AS
-SELECT u.id,
-       u.identity_number AS employee_id,
+SELECT u.uuid,
+       u.id AS employee_id,
        u.username,
        u.real_name,
        u.email,
@@ -869,8 +870,8 @@ WHERE u.user_type = 'teacher'
 
 -- 教师完整信息视图
 CREATE OR REPLACE VIEW teacher_complete_info AS
-SELECT u.id,
-       u.identity_number AS employee_id,
+SELECT u.uuid,
+       u.id AS employee_id,
        u.username,
        u.email,
        u.phone,
@@ -908,13 +909,13 @@ SELECT ca.id                        AS activity_id,
                'credits', p.credits
                         ))
         FROM activity_participants p
-                 JOIN users u ON p.id = u.id
+                 JOIN users u ON p.user_id = u.uuid
         WHERE p.activity_id = ca.id
           AND p.deleted_at IS NULL
           AND u.deleted_at IS NULL) AS participants
 FROM credit_activities ca
          JOIN
-     users creator ON ca.owner_id = creator.id
+     users creator ON ca.owner_id = creator.uuid
 WHERE ca.deleted_at IS NULL
   AND creator.deleted_at IS NULL;
 --
@@ -928,10 +929,10 @@ SELECT
     app.submitted_at,
 
     -- 申请人（学生）
-    u.id              AS applicant_id,
+    u.uuid            AS applicant_id,
     u.real_name       AS applicant_name,
     u.username        AS applicant_username,
-    u.identity_number AS student_id,        -- 学号
+    u.id AS student_id,        -- 学号
     coll.name         AS applicant_college, -- 学院
     maj.name          AS applicant_major,   -- 专业
 
@@ -940,7 +941,7 @@ SELECT
     act.title         AS activity_title,
     act.category      AS activity_category
 FROM applications app
-         JOIN users u ON u.id = app.user_id-- 注意：一般是 app.user_id
+         JOIN users u ON u.uuid = app.user_id-- 注意：一般是 app.user_id
          JOIN credit_activities act ON act.id = app.activity_id
          LEFT JOIN departments coll ON coll.id = u.department_id -- 学院
          LEFT JOIN departments maj ON maj.id = coll.parent_id -- 如果专业存的是 parent_id，可再关联
@@ -994,7 +995,7 @@ $$
     DECLARE
         dept_id UUID;
     BEGIN
-        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000000') THEN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE id = '00000000') THEN
             SELECT id
             INTO dept_id
             FROM departments
@@ -1002,7 +1003,7 @@ $$
               AND dept_type = 'school'
             LIMIT 1;
 
-            INSERT INTO users (identity_number, username, password, email, phone,
+            INSERT INTO users (id, username, password, email, phone,
                                real_name, user_type, status, department_id)
             VALUES ('00000000', 'admin',
                     '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
@@ -1018,7 +1019,7 @@ $$
     DECLARE
         dept_id UUID;
     BEGIN
-        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000001') THEN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE id = '00000001') THEN
             SELECT id
             INTO dept_id
             FROM departments
@@ -1026,7 +1027,7 @@ $$
               AND dept_type = 'major'
             LIMIT 1;
 
-            INSERT INTO users (identity_number, username, password, email, phone,
+            INSERT INTO users (id, username, password, email, phone,
                                real_name, user_type, status, department_id, title)
             VALUES ('00000001', 'teacher',
                     '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',
@@ -1042,7 +1043,7 @@ $$
     DECLARE
         dept_id UUID;
     BEGIN
-        IF NOT EXISTS (SELECT 1 FROM users WHERE identity_number = '00000002') THEN
+        IF NOT EXISTS (SELECT 1 FROM users WHERE id = '00000002') THEN
             SELECT id
             INTO dept_id
             FROM departments
@@ -1050,7 +1051,7 @@ $$
               AND dept_type = 'class'
             LIMIT 1;
 
-            INSERT INTO users (identity_number, username, password, email, phone,
+            INSERT INTO users (id, username, password, email, phone,
                                real_name, user_type, status, department_id, grade)
             VALUES ('00000002', 'student',
                     '$2a$10$BBpxLJa6o15NvrxwZcuLxOVCxRHychGgBSkWpp/qNwjc6eyHNoqhu',

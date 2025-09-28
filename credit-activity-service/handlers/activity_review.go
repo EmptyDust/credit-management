@@ -17,8 +17,8 @@ func (h *ActivityHandler) SubmitActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -62,8 +62,8 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -95,7 +95,7 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	now := time.Now()
 	updates := map[string]interface{}{
 		"status":          req.Status,
-		"reviewer_id":     userID.(string),
+		"reviewer_id":     userID,
 		"review_comments": req.ReviewComments,
 		"reviewed_at":     &now,
 	}
@@ -108,7 +108,7 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 	utils.SendSuccessResponse(c, gin.H{
 		"id":              activity.ID,
 		"status":          req.Status,
-		"reviewer_id":     userID.(string),
+		"reviewer_id":     userID,
 		"review_comments": req.ReviewComments,
 		"reviewed_at":     now,
 	})
@@ -149,8 +149,8 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -188,8 +188,8 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 }
 
 func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -201,7 +201,7 @@ func (h *ActivityHandler) GetDeletableActivities(c *gin.Context) {
 	)
 
 	// 使用数据库基类获取可删除的活动
-	activities, total, err := h.base.GetDeletableActivities(userID.(string), page, limit)
+	activities, total, err := h.base.GetDeletableActivities(userID, page, limit)
 	if err != nil {
 		utils.SendInternalServerError(c, err)
 		return

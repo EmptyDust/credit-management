@@ -24,8 +24,8 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -48,7 +48,7 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 		EndDate:     originalActivity.EndDate,
 		Status:      models.StatusDraft,
 		Category:    originalActivity.Category,
-		OwnerID:     userID.(string),
+		OwnerID:     userID,
 	}
 
 	if err := h.db.Create(&newActivity).Error; err != nil {
@@ -138,8 +138,8 @@ func (h *ActivityHandler) SaveAsTemplate(c *gin.Context) {
 }
 
 func (h *ActivityHandler) ImportActivities(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -183,7 +183,7 @@ func (h *ActivityHandler) ImportActivities(c *gin.Context) {
 	}
 
 	// 处理解析后的数据
-	h.processImportData(c, records, userID.(string), file.Filename)
+	h.processImportData(c, records, userID, file.Filename)
 }
 
 // parseCSVFile 解析CSV文件
@@ -415,8 +415,8 @@ func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
 }
 
 func (h *ActivityHandler) ImportActivitiesFromCSV(c *gin.Context) {
-	userID, exists := c.Get("id")
-	if !exists {
+	userID := c.GetString("id")
+	if userID == "" {
 		utils.SendUnauthorized(c)
 		return
 	}
@@ -446,7 +446,7 @@ func (h *ActivityHandler) ImportActivitiesFromCSV(c *gin.Context) {
 		return
 	}
 
-	h.processImportData(c, records, userID.(string), file.Filename)
+	h.processImportData(c, records, userID, file.Filename)
 }
 
 func (h *ActivityHandler) GetExcelTemplate(c *gin.Context) {

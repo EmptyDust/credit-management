@@ -58,7 +58,7 @@ CREATE TRIGGER update_paper_patent_details_updated_at BEFORE UPDATE ON paper_pat
 
 ```sql
 -- 更新用户信息时，updated_at 会自动更新
-UPDATE users SET real_name = '新姓名' WHERE user_id = 'some-uuid';
+UPDATE users SET real_name = '新姓名' WHERE id = 'some-uuid';
 
 -- 更新活动状态时，updated_at 会自动更新
 UPDATE credit_activities SET status = 'approved' WHERE id = 'some-uuid';
@@ -154,7 +154,7 @@ CREATE TRIGGER trigger_generate_applications
 INSERT INTO credit_activities (title, description, start_date, end_date, status, category, owner_id)
 VALUES ('创新创业大赛', '比赛描述', '2024-01-01', '2024-01-31', 'draft', 'competition', 'teacher-uuid');
 
-INSERT INTO activity_participants (activity_id, user_id, credits)
+INSERT INTO activity_participants (activity_id, id, credits)
 VALUES ('activity-uuid', 'student1-uuid', 2.0),
        ('activity-uuid', 'student2-uuid', 2.0);
 
@@ -162,7 +162,7 @@ VALUES ('activity-uuid', 'student1-uuid', 2.0),
 UPDATE credit_activities SET status = 'approved' WHERE id = 'activity-uuid';
 
 -- 3. 触发器会自动执行，生成以下申请记录：
--- INSERT INTO applications (activity_id, user_id, status, applied_credits, awarded_credits)
+-- INSERT INTO applications (activity_id, id, status, applied_credits, awarded_credits)
 -- VALUES ('activity-uuid', 'student1-uuid', 'approved', 2.0, 2.0),
 --        ('activity-uuid', 'student2-uuid', 'approved', 2.0, 2.0);
 ```

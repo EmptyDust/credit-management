@@ -78,18 +78,18 @@ export default function ActivityDetailPage() {
     }
   }, [id, searchParams]);
 
-  const isOwner = user && activity && (user.user_id === activity.owner_id || user.userType === "admin");
+  const isOwner = user && activity && (user.id === activity.owner_id || user.userType === "admin");
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
   const canEdit = isOwner && activity?.status === "draft";
   const canSubmitForReview =
     user &&
     activity &&
-    user.user_id === activity.owner_id &&
+    user.id === activity.owner_id &&
     activity?.status === "draft";
   const canWithdraw =
     user &&
     activity &&
-    user.user_id === activity.owner_id &&
+    user.id === activity.owner_id &&
     activity?.status !== "draft";
   const canReview =
     isReviewer &&
@@ -98,7 +98,7 @@ export default function ActivityDetailPage() {
       activity?.status === "rejected");
   const canDelete =
     user?.userType === "admin" ||
-    (user?.user_id === activity?.owner_id && activity?.status === "draft");
+    (user?.id === activity?.owner_id && activity?.status === "draft");
 
   const handleEdit = () => {
     setIsEditing(true);

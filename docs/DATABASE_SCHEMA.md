@@ -21,7 +21,7 @@
 
 ```sql
 users (
-    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(20) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -101,7 +101,7 @@ credit_activities (
 activity_participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     credits DECIMAL(5,2) NOT NULL DEFAULT 0,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -113,7 +113,7 @@ activity_participants (
 **约束条件**:
 
 - `credits`: 必须大于等于 0
-- 唯一约束: `(activity_id, user_id)` 在未删除状态下唯一
+- 唯一约束: `(activity_id, id)` 在未删除状态下唯一
 
 ### 4. 申请表 (applications)
 
@@ -125,7 +125,7 @@ activity_participants (
 applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'approved',
     applied_credits DECIMAL(5,2) NOT NULL,
     awarded_credits DECIMAL(5,2) NOT NULL,
@@ -140,7 +140,7 @@ applications (
 
 - `status`: 只能是 'approved'
 - `applied_credits`, `awarded_credits`: 必须大于等于 0
-- 唯一约束: `(activity_id, user_id)`
+- 唯一约束: `(activity_id, id)`
 
 ### 5. 附件表 (attachments)
 
@@ -310,14 +310,14 @@ credit_activities (1) ←→ (1) paper_patent_details
 ### 参与者表索引
 
 - `idx_activity_participants_activity_id`: 活动 ID 索引
-- `idx_activity_participants_user_id`: 用户 ID 索引
+- `idx_activity_participants_id`: 用户 ID 索引
 - `idx_activity_participants_deleted_at`: 删除时间索引
 - `uniq_activity_participants_active`: 活动+用户唯一索引（未删除）
 
 ### 申请表索引
 
 - `idx_applications_activity_id`: 活动 ID 索引
-- `idx_applications_user_id`: 用户 ID 索引
+- `idx_applications_id`: 用户 ID 索引
 - `idx_applications_status`: 状态索引
 - `idx_applications_deleted_at`: 删除时间索引
 

@@ -76,7 +76,7 @@ export default function ActivityApplications({
   const navigate = useNavigate();
 
   const isOwner =
-    user && (user.user_id === activity.owner_id || user.userType === "admin");
+    user && (user.id === activity.owner_id || user.userType === "admin");
   const isReviewer =
     user && (user.userType === "teacher" || user.userType === "admin");
 
@@ -335,12 +335,12 @@ export default function ActivityApplications({
                       <div>
                         <div className="font-medium">
                           {application.user_info?.name ||
-                            `用户 ${application.user_id}`}
+                            `用户 ${application.id}`}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {application.user_info?.student_id ||
                             application.user_info?.username ||
-                            application.user_id}
+                            application.id}
                         </div>
                         {application.user_info?.college && (
                           <div className="text-xs text-muted-foreground">
@@ -472,7 +472,7 @@ export default function ActivityApplications({
                   </label>
                   <p className="text-sm">
                     {selectedApplication.user_info?.name ||
-                      `用户 ${selectedApplication.user_id}`}
+                      `用户 ${selectedApplication.id}`}
                   </p>
                 </div>
                 <div>
@@ -607,7 +607,7 @@ export default function ActivityApplications({
               <label className="text-sm font-medium">申请人</label>
               <p className="text-sm">
                 {selectedApplication?.user_info?.name ||
-                  `用户 ${selectedApplication?.user_id}`}
+                  `用户 ${selectedApplication?.id}`}
               </p>
             </div>
             <div>

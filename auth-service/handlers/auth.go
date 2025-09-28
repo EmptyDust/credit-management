@@ -37,17 +37,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 检查至少提供了UID或用户名
-	if req.UID == "" && req.Username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须提供 uid 或 username", "data": nil})
+	// 检查至少提供了ID或用户名
+	if req.ID == "" && req.Username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须提供 id 或 username", "data": nil})
 		return
 	}
 
 	var user models.User
 	query := h.db
-	if req.UID != "" {
-		// 使用UID查询
-		query = query.Where("identity_number = ?", req.UID)
+	if req.ID != "" {
+		// 使用ID查询
+		query = query.Where("id = ?", req.ID)
 	} else {
 		// 使用用户名查询
 		query = query.Where("username = ?", req.Username)
@@ -86,7 +86,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	userResponse := models.UserResponse{
-		UserID:       user.UserID,
+		UUID:         user.UUID,
 		Username:     user.Username,
 		Email:        user.Email,
 		Phone:        "",
@@ -173,7 +173,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 		return
 	}
 
-	userID, ok := claims["id"].(string)
+	userID, ok := claims["uuid"].(string)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{
 			"code":    0,
@@ -188,7 +188,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"code":    0,
 			"message": "success",
@@ -215,7 +215,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 
 	// 构建用户响应
 	userResponse := models.UserResponse{
-		UserID:       user.UserID,
+		UUID:         user.UUID,
 		Username:     user.Username,
 		Email:        user.Email,
 		Phone:        "",
@@ -272,7 +272,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	userID, ok := claims["id"].(string)
+	userID, ok := claims["uuid"].(string)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的用户ID", "data": nil})
 		return
@@ -280,7 +280,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在", "data": nil})
 		return
 	}
@@ -407,7 +407,7 @@ func (h *AuthHandler) ValidatePermission(c *gin.Context) {
 		return
 	}
 
-	userID, ok := claims["id"].(string)
+	userID, ok := claims["uuid"].(string)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token中的用户ID无效", "data": nil})
 		return
@@ -415,7 +415,7 @@ func (h *AuthHandler) ValidatePermission(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在", "data": nil})
 		return
 	}
@@ -431,7 +431,7 @@ func (h *AuthHandler) ValidatePermission(c *gin.Context) {
 		"code":    0,
 		"message": "success",
 		"data": gin.H{
-			"id":        user.UserID,
+			"uuid":      user.UUID,
 			"username":  user.Username,
 			"user_type": user.UserType,
 			"status":    user.Status,
@@ -475,7 +475,7 @@ func (h *AuthHandler) ValidateTokenWithClaims(c *gin.Context) {
 	}
 
 	// 验证用户是否存在且状态正常
-	userID, ok := claims["id"].(string)
+	userID, ok := claims["uuid"].(string)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token中的用户ID无效", "data": nil})
 		return
@@ -483,7 +483,7 @@ func (h *AuthHandler) ValidateTokenWithClaims(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := h.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在", "data": nil})
 		return
 	}
@@ -509,7 +509,7 @@ func (h *AuthHandler) ValidateTokenWithClaims(c *gin.Context) {
 // generateToken 生成JWT token
 func (h *AuthHandler) generateToken(user models.User) (string, error) {
 	claims := jwt.MapClaims{
-		"id":        user.UserID,
+		"uuid":      user.UUID,
 		"username":  user.Username,
 		"user_type": user.UserType,
 		"exp":       time.Now().Add(time.Hour * 24).Unix(), // 24小时过期
@@ -522,7 +522,7 @@ func (h *AuthHandler) generateToken(user models.User) (string, error) {
 
 func (h *AuthHandler) generateRefreshToken(user models.User) (string, error) {
 	claims := jwt.MapClaims{
-		"id":   user.UserID,
+		"uuid": user.UUID,
 		"type": "refresh",
 		"exp":  time.Now().Add(time.Hour * 24 * 7).Unix(), // 7天过期
 		"iat":  time.Now().Unix(),

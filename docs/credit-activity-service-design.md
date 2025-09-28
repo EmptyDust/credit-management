@@ -117,7 +117,7 @@ type CreditActivity struct {
 ```go
 type ActivityParticipant struct {
     ActivityID string    `json:"activity_id" gorm:"primaryKey;type:uuid"`
-    UserID     string    `json:"user_id" gorm:"primaryKey;type:uuid"`
+    UserID     string    `json:"id" gorm:"primaryKey;type:uuid"`
     Credits    float64   `json:"credits" gorm:"not null;default:0"`
     JoinedAt   time.Time `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
     CreatedAt  time.Time `json:"created_at"`
@@ -130,7 +130,7 @@ type ActivityParticipant struct {
 type Application struct {
     ID             string         `json:"id" gorm:"primaryKey;type:uuid"`
     ActivityID     string         `json:"activity_id" gorm:"type:uuid;not null;index"`
-    UserID         string         `json:"user_id" gorm:"type:uuid;not null;index"`
+    UserID         string         `json:"id" gorm:"type:uuid;not null;index"`
     Status         string         `json:"status" gorm:"default:'approved';index"`
     AppliedCredits float64        `json:"applied_credits" gorm:"not null"`
     AwardedCredits float64        `json:"awarded_credits" gorm:"not null"`
@@ -244,11 +244,11 @@ type Application struct {
 - **权限**：活动创建者、管理员
 
 #### 设置单个学分
-- **PUT** `/api/activities/{id}/participants/{user_id}/credits`
+- **PUT** `/api/activities/{id}/participants/{id}/credits`
 - **权限**：活动创建者、管理员
 
 #### 删除参与者
-- **DELETE** `/api/activities/{id}/participants/{user_id}`
+- **DELETE** `/api/activities/{id}/participants/{id}`
 - **权限**：活动创建者、管理员
 
 #### 退出活动
@@ -320,12 +320,12 @@ CREATE INDEX idx_credit_activities_deleted_at ON credit_activities(deleted_at);
 ```sql
 CREATE TABLE activity_participants (
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     credits DECIMAL(5,2) NOT NULL DEFAULT 0,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (activity_id, user_id),
+    PRIMARY KEY (activity_id, id),
     FOREIGN KEY (activity_id) REFERENCES credit_activities(id) ON DELETE CASCADE
 );
 ```
@@ -335,7 +335,7 @@ CREATE TABLE activity_participants (
 CREATE TABLE applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id UUID NOT NULL,
     status TEXT DEFAULT 'approved',
     applied_credits DECIMAL(5,2) NOT NULL,
     awarded_credits DECIMAL(5,2) NOT NULL,
@@ -347,7 +347,7 @@ CREATE TABLE applications (
 );
 
 CREATE INDEX idx_applications_activity_id ON applications(activity_id);
-CREATE INDEX idx_applications_user_id ON applications(user_id);
+CREATE INDEX idx_applications_id ON applications(id);
 CREATE INDEX idx_applications_status ON applications(status);
 CREATE INDEX idx_applications_deleted_at ON applications(deleted_at);
 ```
@@ -362,11 +362,11 @@ BEGIN
     -- 只有当状态从非approved变为approved时才触发
     IF OLD.status != 'approved' AND NEW.status = 'approved' THEN
         -- 为所有参与者生成申请
-        INSERT INTO applications (id, activity_id, user_id, status, applied_credits, awarded_credits, submitted_at, created_at, updated_at)
+        INSERT INTO applications (id, activity_id, id, status, applied_credits, awarded_credits, submitted_at, created_at, updated_at)
         SELECT 
             gen_random_uuid(),
             ap.activity_id,
-            ap.user_id,
+            ap.id,
             'approved',
             ap.credits,
             ap.credits,
