@@ -100,7 +100,7 @@ INSERT INTO entrepreneurship_practice_details (activity_id, company_name, legal_
 ('44444444-4444-4444-4444-444444444453', '校园快递代收点', '李四', 80.00);
 
 -- 论文专利详情
-INSERT INTO paper_patent_details (activity_id, name, category, rank) VALUES
+INSERT INTO paper_patent_details (activity_id, title, category, rank) VALUES
 ('44444444-4444-4444-4444-444444444454', '基于深度学习的图像识别算法研究', '学术论文', '核心期刊'),
 ('44444444-4444-4444-4444-444444444455', '智能家居控制系统', '实用新型专利', '已授权');
 

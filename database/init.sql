@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS paper_patent_details
 (
     id          UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
     activity_id UUID        NOT NULL REFERENCES credit_activities (id) ON DELETE CASCADE,
-    name        VARCHAR(200),
+    title       VARCHAR(200),
     category    VARCHAR(100),
     rank        VARCHAR(50),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
