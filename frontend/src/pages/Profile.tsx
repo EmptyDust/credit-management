@@ -57,68 +57,10 @@ import {
 } from "@/components/ui/dialog";
 import { getStatusBadge } from "@/lib/status-utils";
 import { PasswordInput } from "@/components/ui/password-input";
+import { getOptions } from "@/lib/options";
 
-const colleges = [
-  { value: "计算机学院", label: "计算机学院" },
-  { value: "信息工程学院", label: "信息工程学院" },
-  { value: "数学学院", label: "数学学院" },
-  { value: "物理学院", label: "物理学院" },
-  { value: "化学学院", label: "化学学院" },
-  { value: "生命科学学院", label: "生命科学学院" },
-  { value: "经济管理学院", label: "经济管理学院" },
-  { value: "外国语学院", label: "外国语学院" },
-  { value: "文学院", label: "文学院" },
-  { value: "法学院", label: "法学院" },
-];
-const majors: Record<string, { value: string; label: string }[]> = {
-  计算机学院: [
-    { value: "软件工程", label: "软件工程" },
-    { value: "计算机科学与技术", label: "计算机科学与技术" },
-    { value: "人工智能", label: "人工智能" },
-    { value: "数据科学与大数据技术", label: "数据科学与大数据技术" },
-  ],
-  信息工程学院: [
-    { value: "通信工程", label: "通信工程" },
-    { value: "电子信息工程", label: "电子信息工程" },
-    { value: "自动化", label: "自动化" },
-    { value: "物联网工程", label: "物联网工程" },
-  ],
-  数学学院: [
-    { value: "数学与应用数学", label: "数学与应用数学" },
-    { value: "信息与计算科学", label: "信息与计算科学" },
-    { value: "统计学", label: "统计学" },
-  ],
-  物理学院: [
-    { value: "物理学", label: "物理学" },
-    { value: "应用物理学", label: "应用物理学" },
-  ],
-  化学学院: [
-    { value: "化学", label: "化学" },
-    { value: "应用化学", label: "应用化学" },
-  ],
-  生命科学学院: [
-    { value: "生物科学", label: "生物科学" },
-    { value: "生物技术", label: "生物技术" },
-  ],
-  经济管理学院: [
-    { value: "工商管理", label: "工商管理" },
-    { value: "会计学", label: "会计学" },
-    { value: "金融学", label: "金融学" },
-  ],
-  外国语学院: [
-    { value: "英语", label: "英语" },
-    { value: "日语", label: "日语" },
-    { value: "德语", label: "德语" },
-  ],
-  文学院: [
-    { value: "汉语言文学", label: "汉语言文学" },
-    { value: "新闻学", label: "新闻学" },
-  ],
-  法学院: [
-    { value: "法学", label: "法学" },
-    { value: "知识产权", label: "知识产权" },
-  ],
-};
+const colleges: { value: string; label: string }[] = [];
+let majors: Record<string, { value: string; label: string }[]> = {};
 
 const profileSchema = z.object({
   username: z.string().optional(),
@@ -177,6 +119,8 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -232,6 +176,15 @@ export default function ProfilePage() {
       }
     };
     fetchProfile();
+    (async () => {
+      try {
+        const opts = await getOptions();
+        setCollegeOptions(opts.colleges);
+        setMajorOptions(opts.majors || {});
+      } catch (e) {
+        console.error("Failed to load options", e);
+      }
+    })();
   }, [user, form]);
 
   const handleSave = async (values: ProfileForm) => {
@@ -650,7 +603,7 @@ export default function ProfilePage() {
                                   <SelectValue placeholder="请选择学院" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {colleges.map((c) => (
+                                  {collegeOptions.map((c) => (
                                     <SelectItem key={c.value} value={c.value}>
                                       {c.label}
                                     </SelectItem>
@@ -670,7 +623,7 @@ export default function ProfilePage() {
                     render={({ field }) => {
                       const selectedCollege = form.watch("college");
                       const availableMajors = selectedCollege
-                        ? majors[selectedCollege] || []
+                        ? majorOptions[selectedCollege || ""] || []
                         : [];
                       return (
                         <FormItem>

@@ -48,6 +48,9 @@ WORKDIR /app
 # 从构建阶段复制二进制文件
 COPY --from=builder /app/credit-activity-service .
 
+# 复制配置文件
+COPY --from=builder /app/config ./config
+
 # 创建uploads目录
 RUN mkdir -p /app/uploads/attachments
 

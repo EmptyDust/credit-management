@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getActivityOptions } from "@/lib/options";
 
 export default function ActivityDetailPage() {
   const { id } = useParams();
@@ -52,6 +53,7 @@ export default function ActivityDetailPage() {
   const [basicInfo, setBasicInfo] = useState<any>({});
   const [detailInfo, setDetailInfo] = useState<any>({});
   const detailContainerRef = useRef<any>(null);
+  const [reviewActions, setReviewActions] = useState<{ value: string; label: string }[]>([]);
 
   const fetchActivity = async () => {
     if (!id) return;
@@ -76,6 +78,14 @@ export default function ActivityDetailPage() {
     if (editParam === "1") {
       setIsEditing(true);
     }
+    (async () => {
+      try {
+        const opts = await getActivityOptions();
+        setReviewActions(opts.review_actions || []);
+      } catch (e) {
+        console.error("Failed to load review actions", e);
+      }
+    })();
   }, [id, searchParams]);
 
   const isOwner = user && activity && (user.id === activity.owner_id || user.userType === "admin");
@@ -508,8 +518,9 @@ export default function ActivityDetailPage() {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="approved">通过</SelectItem>
-                  <SelectItem value="rejected">拒绝</SelectItem>
+                  {reviewActions.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
