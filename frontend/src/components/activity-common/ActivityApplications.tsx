@@ -76,7 +76,7 @@ export default function ActivityApplications({
   const navigate = useNavigate();
 
   const isOwner =
-    user && (user.id === activity.owner_id || user.userType === "admin");
+    user && (user.uuid === activity.owner_id || user.userType === "admin");
   const isReviewer =
     user && (user.userType === "teacher" || user.userType === "admin");
 

@@ -113,43 +113,11 @@ func (h *ActivityHandler) BatchCreateActivities(c *gin.Context) {
 			Status:      models.StatusDraft,
 			Category:    activityReq.Category,
 			OwnerID:     userID,
+			Details:     activityReq.Details,
 		}
 		if err := tx.Create(&activity).Error; err != nil {
 			errors = append(errors, fmt.Sprintf("第%d个活动创建失败: %s", i+1, err.Error()))
 			continue
-		}
-		// 创建详情表
-		switch activityReq.Category {
-		case "创新创业实践活动":
-			if activityReq.InnovationDetail != nil {
-				detail := activityReq.InnovationDetail
-				detail.ActivityID = activity.ID
-				tx.Create(detail)
-			}
-		case "学科竞赛":
-			if activityReq.CompetitionDetail != nil {
-				detail := activityReq.CompetitionDetail
-				detail.ActivityID = activity.ID
-				tx.Create(detail)
-			}
-		case "大学生创业项目":
-			if activityReq.EntrepreneurshipProjectDetail != nil {
-				detail := activityReq.EntrepreneurshipProjectDetail
-				detail.ActivityID = activity.ID
-				tx.Create(detail)
-			}
-		case "创业实践项目":
-			if activityReq.EntrepreneurshipPracticeDetail != nil {
-				detail := activityReq.EntrepreneurshipPracticeDetail
-				detail.ActivityID = activity.ID
-				tx.Create(detail)
-			}
-		case "论文专利":
-			if activityReq.PaperPatentDetail != nil {
-				detail := activityReq.PaperPatentDetail
-				detail.ActivityID = activity.ID
-				tx.Create(detail)
-			}
 		}
 		response := models.ActivityCreateResponse{
 			ID:          activity.ID,
@@ -281,6 +249,9 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 		if upd.Main.Category != nil {
 			activity.Category = *upd.Main.Category
 		}
+		if upd.Main.Details != nil {
+			activity.Details = upd.Main.Details
+		}
 
 		if err := tx.Save(&activity).Error; err != nil {
 			errors = append(errors, fmt.Sprintf("第%d个活动主表更新失败", i+1))
@@ -293,69 +264,6 @@ func (h *ActivityHandler) BatchUpdateActivities(c *gin.Context) {
 			Status:    activity.Status,
 			CreatedAt: activity.CreatedAt,
 		})
-
-		switch activity.Category {
-		case "创新创业实践活动":
-			if upd.Main.InnovationDetail != nil {
-				var detail models.InnovationActivityDetail
-				tx.Where("activity_id = ?", activity.ID).First(&detail)
-				if detail.ID != "" {
-					tx.Model(&detail).Updates(upd.Main.InnovationDetail)
-				} else {
-					detail = *upd.Main.InnovationDetail
-					detail.ActivityID = activity.ID
-					tx.Create(&detail)
-				}
-			}
-		case "学科竞赛":
-			if upd.Main.CompetitionDetail != nil {
-				var detail models.CompetitionActivityDetail
-				tx.Where("activity_id = ?", activity.ID).First(&detail)
-				if detail.ID != "" {
-					tx.Model(&detail).Updates(upd.Main.CompetitionDetail)
-				} else {
-					detail = *upd.Main.CompetitionDetail
-					detail.ActivityID = activity.ID
-					tx.Create(&detail)
-				}
-			}
-		case "大学生创业项目":
-			if upd.Main.EntrepreneurshipProjectDetail != nil {
-				var detail models.EntrepreneurshipProjectDetail
-				tx.Where("activity_id = ?", activity.ID).First(&detail)
-				if detail.ID != "" {
-					tx.Model(&detail).Updates(upd.Main.EntrepreneurshipProjectDetail)
-				} else {
-					detail = *upd.Main.EntrepreneurshipProjectDetail
-					detail.ActivityID = activity.ID
-					tx.Create(&detail)
-				}
-			}
-		case "创业实践项目":
-			if upd.Main.EntrepreneurshipPracticeDetail != nil {
-				var detail models.EntrepreneurshipPracticeDetail
-				tx.Where("activity_id = ?", activity.ID).First(&detail)
-				if detail.ID != "" {
-					tx.Model(&detail).Updates(upd.Main.EntrepreneurshipPracticeDetail)
-				} else {
-					detail = *upd.Main.EntrepreneurshipPracticeDetail
-					detail.ActivityID = activity.ID
-					tx.Create(&detail)
-				}
-			}
-		case "论文专利":
-			if upd.Main.PaperPatentDetail != nil {
-				var detail models.PaperPatentDetail
-				tx.Where("activity_id = ?", activity.ID).First(&detail)
-				if detail.ID != "" {
-					tx.Model(&detail).Updates(upd.Main.PaperPatentDetail)
-				} else {
-					detail = *upd.Main.PaperPatentDetail
-					detail.ActivityID = activity.ID
-					tx.Create(&detail)
-				}
-			}
-		}
 	}
 
 	if len(errors) > 0 {

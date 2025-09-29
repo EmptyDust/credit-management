@@ -62,36 +62,37 @@ func (h *ActivityHandler) CopyActivity(c *gin.Context) {
 }
 
 type SelectOption struct {
-    Value string `json:"value"`
-    Label string `json:"label"`
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 type ActivityOptionsResponse struct {
-    Categories   []SelectOption `json:"categories"`
-    Statuses     []SelectOption `json:"statuses"`
-    ReviewActions []SelectOption `json:"review_actions"`
+	Categories     []SelectOption `json:"categories"`
+	Statuses       []SelectOption `json:"statuses"`
+	ReviewActions  []SelectOption `json:"review_actions"`
+	CategoryFields map[string]any `json:"category_fields"`
 }
 
 // GetActivityOptions 从配置文件读取活动相关的选项
 func GetActivityOptions(c *gin.Context) {
-    configPath := os.Getenv("ACTIVITY_OPTIONS_CONFIG_PATH")
-    if configPath == "" {
-        configPath = "config/activity_options.json"
-    }
+	configPath := os.Getenv("ACTIVITY_OPTIONS_CONFIG_PATH")
+	if configPath == "" {
+		configPath = "config/activity_options.json"
+	}
 
-    data, err := os.ReadFile(configPath)
-    if err != nil {
-        utils.SendErrorResponse(c, 500, fmt.Sprintf("failed to read activity options: %v", err))
-        return
-    }
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		utils.SendErrorResponse(c, 500, fmt.Sprintf("failed to read activity options: %v", err))
+		return
+	}
 
-    var opts ActivityOptionsResponse
-    if err := json.Unmarshal(data, &opts); err != nil {
-        utils.SendErrorResponse(c, 500, fmt.Sprintf("invalid activity options: %v", err))
-        return
-    }
+	var opts ActivityOptionsResponse
+	if err := json.Unmarshal(data, &opts); err != nil {
+		utils.SendErrorResponse(c, 500, fmt.Sprintf("invalid activity options: %v", err))
+		return
+	}
 
-    utils.SendSuccessResponse(c, opts)
+	utils.SendSuccessResponse(c, opts)
 }
 
 func (h *ActivityHandler) ExportActivities(c *gin.Context) {

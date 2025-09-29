@@ -18,7 +18,7 @@ interface UserManagementOptions<T> {
   onSuccess?: () => void;
 }
 
-export function useUserManagement<T extends { id?: string; id?: string; real_name?: string }>({
+export function useUserManagement<T extends { id?: string; user_id?: string; real_name?: string }>({
   userType,
   formSchema,
   defaultValues,
@@ -57,7 +57,7 @@ export function useUserManagement<T extends { id?: string; id?: string; real_nam
     setIsSubmitting(true);
     try {
       if (editingItem) {
-        const itemId = (editingItem as any).id || (editingItem as any).id;
+        const itemId = (editingItem as any).id;
         if (!itemId) {
           toast.error("无法找到用户ID");
           return;

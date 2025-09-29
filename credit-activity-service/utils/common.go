@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"credit-management/credit-activity-service/models"
+	"log"
 )
 
 func GetEnv(key, defaultValue string) string {
@@ -26,27 +27,38 @@ func GetUserInfo(userID string, authToken ...string) (*models.UserInfo, error) {
 		Timeout: 10 * time.Second,
 	}
 
-	// 强制要求提供 auth token
-	if len(authToken) == 0 || strings.TrimSpace(authToken[0]) == "" {
-		return nil, fmt.Errorf("缺少认证令牌 Authorization")
+	// 优先使用内部服务通信头部
+	useInternal := GetEnv("USER_SERVICE_INTERNAL", "true") == "true"
+	internalName := GetEnv("INTERNAL_SERVICE_NAME", "credit-activity-service")
+	serviceToken := GetEnv("USER_SERVICE_BEARER", "")
+
+	// 如果未启用内部模式，则回退到上游的 Authorization
+	var callerAuth string
+	if !useInternal {
+		if len(authToken) == 0 || strings.TrimSpace(authToken[0]) == "" {
+			return nil, fmt.Errorf("缺少认证令牌 Authorization")
+		}
+		callerAuth = strings.TrimSpace(authToken[0])
 	}
 
 	studentURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=student&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err := searchUserByType(client, studentURL, authToken[0])
+	userInfo, err := searchUserByType(client, studentURL, useInternal, internalName, serviceToken, callerAuth)
 	if err == nil {
 		return userInfo, nil
 	}
+	log.Printf("GetUserInfo: student lookup failed for id=%s, err=%v", userID, err)
 
 	teacherURL := fmt.Sprintf("%s/api/search/users?query=%s&user_type=teacher&page=1&page_size=1", userServiceURL, userID)
-	userInfo, err = searchUserByType(client, teacherURL, authToken[0])
+	userInfo, err = searchUserByType(client, teacherURL, useInternal, internalName, serviceToken, callerAuth)
 	if err == nil {
 		return userInfo, nil
 	}
+	log.Printf("GetUserInfo: teacher lookup failed for id=%s, err=%v", userID, err)
 
 	return nil, fmt.Errorf("用户不存在或无法获取用户信息")
 }
 
-func searchUserByType(client *http.Client, apiURL string, authToken string) (*models.UserInfo, error) {
+func searchUserByType(client *http.Client, apiURL string, useInternal bool, internalName, serviceToken, callerAuth string) (*models.UserInfo, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)
@@ -55,13 +67,22 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	// 强制使用上游传入的 Authorization 头
-	trimmed := strings.TrimSpace(authToken)
-	if trimmed == "" {
-		return nil, fmt.Errorf("缺少认证令牌 Authorization")
+	if useInternal {
+		// 使用内部服务头，用户服务中间件将视为系统管理员
+		req.Header.Set("X-Internal-Service", internalName)
+		if strings.TrimSpace(serviceToken) != "" {
+			// 可选：带上服务间 Bearer 以便审计
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", strings.TrimSpace(serviceToken)))
+		}
+		log.Printf("Calling user-service as internal service '%s'. URL: %s", internalName, apiURL)
+	} else {
+		trimmed := strings.TrimSpace(callerAuth)
+		if trimmed == "" {
+			return nil, fmt.Errorf("缺少认证令牌 Authorization")
+		}
+		req.Header.Set("Authorization", trimmed)
+		log.Printf("Calling user-service with client Authorization. URL: %s", apiURL)
 	}
-	req.Header.Set("Authorization", trimmed)
-	fmt.Printf("使用Authorization调用用户服务，URL: %s\n", apiURL)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -74,7 +95,7 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 		return nil, fmt.Errorf("读取响应失败: %v", err)
 	}
 
-	fmt.Printf("用户服务响应状态码: %d, 响应体: %s\n", resp.StatusCode, string(body))
+	log.Printf("User-service response status=%d body=%s", resp.StatusCode, string(body))
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("用户服务返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
@@ -103,7 +124,6 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 
 	user := response.Data.Users[0]
 
-	// 从 map[string]interface{} 中提取用户信息
 	userID, _ := user["id"].(string)
 	username, _ := user["username"].(string)
 	realName, _ := user["real_name"].(string)
@@ -117,7 +137,6 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 	department, _ := user["department"].(string)
 	title, _ := user["title"].(string)
 
-	// 如果 userType 为空，根据 URL 判断
 	if userType == "" {
 		if strings.Contains(apiURL, "user_type=teacher") {
 			userType = "teacher"
@@ -125,8 +144,6 @@ func searchUserByType(client *http.Client, apiURL string, authToken string) (*mo
 			userType = "student"
 		}
 	}
-
-	fmt.Printf("成功获取用户信息: %s (%s)\n", username, userType)
 
 	return &models.UserInfo{
 		UUID:       userID,

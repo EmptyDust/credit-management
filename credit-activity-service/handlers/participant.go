@@ -6,6 +6,8 @@ import (
 	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
 
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -33,6 +35,18 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		return
 	}
 
+	// 基础校验：ids 非空且不包含空值
+	if len(req.UUIDs) == 0 {
+		utils.SendBadRequest(c, "请提供要添加的用户ID列表")
+		return
+	}
+	for _, id := range req.UUIDs {
+		if id == "" {
+			utils.SendBadRequest(c, "用户ID列表包含空值")
+			return
+		}
+	}
+
 	var activity models.CreditActivity
 	if err := h.db.Where("id = ?", activityID).First(&activity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -51,6 +65,7 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 	authToken := c.GetHeader("Authorization")
 	for _, targetUserID := range req.UUIDs {
 		if !h.isStudent(targetUserID, authToken) {
+			log.Printf("AddParticipants validation failed: targetUserID=%s not a student or user lookup failed", targetUserID)
 			utils.SendBadRequest(c, "只能添加学生用户作为参与者")
 			return
 		}
@@ -74,6 +89,7 @@ func (h *ParticipantHandler) AddParticipants(c *gin.Context) {
 		}
 
 		if err := h.db.Create(&participant).Error; err != nil {
+			log.Printf("Failed to create participant: activity=%s user=%s err=%v", activityID, targetUserID, err)
 			continue
 		}
 

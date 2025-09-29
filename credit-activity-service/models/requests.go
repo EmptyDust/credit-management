@@ -10,11 +10,7 @@ type ActivityRequest struct {
 	EndDate     string `json:"end_date"`
 	Category    string `json:"category"`
 
-	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
-	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
-	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
-	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
-	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
+	Details map[string]any `json:"details"`
 }
 
 // BatchActivityRequest 批量创建活动请求
@@ -44,11 +40,7 @@ type ActivityUpdateRequest struct {
 	EndDate     *string `json:"end_date"`
 	Category    *string `json:"category"`
 
-	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
-	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
-	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
-	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
-	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
+	Details map[string]any `json:"details"`
 }
 
 // ActivityReviewRequest 审核活动请求
@@ -75,12 +67,7 @@ type ActivityResponse struct {
 	UpdatedAt      time.Time             `json:"updated_at"`
 	Participants   []ParticipantResponse `json:"participants"`
 	Applications   []ApplicationResponse `json:"applications"`
-
-	InnovationDetail               *InnovationActivityDetail       `json:"innovation_detail,omitempty"`
-	CompetitionDetail              *CompetitionActivityDetail      `json:"competition_detail,omitempty"`
-	EntrepreneurshipProjectDetail  *EntrepreneurshipProjectDetail  `json:"entrepreneurship_project_detail,omitempty"`
-	EntrepreneurshipPracticeDetail *EntrepreneurshipPracticeDetail `json:"entrepreneurship_practice_detail,omitempty"`
-	PaperPatentDetail              *PaperPatentDetail              `json:"paper_patent_detail,omitempty"`
+	Details        map[string]any        `json:"details"`
 }
 
 // ApplicationResponse 申请响应

@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"time"
+    "credit-management/credit-activity-service/models"
+    "credit-management/credit-activity-service/utils"
 
-	"credit-management/credit-activity-service/models"
-	"credit-management/credit-activity-service/utils"
-
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+    "github.com/gin-gonic/gin"
+    "gorm.io/datatypes"
+    "gorm.io/gorm"
 )
 
 func (h *ActivityHandler) CreateActivity(c *gin.Context) {
@@ -34,7 +33,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	activity := models.CreditActivity{
+    activity := models.CreditActivity{
 		Title:       req.Title,
 		Description: req.Description,
 		StartDate:   startDate,
@@ -42,6 +41,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		Status:      models.StatusDraft,
 		Category:    req.Category,
 		OwnerID:     userID,
+        Details:     datatypes.JSONMap(req.Details),
 	}
 
 	if err := h.db.Create(&activity).Error; err != nil {
@@ -49,51 +49,10 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-	// 创建详情表
-	h.createActivityDetail(activity.ID, req)
+	// 详情改为写入 JSONB
 
 	response := h.enrichActivityResponse(activity, "")
 	utils.SendCreatedResponse(c, "活动创建成功", response)
-}
-
-func (h *ActivityHandler) createActivityDetail(activityID string, req models.ActivityRequest) {
-	switch req.Category {
-	case "创新创业实践活动":
-		if req.InnovationDetail != nil {
-			detail := req.InnovationDetail
-			detail.ActivityID = activityID
-			if detail.Date.IsZero() && req.InnovationDetail.Date.String() != "" {
-				if parsedDate, err := time.Parse("2006-01-02", req.InnovationDetail.Date.String()); err == nil {
-					detail.Date = parsedDate
-				}
-			}
-			h.db.Create(detail)
-		}
-	case "学科竞赛":
-		if req.CompetitionDetail != nil {
-			detail := req.CompetitionDetail
-			detail.ActivityID = activityID
-			h.db.Create(detail)
-		}
-	case "大学生创业项目":
-		if req.EntrepreneurshipProjectDetail != nil {
-			detail := req.EntrepreneurshipProjectDetail
-			detail.ActivityID = activityID
-			h.db.Create(detail)
-		}
-	case "创业实践项目":
-		if req.EntrepreneurshipPracticeDetail != nil {
-			detail := req.EntrepreneurshipPracticeDetail
-			detail.ActivityID = activityID
-			h.db.Create(detail)
-		}
-	case "论文专利":
-		if req.PaperPatentDetail != nil {
-			detail := req.PaperPatentDetail
-			detail.ActivityID = activityID
-			h.db.Create(detail)
-		}
-	}
 }
 
 func (h *ActivityHandler) GetActivities(c *gin.Context) {
@@ -211,7 +170,7 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 	}
 
 	updates := h.buildUpdateMap(req)
-	if err := h.db.Model(&models.CreditActivity{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+    if err := h.db.Model(&models.CreditActivity{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -238,6 +197,9 @@ func (h *ActivityHandler) buildUpdateMap(req models.ActivityUpdateRequest) map[s
 	if req.Category != nil {
 		updates["category"] = *req.Category
 	}
+    if req.Details != nil {
+        updates["details"] = datatypes.JSONMap(req.Details)
+    }
 
 	if req.StartDate != nil || req.EndDate != nil {
 		startDateStr := ""

@@ -58,14 +58,14 @@ export default function Login() {
         const { token, refresh_token, user } = response.data.data;
 
         if (token && user) {
-          // 转换用户数据格式以匹配前端接口
+          // 转换用户数据格式以匹配前端接口（以数据库模型为准）
           const normalizedUser = {
-            id: user.id,
+            uuid: user.uuid,
+            user_id: user.user_id,
             username: user.username,
             userType: user.user_type,
             email: user.email,
             fullName: user.real_name,
-            studentNumber: user.student_id,
             department: user.department,
             college: user.college,
             major: user.major,
@@ -73,7 +73,7 @@ export default function Login() {
             status: user.status,
             createdAt: user.created_at,
             updatedAt: user.updated_at,
-          };
+          } as const;
 
           login(token, refresh_token || "", normalizedUser);
           navigate("/dashboard");

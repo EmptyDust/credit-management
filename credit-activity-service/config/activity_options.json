@@ -15,7 +15,57 @@
   "review_actions": [
     { "value": "approved", "label": "通过" },
     { "value": "rejected", "label": "拒绝" }
-  ]
+  ],
+  "category_fields": {
+    "创新创业实践活动": [
+      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
+      { "name": "organizer", "label": "主办单位", "type": "text", "required": false, "maxLength": 100 },
+      { "name": "role", "label": "角色", "type": "select", "required": true, "options": [
+        { "value": "负责人", "label": "负责人" }, { "value": "核心成员", "label": "核心成员" }, { "value": "成员", "label": "成员" }
+      ], "filterable": true },
+      { "name": "outcome", "label": "成果描述", "type": "text", "required": false, "maxLength": 200 },
+      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+    ],
+    "学科竞赛": [
+      { "name": "competition", "label": "竞赛名称", "type": "text", "required": true, "maxLength": 100 },
+      { "name": "level", "label": "竞赛级别", "type": "select", "required": true, "options": [
+        { "value": "校级", "label": "校级" }, { "value": "省级", "label": "省级" }, { "value": "国家级", "label": "国家级" }
+      ], "filterable": true },
+      { "name": "award_level", "label": "奖项等级", "type": "select", "required": false, "options": [
+        { "value": "一等奖", "label": "一等奖" }, { "value": "二等奖", "label": "二等奖" }, { "value": "三等奖", "label": "三等奖" }
+      ]},
+      { "name": "rank", "label": "排名", "type": "text", "required": false }
+    ],
+    "大学生创业项目": [
+      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
+      { "name": "stage", "label": "项目阶段", "type": "select", "required": true, "options": [
+        { "value": "立项", "label": "立项" }, { "value": "中期", "label": "中期" }, { "value": "结项", "label": "结项" }
+      ], "filterable": true },
+      { "name": "role", "label": "角色", "type": "select", "required": true, "options": [
+        { "value": "负责人", "label": "负责人" }, { "value": "核心成员", "label": "核心成员" }, { "value": "成员", "label": "成员" }
+      ], "filterable": true },
+      { "name": "funding", "label": "经费(元)", "type": "number", "required": false, "min": 0 },
+      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+    ],
+    "创业实践项目": [
+      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
+      { "name": "practice_type", "label": "实践类型", "type": "select", "required": true, "options": [
+        { "value": "志愿服务", "label": "志愿服务" }, { "value": "社会调查", "label": "社会调查" }, { "value": "专业实践", "label": "专业实践" }
+      ], "filterable": true },
+      { "name": "duration", "label": "时长(小时)", "type": "number", "required": false, "min": 0 },
+      { "name": "role", "label": "角色", "type": "select", "required": false, "options": [
+        { "value": "负责人", "label": "负责人" }, { "value": "成员", "label": "成员" }
+      ], "filterable": true },
+      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+    ],
+    "论文专利": [
+      { "name": "name", "label": "名称", "type": "text", "required": true },
+      { "name": "category", "label": "类别", "type": "select", "required": true, "options": [
+        { "value": "论文", "label": "论文" }, { "value": "专利", "label": "专利" }
+      ], "filterable": true },
+      { "name": "rank", "label": "作者排名", "type": "number", "required": false, "min": 1 }
+    ]
+  }
 }
 
 

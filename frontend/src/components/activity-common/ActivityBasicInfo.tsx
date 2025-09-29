@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Award } from "lucide-react";
 import type { Activity } from "@/types/activity";
+import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -11,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStatusText, getStatusStyle, getStatusIcon, activityCategories } from "@/lib/utils";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import { getActivityOptions } from "@/lib/options";
 
 interface ActivityBasicInfoProps {
   activity: Activity;
@@ -33,6 +35,19 @@ export default function ActivityBasicInfo({
   const totalCredits = participants.reduce((sum, p) => sum + p.credits, 0);
 
   const StatusIcon = getStatusIcon(activity.status);
+
+  const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const opts = await getActivityOptions();
+        setActivityCategories(opts.categories || []);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   return (
     <Card className="rounded-xl shadow-lg bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">

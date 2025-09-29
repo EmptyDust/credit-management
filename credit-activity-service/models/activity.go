@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -37,20 +38,21 @@ func GetActivityCategories() []string {
 
 // CreditActivity 学分活动表
 type CreditActivity struct {
-	ID             string         `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
-	Title          string         `json:"title" gorm:"not null"`
-	Description    string         `json:"description"`
-	StartDate      time.Time      `json:"start_date"`
-	EndDate        time.Time      `json:"end_date"`
-	Status         string         `json:"status" gorm:"default:'draft';index"`
-	Category       string         `json:"category"`
-	OwnerID        string         `json:"owner_id" gorm:"type:uuid;not null;index"`
-	ReviewerID     *string        `json:"reviewer_id" gorm:"type:uuid"`
-	ReviewComments string         `json:"review_comments"`
-	ReviewedAt     *time.Time     `json:"reviewed_at"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	DeletedAt      gorm.DeletedAt `json:"deleted_at" gorm:"index"`
+	ID             string            `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	Title          string            `json:"title" gorm:"not null"`
+	Description    string            `json:"description"`
+	StartDate      time.Time         `json:"start_date"`
+	EndDate        time.Time         `json:"end_date"`
+	Status         string            `json:"status" gorm:"default:'draft';index"`
+	Category       string            `json:"category"`
+	OwnerID        string            `json:"owner_id" gorm:"type:uuid;not null;index"`
+	ReviewerID     *string           `json:"reviewer_id" gorm:"type:uuid"`
+	ReviewComments string            `json:"review_comments"`
+	ReviewedAt     *time.Time        `json:"reviewed_at"`
+	Details        datatypes.JSONMap `json:"details" gorm:"type:jsonb;default:'{}'::jsonb"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt    `json:"deleted_at" gorm:"index"`
 
 	// 关联关系
 	Participants []ActivityParticipant `json:"participants" gorm:"foreignKey:ActivityID"`
