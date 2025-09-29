@@ -54,7 +54,6 @@ export type Student = {
   id?: string;
   username: string;
   real_name: string;
-  student_id?: string | null;
   college?: string | null;
   major?: string | null;
   class?: string | null;
@@ -81,7 +80,7 @@ const formSchema = z.object({
     .regex(/[a-z]/, "密码必须包含至少一个小写字母")
     .regex(/[0-9]/, "密码必须包含至少一个数字")
     .optional(),
-  student_id: z
+  id: z
     .string()
     .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字")
@@ -112,7 +111,7 @@ const formSchema = z.object({
 const defaultValues = {
   username: "",
   password: "",
-  student_id: "",
+  id: "",
   real_name: "",
   college: "",
   major: "",
@@ -147,7 +146,7 @@ export default function StudentsPage() {
   // 获取统计数据
   const fetchStats = async () => {
     try {
-      const response = await apiClient.get("/users/stats", {
+      await apiClient.get("/users/stats", {
         params: { user_type: "student" },
       });
       // 处理统计数据...
@@ -283,9 +282,9 @@ export default function StudentsPage() {
                   ),
                 },
                 {
-                  key: "student_id",
+                  key: "id",
                   header: "学号",
-                  render: (student: Student) => student.student_id || "-",
+                  render: (student: Student) => student.id || "-",
                 },
                 {
                   key: "college",
@@ -411,7 +410,7 @@ export default function StudentsPage() {
               )}
               <FormField
                 control={userManagement.form.control}
-                name="student_id"
+                name="id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>学号</FormLabel>
