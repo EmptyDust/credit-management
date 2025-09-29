@@ -4,18 +4,16 @@ import toast from "react-hot-toast";
 
 // Define a comprehensive user interface
 interface User {
-  id: string;
-  id?: string;
+  uuid: string;
+  user_id?: string; // 学号或工号
   username: string;
   userType: "student" | "teacher" | "admin";
   email?: string;
   fullName?: string;
-  studentNumber?: string; // For students
-  teacherId?: string; // For teachers
-  department?: string; // For teachers
-  college?: string; // For students
-  major?: string; // For students
-  class?: string; // For students
+  department?: string;
+  college?: string;
+  major?: string;
+  class?: string;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
@@ -66,11 +64,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const response = await apiClient.get("/users/profile");
           // 兼容后端返回格式
           const userData = response.data.data || response.data;
-          const normalizedUser = {
+          const normalizedUser: User = {
             ...userData,
             userType: userData.userType || userData.user_type,
-            id: userData.id || userData.id,
-            id: userData.id || userData.id, // 确保id字段也存在
+            uuid: userData.uuid,
+            user_id: userData.user_id,
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -91,11 +89,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = (token: string, refreshToken: string, user: User) => {
     // 标准化用户对象
-    const normalizedUser = {
+    const normalizedUser: User = {
       ...user,
       userType: user.userType,
-      id: user.id || user.id,
-      id: user.id || user.id, // 确保id字段也存在
+      uuid: (user as any).uuid ?? (user as any).id,
+      user_id: user.user_id,
     };
 
     localStorage.setItem("token", token);
@@ -132,11 +130,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await apiClient.get("/users/profile");
       const userData = response.data.data || response.data;
-      const normalizedUser = {
+      const normalizedUser: User = {
         ...userData,
         userType: userData.userType || userData.user_type,
-        id: userData.id || userData.id,
-        id: userData.id || userData.id, // 确保id字段也存在
+        uuid: userData.uuid,
+        user_id: userData.user_id,
       };
       setUser(normalizedUser);
       localStorage.setItem("user", JSON.stringify(normalizedUser));

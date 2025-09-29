@@ -182,16 +182,15 @@ func (h *UserHandler) GetStudentStats(c *gin.Context) {
 
 	h.db.Model(&models.User{}).Where("user_type = ?", "student").Count(&stats.TotalStudents)
 	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "student", "active").Count(&stats.ActiveStudents)
-	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "student", "graduated").Count(&stats.GraduatedStudents)
+	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "student", "inactive").Count(&stats.GraduatedStudents)
 
 	stats.StudentsByCollege = make(map[string]int64)
 	var collegeStats []struct {
 		College string
 		Count   int64
 	}
-	h.db.Model(&models.User{}).
+	h.db.Table("student_complete_info").
 		Select("college, count(*) as count").
-		Where("user_type = ? AND college IS NOT NULL", "student").
 		Group("college").
 		Find(&collegeStats)
 
@@ -204,9 +203,8 @@ func (h *UserHandler) GetStudentStats(c *gin.Context) {
 		Major string
 		Count int64
 	}
-	h.db.Model(&models.User{}).
+	h.db.Table("student_complete_info").
 		Select("major, count(*) as count").
-		Where("user_type = ? AND major IS NOT NULL", "student").
 		Group("major").
 		Find(&majorStats)
 
@@ -239,16 +237,15 @@ func (h *UserHandler) GetTeacherStats(c *gin.Context) {
 
 	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "teacher", "active").Count(&stats.ActiveTeachers)
 
-	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "teacher", "retired").Count(&stats.RetiredTeachers)
+	h.db.Model(&models.User{}).Where("user_type = ? AND status = ?", "teacher", "inactive").Count(&stats.RetiredTeachers)
 
 	stats.TeachersByDepartment = make(map[string]int64)
 	var deptStats []struct {
 		Department string
 		Count      int64
 	}
-	h.db.Model(&models.User{}).
+	h.db.Table("teacher_complete_info").
 		Select("department, count(*) as count").
-		Where("user_type = ? AND department IS NOT NULL", "teacher").
 		Group("department").
 		Find(&deptStats)
 

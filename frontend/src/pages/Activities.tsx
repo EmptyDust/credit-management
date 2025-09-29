@@ -86,6 +86,8 @@ export default function ActivitiesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
   const [activityStatuses, setActivityStatuses] = useState<{ value: string; label: string }[]>([]);
+  const [categoryFields, setCategoryFields] = useState<Record<string, Array<{ name: string; label: string; type: string; required?: boolean; options?: { value: string; label: string }[]; min?: number; max?: number; maxLength?: number }>>>({});
+  const [details, setDetails] = useState<Record<string, any>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -205,6 +207,7 @@ export default function ActivitiesPage() {
         const opts = await getActivityOptions();
         setActivityCategories(opts.categories || []);
         setActivityStatuses(opts.statuses || []);
+        setCategoryFields(opts.category_fields || {});
       } catch (e) {
         console.error("Failed to load activity options", e);
       }
@@ -234,11 +237,15 @@ export default function ActivitiesPage() {
         title: activity.title,
         category: activity.category || "",
       });
+      // 尝试回填 details（后端响应已包含 details）
+      // @ts-ignore
+      setDetails((activity as any).details || {});
     } else {
       form.reset({
         title: "",
         category: "",
       });
+      setDetails({});
     }
     setIsDialogOpen(true);
   };
@@ -339,11 +346,12 @@ export default function ActivitiesPage() {
 
   const onSubmit = async (values: CreateActivityForm) => {
     try {
+      const payload: any = { ...values, details };
       if (editingActivity) {
-        await apiClient.put(`/activities/${editingActivity.id}`, values);
+        await apiClient.put(`/activities/${editingActivity.id}`, payload);
         toast.success("活动更新成功");
       } else {
-        await apiClient.post("/activities", values);
+        await apiClient.post("/activities", payload);
         toast.success("活动创建成功");
       }
       setIsDialogOpen(false);
@@ -678,6 +686,44 @@ export default function ActivitiesPage() {
                   </FormItem>
                 )}
               />
+              {/* 动态详情字段 */}
+              {(() => {
+                const selectedCategory = form.watch("category");
+                const fields = categoryFields[selectedCategory] || [];
+                if (!fields.length) return null;
+                return (
+                  <div className="space-y-4">
+                    {fields.map((f) => (
+                      <div key={f.name} className="grid gap-2">
+                        <FormLabel>{f.label}{f.required ? " *" : ""}</FormLabel>
+                        {f.type === "select" ? (
+                          <Select
+                            onValueChange={(v) => setDetails((d) => ({ ...d, [f.name]: v }))}
+                            defaultValue={details?.[f.name] ?? ""}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={`请选择${f.label}`} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {(f.options || []).map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                            defaultValue={details?.[f.name] ?? ""}
+                            onChange={(e) => setDetails((d) => ({ ...d, [f.name]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               <DialogFooter>
                 <Button type="submit" className="w-full">
                   {editingActivity ? "更新活动" : "创建活动"}

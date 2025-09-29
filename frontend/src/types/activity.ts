@@ -40,71 +40,10 @@ export interface Activity {
   updated_at: string;
   participants?: Participant[];
   applications?: Application[];
+  // 配置驱动下的通用详情
+  details?: Record<string, any>;
 }
 
-// 活动详情类型
-export interface InnovationActivityDetail {
-  id: string;
-  activity_id: string;
-  item: string;
-  company: string;
-  project_no: string;
-  issuer: string;
-  date: string;
-  total_hours: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CompetitionActivityDetail {
-  id: string;
-  activity_id: string;
-  level: string;
-  competition: string;
-  award_level: string;
-  rank: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface EntrepreneurshipProjectDetail {
-  id: string;
-  activity_id: string;
-  project_name: string;
-  project_level: string;
-  project_rank: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface EntrepreneurshipPracticeDetail {
-  id: string;
-  activity_id: string;
-  company_name: string;
-  legal_person: string;
-  share_percent: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PaperPatentDetail {
-  id: string;
-  activity_id: string;
-  name: string;
-  category: string;
-  rank: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// 完整活动信息（包含详情）
-export interface ActivityWithDetails extends Activity {
-  innovation_detail?: InnovationActivityDetail;
-  competition_detail?: CompetitionActivityDetail;
-  entrepreneurship_project_detail?: EntrepreneurshipProjectDetail;
-  entrepreneurship_practice_detail?: EntrepreneurshipPracticeDetail;
-  paper_patent_detail?: PaperPatentDetail;
-}
 
 // 参与者信息
 export interface Participant {
@@ -118,7 +57,7 @@ export interface Participant {
 export interface Application {
   id: string;
   activity_id: string;
-  id: string;
+  user_id?: string;
   status: string;
   applied_credits: number;
   awarded_credits: number;

@@ -28,6 +28,7 @@ export type ActivityOptions = {
   categories: SelectOption[];
   statuses: SelectOption[];
   review_actions: SelectOption[];
+  category_fields?: Record<string, Array<{ name: string; label: string; type: string; required?: boolean; options?: SelectOption[]; min?: number; max?: number; maxLength?: number }>>;
 };
 
 export async function getActivityOptions(): Promise<ActivityOptions> {
@@ -37,6 +38,7 @@ export async function getActivityOptions(): Promise<ActivityOptions> {
     categories: Array.isArray(data.categories) ? data.categories : [],
     statuses: Array.isArray(data.statuses) ? data.statuses : [],
     review_actions: Array.isArray(data.review_actions) ? data.review_actions : [],
+    category_fields: data.category_fields || {},
   };
 }
 

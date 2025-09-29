@@ -38,6 +38,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 		ReviewedAt:     activity.ReviewedAt,
 		CreatedAt:      activity.CreatedAt,
 		UpdatedAt:      activity.UpdatedAt,
+		Details:        activity.Details,
 	}
 
 	if ownerInfo, err := h.getUserInfo(activity.OwnerID, authToken); err == nil {
@@ -101,38 +102,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 	}
 	response.Applications = applicationResponses
 
-	switch activity.Category {
-	case "创新创业实践活动":
-		var detail models.InnovationActivityDetail
-		h.db.Where("activity_id = ?", activity.ID).First(&detail)
-		if detail.ID != "" {
-			response.InnovationDetail = &detail
-		}
-	case "学科竞赛":
-		var detail models.CompetitionActivityDetail
-		h.db.Where("activity_id = ?", activity.ID).First(&detail)
-		if detail.ID != "" {
-			response.CompetitionDetail = &detail
-		}
-	case "大学生创业项目":
-		var detail models.EntrepreneurshipProjectDetail
-		h.db.Where("activity_id = ?", activity.ID).First(&detail)
-		if detail.ID != "" {
-			response.EntrepreneurshipProjectDetail = &detail
-		}
-	case "创业实践项目":
-		var detail models.EntrepreneurshipPracticeDetail
-		h.db.Where("activity_id = ?", activity.ID).First(&detail)
-		if detail.ID != "" {
-			response.EntrepreneurshipPracticeDetail = &detail
-		}
-	case "论文专利":
-		var detail models.PaperPatentDetail
-		h.db.Where("activity_id = ?", activity.ID).First(&detail)
-		if detail.ID != "" {
-			response.PaperPatentDetail = &detail
-		}
-	}
+	// legacy per-category detail removed; use Details JSONB
 
 	return response
 }

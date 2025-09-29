@@ -232,8 +232,25 @@ func initDatabase() (*gorm.DB, error) {
 		return nil, err
 	}
 
+	// 保障: 确保 credit_activities.details JSONB 列存在
+	if err := ensureDetailsColumn(db); err != nil {
+		return nil, err
+	}
+
 	log.Println("Database connected successfully")
 	return db, nil
+}
+
+// handlersAutoMigrate 用于触发 CreditActivity 的自动迁移（包含 details JSONB）
+// ensureDetailsColumn adds details JSONB column if missing (idempotent)
+func ensureDetailsColumn(db *gorm.DB) error {
+	if db.Migrator().HasColumn("credit_activities", "details") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE credit_activities ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '{}'::jsonb").Error; err != nil {
+		return fmt.Errorf("failed to add details column: %w", err)
+	}
+	return nil
 }
 
 func getEnv(key, defaultValue string) string {

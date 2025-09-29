@@ -1,5 +1,5 @@
 import React from "react";
-import type { ActivityWithDetails } from "@/types/activity";
+import type { Activity } from "@/types/activity";
 import {
   ActivityBasicInfo,
   ActivityParticipants,
@@ -7,14 +7,11 @@ import {
 } from "../activity-common";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import ReviewActionCard from "../activity-common/ReviewActionCard";
-import { activityDetailConfigs } from "@/lib/utils";
-import * as Icons from "lucide-react";
 
 interface GenericActivityDetailProps {
-  activity: ActivityWithDetails;
+  activity: Activity;
   detail?: any;
   isEditing?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
@@ -34,8 +31,6 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
   onRefresh,
   basicInfo,
   setBasicInfo,
-  detailInfo,
-  setDetailInfo,
 }) => {
   const { user } = useAuth();
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
@@ -45,14 +40,8 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
     else window.location.reload();
   };
 
-  // 获取活动配置
-  const config = activityDetailConfigs[activity.category as keyof typeof activityDetailConfigs];
-  if (!config) {
-    return <div>不支持的活动类型: {activity.category}</div>;
-  }
-
-  // 动态获取图标组件
-  const IconComponent = Icons[config.icon as keyof typeof Icons] as React.ComponentType<any>;
+  // 通用详情（已改为配置驱动，前端不再硬编码）
+  const detailsData: Record<string, any> = detail ?? (activity as any).details ?? {};
 
   return (
     <div className="space-y-6">
@@ -69,60 +58,28 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
       {/* 活动详情 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <IconComponent className={`h-5 w-5 ${config.color}`} />
-            {config.title}
-          </CardTitle>
+          <CardTitle>活动详情</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isEditing ? (
+          {Object.keys(detailsData).length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {config.fields.map((field) => (
-                <div key={field.key} className="space-y-2">
+              {Object.entries(detailsData).map(([k, v]) => (
+                <div key={k} className="space-y-1">
                   <label className="text-sm font-medium text-gray-500">
-                    {field.label}
-                  </label>
-                  <Input
-                    className="w-full"
-                    type={field.type}
-                    value={detailInfo[field.key] || ""}
-                    onChange={(e) =>
-                      setDetailInfo({
-                        ...detailInfo,
-                        [field.key]: e.target.value,
-                      })
-                    }
-                    placeholder={`请输入${field.label}`}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : detail ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {config.fields.map((field) => (
-                <div key={field.key} className="space-y-2">
-                  <label className="text-sm font-medium text-gray-500">
-                    {field.label}
+                    {k}
                   </label>
                   <div className="flex items-center gap-2">
-                    {field.key === "share_percent" && detail[field.key] ? (
-                      <Badge variant="secondary">
-                        {detail[field.key]}%
-                      </Badge>
+                    {k === "share_percent" && v ? (
+                      <Badge variant="secondary">{String(v)}%</Badge>
                     ) : (
-                      <p className="text-sm">
-                        {detail[field.key] || "未填写"}
-                      </p>
+                      <p className="text-sm break-words">{String(v ?? "未填写")}</p>
                     )}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <IconComponent className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>暂无{config.title}信息</p>
-            </div>
+            <div className="text-center py-8 text-gray-500">暂无活动详情</div>
           )}
         </CardContent>
       </Card>

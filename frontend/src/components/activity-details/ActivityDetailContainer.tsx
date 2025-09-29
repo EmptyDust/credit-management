@@ -1,9 +1,9 @@
-import type { ActivityWithDetails } from "@/types/activity";
+import type { Activity } from "@/types/activity";
 import GenericActivityDetail from "./GenericActivityDetail";
 import { useImperativeHandle, forwardRef } from "react";
 
 interface ActivityDetailContainerProps {
-  activity: ActivityWithDetails;
+  activity: Activity;
   detail?: any;
   isEditing?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;

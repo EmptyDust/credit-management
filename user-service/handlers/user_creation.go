@@ -240,9 +240,14 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		}
 	}
 
-	// 验证用户请求
-	if err := h.validateUserRequest(&req); err != nil {
-		utils.SendBadRequest(c, err.Error())
+	if req.UserType != "student" && req.UserType != "teacher" {
+		utils.SendBadRequest(c, "用户类型必须是student或teacher")
+		return
+	}
+
+	// 恢复：学生创建时必须指定班级（department_id）
+	if req.UserType == "student" && req.DepartmentID == "" {
+		utils.SendBadRequest(c, "学生必须指定部门/班级")
 		return
 	}
 
@@ -361,29 +366,6 @@ func (h *UserHandler) checkIDUniqueness(id string) error {
 			return fmt.Errorf("学号/工号已存在")
 		}
 	}
-	return nil
-}
-
-func (h *UserHandler) validateUserRequest(req *models.UserRequest) error {
-	if req.UserType != "student" && req.UserType != "teacher" {
-		return fmt.Errorf("用户类型必须是student或teacher")
-	}
-
-	if req.UserType == "student" {
-		if req.DepartmentID == "" {
-			return fmt.Errorf("学生必须指定部门/班级")
-		}
-	}
-
-	if req.UserType == "teacher" {
-		if req.DepartmentID == "" {
-			return fmt.Errorf("教师必须指定部门")
-		}
-		if req.Title == "" {
-			return fmt.Errorf("教师必须指定职称")
-		}
-	}
-
 	return nil
 }
 
@@ -594,8 +576,12 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 			user.Title = strings.TrimSpace(record[headerMap["title"]])
 		}
 
-		if err := h.validateUserRequest(&user); err != nil {
-			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+		if user.UserType != "student" && user.UserType != "teacher" {
+			errors = append(errors, fmt.Sprintf("第%d行: 用户类型必须是student或teacher", rowNum))
+			continue
+		}
+		if user.UserType == "student" && strings.TrimSpace(user.DepartmentID) == "" {
+			errors = append(errors, fmt.Sprintf("第%d行: 学生必须指定部门/班级", rowNum))
 			continue
 		}
 

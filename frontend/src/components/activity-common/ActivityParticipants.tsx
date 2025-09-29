@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Users,
-  User,
   Plus,
   Search,
   Trash2,
@@ -24,14 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -62,7 +53,7 @@ interface ParticipantWithUserInfo extends Participant {
 }
 
 interface UserSearchResult {
-  id: string;
+  uuid: string;
   username: string;
   real_name: string;
   student_id?: string;
@@ -79,7 +70,7 @@ export default function ActivityParticipants({
   const [participants, setParticipants] = useState<ParticipantWithUserInfo[]>(
     []
   );
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
@@ -90,7 +81,7 @@ export default function ActivityParticipants({
   const [userSearchResults, setUserSearchResults] = useState<
     UserSearchResult[]
   >([]);
-  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [, setUserSearchLoading] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [addDialogCredits, setAddDialogCredits] = useState(1.0);
@@ -101,7 +92,7 @@ export default function ActivityParticipants({
   const [stats, setStats] = useState<any>(null);
 
   const isOwner =
-    user && (user.id === activity.owner_id || user.userType === "admin");
+    user && (user.uuid === activity.owner_id || user.userType === "admin");
 
   // 添加活动状态检查：只有草稿状态的活动才能编辑参与者
   const canEditParticipants = isOwner && activity.status === "draft";
@@ -113,12 +104,10 @@ export default function ActivityParticipants({
       const response = await apiClient.get(
         `/activities/${activity.id}/participants`
       );
-      
       // 调试：打印响应数据
       console.log("Participants API Response:", response.data);
-      
       // 处理分页响应数据结构
-      let participantsData = [];
+      let participantsData: any[] = [];
       if (response.data.code === 0 && response.data.data) {
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
           // 分页数据结构
@@ -131,11 +120,9 @@ export default function ActivityParticipants({
           participantsData = [];
         }
       }
-      
       // 调试：打印处理后的数据
       console.log("Participants Data:", participantsData);
       console.log("Is Array:", Array.isArray(participantsData));
-      
       setParticipants(participantsData);
     } catch (error) {
       console.error("Failed to fetch participants:", error);
@@ -175,13 +162,19 @@ export default function ActivityParticipants({
         page_size: 20,
       });
 
-      const users = response.users || [];
+      // 直接使用 uuid
+      const users = (response.users || []).map((u: any) => ({
+        ...u,
+        uuid: u.uuid ?? u.id,
+      }));
       // 过滤掉已经是参与者的用户
       const filteredUsers = users.filter(
         (user: UserSearchResult) =>
-          !participants.some((p) => p.id === user.id)
+          !participants.some((p) => p.id === user.uuid)
       );
       setUserSearchResults(filteredUsers);
+      // 防止历史选择泄漏到新的搜索结果
+      setSelectedUsers([]);
     } catch (error) {
       console.error("Failed to search users:", error);
       toast.error("搜索用户失败");
@@ -192,7 +185,11 @@ export default function ActivityParticipants({
 
   // 添加参与者
   const addParticipants = async () => {
-    if (selectedUsers.length === 0) {
+    // 仅提交当前搜索结果中仍存在的选择，避免历史选择残留
+    const validSet = new Set(userSearchResults.map((u) => u.uuid));
+    const validSelected = selectedUsers.filter((id) => validSet.has(id));
+
+    if (validSelected.length === 0) {
       toast.error("请选择要添加的用户");
       return;
     }
@@ -206,7 +203,7 @@ export default function ActivityParticipants({
       const response = await apiClient.post(
         `/activities/${activity.id}/participants`,
         {
-          ids: selectedUsers,
+          ids: validSelected,
           credits: addDialogCredits,
         }
       );
@@ -305,43 +302,32 @@ export default function ActivityParticipants({
           credits_map: creditsMap,
         }
       );
-      toast.success("批量设置学分成功");
+      toast.success("批量学分设置成功");
       setShowBatchDialog(false);
       setSelectedParticipants([]);
-      setBatchDialogCredits(1.0);
       fetchParticipants();
-      onRefresh?.();
     } catch (error) {
       console.error("Failed to batch set credits:", error);
     }
   };
 
-  // 导出参与者名单
+  // 导出参与者
   const exportParticipants = async () => {
     try {
       const response = await apiClient.get(
         `/activities/${activity.id}/participants/export`,
         {
-          params: { format: "json" },
+          responseType: "blob",
         }
       );
 
-      const data = response.data.data;
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      });
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.download = `参与者名单_${activity.title}_${
-        new Date().toISOString().split("T")[0]
-      }.json`;
+      link.setAttribute("download", `participants_${activity.id}.csv`);
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("导出成功");
+      link.parentNode?.removeChild(link);
     } catch (error) {
       console.error("Failed to export participants:", error);
       toast.error("导出失败");
@@ -359,37 +345,20 @@ export default function ActivityParticipants({
     }
   };
 
-  // 过滤参与者
-  const safeParticipants = Array.isArray(participants) ? participants : [];
-  const filteredParticipants = safeParticipants.filter((participant) => {
+  // 过滤参与者（根据搜索）
+  const filteredParticipants = participants.filter((p) => {
     if (!searchQuery) return true;
-    const userInfo = participant.user_info;
+    const info = p.user_info;
     return (
-      userInfo?.real_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      userInfo?.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      userInfo?.username?.toLowerCase().includes(searchQuery.toLowerCase())
+      info?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      info?.real_name?.includes(searchQuery)
     );
   });
 
   useEffect(() => {
     fetchParticipants();
-  }, [activity.id]);
-
-  useEffect(() => {
-    if (showStatsDialog) {
-      fetchStats();
-    }
-  }, [showStatsDialog]);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (userSearchQuery) {
-        searchUsers(userSearchQuery);
-      }
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [userSearchQuery]);
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     if (showAddDialog) {
@@ -417,7 +386,7 @@ export default function ActivityParticipants({
           if (allSelected) {
             setSelectedUsers([]);
           } else {
-            setSelectedUsers(userSearchResults.map((u) => u.id));
+            setSelectedUsers(userSearchResults.map((u) => u.uuid));
           }
         } else if (showBatchDialog && filteredParticipants.length > 0) {
           const allSelected =
@@ -456,12 +425,12 @@ export default function ActivityParticipants({
         if (showAddDialog && userSearchResults.length > 0) {
           const currentIndex = userSearchResults.findIndex(
             (u) =>
-              document.activeElement?.getAttribute("data-user-id") === u.id
+              document.activeElement?.getAttribute("data-user-id") === u.uuid
           );
           if (currentIndex > 0) {
             const prevUser = userSearchResults[currentIndex - 1];
             const element = document.querySelector(
-              `[data-user-id="${prevUser.id}"]`
+              `[data-user-id="${prevUser.uuid}"]`
             ) as HTMLElement;
             element?.focus();
           }
@@ -555,7 +524,7 @@ export default function ActivityParticipants({
             )}
             {!isOwner &&
               user &&
-              participants.some((p) => p.id === user.id) && (
+              participants.some((p) => p.id === user.uuid) && (
                 <Button variant="outline" size="sm" onClick={leaveActivity}>
                   退出活动
                 </Button>
@@ -595,404 +564,244 @@ export default function ActivityParticipants({
           </div>
 
           {/* 参与者表格 */}
-          <div className="border rounded-lg">
+          <div className="rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  {canEditParticipants && (
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={
-                          selectedParticipants.length ===
-                            filteredParticipants.length &&
-                          filteredParticipants.length > 0
-                        }
-                        onCheckedChange={(checked: boolean) => {
-                          if (checked) {
-                            setSelectedParticipants(
-                              filteredParticipants.map((p) => p.id)
-                            );
-                          } else {
-                            setSelectedParticipants([]);
-                          }
-                        }}
-                      />
-                    </TableHead>
-                  )}
-                  <TableHead>用户信息</TableHead>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead>姓名</TableHead>
+                  <TableHead>用户名</TableHead>
                   <TableHead>学分</TableHead>
-                  <TableHead>加入时间</TableHead>
-                  {canEditParticipants && (
-                    <TableHead className="w-12">操作</TableHead>
-                  )}
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredParticipants.map((participant) => (
-                  <TableRow
-                    key={participant.id}
-                    onClick={() => {
-                      if (canEditParticipants) {
-                        if (
-                          selectedParticipants.includes(participant.id)
-                        ) {
-                          setSelectedParticipants((prev) =>
-                            prev.filter((id) => id !== participant.id)
-                          );
-                        } else {
-                          setSelectedParticipants((prev) => [
-                            ...prev,
-                            participant.id,
-                          ]);
-                        }
-                      }
-                    }}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`选择参与者 ${
-                      participant.user_info?.real_name || participant.id
-                    }`}
-                    data-participant-id={participant.id}
-                  >
-                    {canEditParticipants && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                {filteredParticipants.map((p) => (
+                  <TableRow key={p.id} data-participant-id={p.id}>
+                    <TableCell>
+                      {canEditParticipants && (
                         <Checkbox
-                          checked={selectedParticipants.includes(
-                            participant.id
-                          )}
-                          onCheckedChange={(checked: boolean) => {
+                          checked={selectedParticipants.includes(p.id)}
+                          onCheckedChange={(checked) => {
                             if (checked) {
                               setSelectedParticipants((prev) => [
                                 ...prev,
-                                participant.id,
+                                p.id,
                               ]);
                             } else {
                               setSelectedParticipants((prev) =>
-                                prev.filter((id) => id !== participant.id)
+                                prev.filter((id) => id !== p.id)
                               );
                             }
                           }}
                         />
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">
-                            {participant.user_info?.real_name ||
-                              participant.user_info?.username ||
-                              "未知用户"}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {participant.user_info?.username}
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </TableCell>
+                    <TableCell>{p.user_info?.real_name || "-"}</TableCell>
+                    <TableCell>{p.user_info?.username || "-"}</TableCell>
                     <TableCell>
-                      {editingCredits[participant.id] !== undefined ? (
+                      {editingCredits[p.id] !== undefined ? (
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
-                            step="0.1"
-                            min="0"
-                            max="10"
-                            value={
-                              editingCredits[participant.id] === undefined
-                                ? ""
-                                : editingCredits[participant.id]
-                            }
-                            onChange={(e) => {
-                              const value = e.target.value;
+                            value={editingCredits[p.id]}
+                            onChange={(e) =>
                               setEditingCredits((prev) => ({
                                 ...prev,
-                                [participant.id]:
-                                  value === "" ? "" : parseFloat(value),
-                              }));
-                            }}
-                            className="w-20"
+                                [p.id]: e.target.value === "" ? "" : Number(e.target.value),
+                              }))
+                            }
+                            className="w-24"
+                            min={0}
+                            max={10}
+                            step={0.5}
                           />
                           <Button
                             size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              const val = editingCredits[participant.id];
-                              if (
-                                val === "" ||
-                                val === undefined ||
-                                isNaN(Number(val))
-                              ) {
-                                toast.error("请输入有效的学分");
-                                return;
-                              }
-                              setCredits(participant.id, Number(val));
-                            }}
-                          >
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
                             onClick={() =>
-                              setEditingCredits((prev) => ({
-                                ...prev,
-                                [participant.id]: undefined,
-                              }))
+                              typeof editingCredits[p.id] === "number" &&
+                              setCredits(p.id, editingCredits[p.id] as number)
                             }
                           >
-                            <X className="h-3 w-3" />
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setEditingCredits((prev) => ({ ...prev, [p.id]: undefined }))
+                            }
+                          >
+                            <X className="h-4 w-4" />
                           </Button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-primary">
-                            {participant.credits} 学分
-                          </span>
+                          <span>{p.credits}</span>
                           {canEditParticipants && (
                             <Button
+                              variant="outline"
                               size="sm"
-                              variant="ghost"
                               onClick={() =>
-                                setEditingCredits((prev) => ({
-                                  ...prev,
-                                  [participant.id]: participant.credits,
-                                }))
+                                setEditingCredits((prev) => ({ ...prev, [p.id]: p.credits }))
                               }
                             >
-                              <Edit3 className="h-3 w-3" />
+                              <Edit3 className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(participant.joined_at).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(participant.joined_at).toLocaleTimeString()}
-                      </div>
+                    <TableCell className="text-right">
+                      {canEditParticipants ? (
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeParticipant(p.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            删除
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-muted-foreground">-</div>
+                      )}
                     </TableCell>
-                    {canEditParticipants && (
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>操作</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setEditingCredits((prev) => ({
-                                  ...prev,
-                                  [participant.id]: participant.credits,
-                                }))
-                              }
-                            >
-                              <Edit3 className="h-4 w-4 mr-2" />
-                              编辑学分
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                removeParticipant(participant.id)
-                              }
-                              className="text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              删除
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        </div>
 
-        {filteredParticipants.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            {searchQuery ? "没有找到匹配的参与者" : "暂无参与者"}
-          </div>
-        )}
-      </CardContent>
+          {/* 添加参与者对话框 */}
+          {canEditParticipants && (
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogContent className="sm:max-w-[700px]">
+                <DialogHeader>
+                  <DialogTitle>添加参与者</DialogTitle>
+                  <DialogDescription>
+                    从学生列表中搜索并选择要添加到该活动的用户
+                  </DialogDescription>
+                </DialogHeader>
 
-      {/* 添加参与者对话框 */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>添加参与者</DialogTitle>
-            <DialogDescription>
-              搜索并选择要添加到活动的学生用户
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="user-search">搜索用户</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="user-search"
-                  placeholder="输入用户名、真实姓名、学号或UUID进行搜索..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="credits">学分</Label>
-              <Input
-                id="credits"
-                type="number"
-                step="0.1"
-                min="0"
-                max="10"
-                value={addDialogCredits}
-                onChange={(e) =>
-                  setAddDialogCredits(parseFloat(e.target.value) || 0)
-                }
-              />
-            </div>
-
-            {userSearchResults.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    点击行选择用户，或使用 Ctrl+A 全选
-                  </div>
-                  {selectedUsers.length > 0 && (
-                    <div className="text-sm font-medium text-primary">
-                      已选择 {selectedUsers.length} 人
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="输入姓名或用户名搜索..."
+                      value={userSearchQuery}
+                      onChange={(e) => {
+                        setUserSearchQuery(e.target.value);
+                        searchUsers(e.target.value);
+                      }}
+                      className="w-64"
+                    />
+                    <Button onClick={() => searchUsers(userSearchQuery)}>
+                      <Search className="h-4 w-4 mr-1" />
+                      搜索
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Label>默认学分:</Label>
+                      <Input
+                        type="number"
+                        value={addDialogCredits}
+                        onChange={(e) => setAddDialogCredits(Number(e.target.value))}
+                        className="w-24"
+                        min={0}
+                        max={10}
+                        step={0.5}
+                      />
                     </div>
-                  )}
-                </div>
-                <div className="border rounded-lg max-h-60 overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">
-                          <Checkbox
-                            checked={
-                              selectedUsers.length === userSearchResults.length
-                            }
-                            onCheckedChange={(checked: boolean) => {
-                              if (checked) {
-                                setSelectedUsers(
-                                  userSearchResults.map((u) => u.id)
-                                );
-                              } else {
-                                setSelectedUsers([]);
-                              }
-                            }}
-                          />
-                        </TableHead>
-                        <TableHead>用户信息</TableHead>
-                        <TableHead>学号</TableHead>
-                        <TableHead>学院专业</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {userSearchResults.map((user) => (
-                        <TableRow
-                          key={user.id}
-                          onClick={() => {
-                            if (selectedUsers.includes(user.id)) {
-                              setSelectedUsers((prev) =>
-                                prev.filter((id) => id !== user.id)
-                              );
-                            } else {
-                              setSelectedUsers((prev) => [
-                                ...prev,
-                                user.id,
-                              ]);
-                            }
-                          }}
-                          className="cursor-pointer hover:bg-muted/50"
-                          tabIndex={0}
-                          role="button"
-                          aria-label={`选择用户 ${user.real_name}`}
-                          data-user-id={user.id}
-                        >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                  </div>
+
+                  <div className="rounded-lg border max-h-80 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">
                             <Checkbox
-                              checked={selectedUsers.includes(user.id)}
-                              onCheckedChange={(checked: boolean) => {
+                              checked={
+                                userSearchResults.length > 0 &&
+                                selectedUsers.length === userSearchResults.length
+                              }
+                              onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedUsers((prev) => [
-                                    ...prev,
-                                    user.id,
-                                  ]);
-                                } else {
-                                  setSelectedUsers((prev) =>
-                                    prev.filter((id) => id !== user.id)
+                                  setSelectedUsers(
+                                    userSearchResults.map((u) => u.uuid)
                                   );
+                                } else {
+                                  setSelectedUsers([]);
                                 }
                               }}
                             />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <div className="font-medium">
-                                {user.real_name}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {user.username}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>{user.student_id || "-"}</TableCell>
-                          <TableCell>
-                            {user.college && user.major
-                              ? `${user.college} - ${user.major}`
-                              : user.college || user.major || "-"}
-                          </TableCell>
+                          </TableHead>
+                          <TableHead>姓名</TableHead>
+                          <TableHead>用户名</TableHead>
+                          <TableHead>学院</TableHead>
+                          <TableHead>专业</TableHead>
+                          <TableHead>班级</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {userSearchResults.map((user) => (
+                          <TableRow
+                            key={user.uuid}
+                            onClick={() => {
+                              if (selectedUsers.includes(user.uuid)) {
+                                setSelectedUsers((prev) =>
+                                  prev.filter((id) => id !== user.uuid)
+                                );
+                              } else {
+                                setSelectedUsers((prev) => [
+                                  ...prev,
+                                  user.uuid,
+                                ]);
+                              }
+                            }}
+                            role="button"
+                            aria-label={`选择用户 ${user.real_name}`}
+                            data-user-id={user.uuid}
+                          >
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedUsers.includes(user.uuid)}
+                                onCheckedChange={(checked: boolean) => {
+                                  if (checked) {
+                                    setSelectedUsers((prev) => [
+                                      ...prev,
+                                      user.uuid,
+                                    ]);
+                                  } else {
+                                    setSelectedUsers((prev) =>
+                                      prev.filter((id) => id !== user.uuid)
+                                    );
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>{user.real_name}</TableCell>
+                            <TableCell>{user.username}</TableCell>
+                            <TableCell>{user.college || "-"}</TableCell>
+                            <TableCell>{user.major || "-"}</TableCell>
+                            <TableCell>{user.class || "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                      取消
+                    </Button>
+                    <Button onClick={addParticipants}>添加</Button>
+                  </DialogFooter>
                 </div>
-              </div>
-            )}
-
-            {userSearchLoading && (
-              <div className="text-center py-4 text-muted-foreground">
-                搜索中...
-              </div>
-            )}
-
-            {!userSearchLoading &&
-              userSearchQuery &&
-              userSearchResults.length === 0 && (
-                <div className="text-center py-4 text-muted-foreground">
-                  没有找到匹配的用户
-                </div>
-              )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              取消
-            </Button>
-            <Button
-              onClick={addParticipants}
-              disabled={selectedUsers.length === 0}
-            >
-              添加参与者
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </CardContent>
 
       {/* 批量操作对话框 */}
       <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>

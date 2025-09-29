@@ -12,7 +12,7 @@ import {
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import type { ActivityWithDetails } from "@/types/activity";
+import type { Activity } from "@/types/activity";
 
 // 导入活动详情组件
 import { ActivityDetailContainer } from "@/components/activity-details/index";
@@ -41,7 +41,7 @@ export default function ActivityDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activity, setActivity] = useState<ActivityWithDetails | null>(null);
+  const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -88,18 +88,18 @@ export default function ActivityDetailPage() {
     })();
   }, [id, searchParams]);
 
-  const isOwner = user && activity && (user.id === activity.owner_id || user.userType === "admin");
+  const isOwner = user && activity && (user.uuid === activity.owner_id || user.userType === "admin");
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
   const canEdit = isOwner && activity?.status === "draft";
   const canSubmitForReview =
     user &&
     activity &&
-    user.id === activity.owner_id &&
+    user.uuid === activity.owner_id &&
     activity?.status === "draft";
   const canWithdraw =
     user &&
     activity &&
-    user.id === activity.owner_id &&
+    user.uuid === activity.owner_id &&
     activity?.status !== "draft";
   const canReview =
     isReviewer &&
@@ -108,7 +108,7 @@ export default function ActivityDetailPage() {
       activity?.status === "rejected");
   const canDelete =
     user?.userType === "admin" ||
-    (user?.id === activity?.owner_id && activity?.status === "draft");
+    (user?.uuid === activity?.owner_id && activity?.status === "draft");
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -172,70 +172,8 @@ export default function ActivityDetailPage() {
         updateData.end_date = endDate;
       }
 
-      // 根据活动类别添加对应的详情数据，并处理数据类型转换
-      switch (activity.category) {
-        case "创新创业实践活动":
-          const innovationDetail: any = {
-            item: detailInfo.item || "",
-            company: detailInfo.company || "",
-            project_no: detailInfo.project_no || "",
-            issuer: detailInfo.issuer || "",
-          };
-          if (
-            detailInfo.total_hours !== undefined &&
-            detailInfo.total_hours !== null
-          ) {
-            innovationDetail.total_hours = detailInfo.total_hours
-              ? parseFloat(detailInfo.total_hours)
-              : 0;
-          }
-          if (detailInfo.date !== undefined && detailInfo.date !== null) {
-            const formattedDate = formatDateForAPI(detailInfo.date);
-            innovationDetail.date = formattedDate || "";
-          }
-          updateData.innovation_detail = innovationDetail;
-          break;
-        case "学科竞赛":
-          const competitionDetail: any = {
-            competition: detailInfo.competition || "",
-            level: detailInfo.level || "",
-            award_level: detailInfo.award_level || "",
-            rank: detailInfo.rank || "",
-          };
-          updateData.competition_detail = competitionDetail;
-          break;
-        case "大学生创业项目":
-          const projectDetail: any = {
-            project_name: detailInfo.project_name || "",
-            project_level: detailInfo.project_level || "",
-            project_rank: detailInfo.project_rank || "",
-          };
-          updateData.entrepreneurship_project_detail = projectDetail;
-          break;
-        case "创业实践项目":
-          const practiceDetail: any = {
-            company_name: detailInfo.company_name || "",
-            legal_person: detailInfo.legal_person || "",
-          };
-          if (
-            detailInfo.share_percent !== undefined &&
-            detailInfo.share_percent !== null
-          ) {
-            practiceDetail.share_percent = detailInfo.share_percent
-              ? parseFloat(detailInfo.share_percent)
-              : 0;
-          }
-          updateData.entrepreneurship_practice_detail = practiceDetail;
-          break;
-        case "论文专利":
-          const patentDetail: any = {
-            name: detailInfo.name || "",
-            category: detailInfo.category || "",
-            rank: detailInfo.rank || "",
-          };
-          updateData.paper_patent_detail = patentDetail;
-          break;
-      }
+      // 直接将 detailInfo 作为 details 提交（由配置驱动）
+      updateData.details = detailInfo || {};
 
       await apiClient.put(`/activities/${activity.id}`, updateData);
       toast.success("活动保存成功");
