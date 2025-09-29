@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 )
 
 type ProxyConfig struct {
@@ -173,6 +174,11 @@ func (m *PermissionMiddleware) RequireRoles(allowedRoles ...string) gin.HandlerF
 // 这个中间件主要用于路由级别的权限控制
 
 func main() {
+	// 加载本地环境变量文件（如果存在）
+	if err := godotenv.Load(); err != nil {
+		log.Printf("No .env file found or failed to load: %v", err)
+	}
+
 	// 获取服务URL配置
 	config := ProxyConfig{
 		UserServiceURL:           getEnv("USER_SERVICE_URL", "http://user-service:8084"),
@@ -220,6 +226,9 @@ func main() {
 	{
 		// 认证服务路由（无需认证）
 		api.Any("/auth/*path", createProxyHandler(config.AuthServiceURL))
+
+		// 配置选项（透传到 user-service）
+		api.GET("/config/options", createProxyHandler(config.UserServiceURL))
 
 		// 权限管理服务路由（需要管理员权限）
 		permissions := api.Group("/permissions")
@@ -320,6 +329,9 @@ func main() {
 		activities := api.Group("/activities")
 		activities.Use(authMiddleware.AuthRequired())
 		{
+			// 公共选项（无需认证）
+			r.GET("/api/activities/config/options", createProxyHandler(config.CreditActivityServiceURL))
+
 			// 基础路由（所有认证用户）
 			activities.GET("/categories", createProxyHandler(config.CreditActivityServiceURL))
 			activities.GET("/templates", createProxyHandler(config.CreditActivityServiceURL))

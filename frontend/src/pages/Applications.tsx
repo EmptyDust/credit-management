@@ -40,6 +40,7 @@ import toast from "react-hot-toast";
 import { getFileIcon, formatFileSize } from "@/lib/utils";
 import React from "react";
 import { getStatusBadge } from "@/lib/status-utils";
+import { getActivityOptions } from "@/lib/options";
 
 // Types
 interface Application {
@@ -57,7 +58,7 @@ interface Application {
   applied_credits: number;
   approved_credits: number;
   attachments?: string; // JSON string of attachments
-  id?: string; // 用户ID，用于查询用户信息
+  user_id?: string; // 用户ID，用于查询用户信息
   user_info?: {
     username: string;
     name: string;
@@ -100,6 +101,7 @@ export default function ApplicationsPage() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [applicationStatuses, setApplicationStatuses] = useState<{ value: string; label: string }[]>([]);
   const [selectedAppAttachments, setSelectedAppAttachments] = useState<
     ApplicationAttachment[]
   >([]);
@@ -207,7 +209,7 @@ export default function ApplicationsPage() {
           applied_credits: app.applied_credits,
           approved_credits: app.awarded_credits || app.approved_credits,
           attachments: app.attachments,
-          id: app.id,
+          user_id: app.user_info?.id,
           user_info: app.user_info,
           activity: app.activity,
         }));
@@ -257,6 +259,18 @@ export default function ApplicationsPage() {
   useEffect(() => {
     fetchApplications();
   }, [user]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const opts = await getActivityOptions();
+        // 申请状态通常与活动审核状态一致，若不同可在后端单独提供 application_statuses
+        setApplicationStatuses(opts.statuses || []);
+      } catch (e) {
+        console.error("Failed to load application statuses", e);
+      }
+    })();
+  }, []);
 
   // 本地搜索过滤功能
   const safeApplications = Array.isArray(applications) ? applications : [];
@@ -390,10 +404,9 @@ export default function ApplicationsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="unsubmitted">Unsubmitted</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                {applicationStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
@@ -475,7 +488,7 @@ export default function ApplicationsPage() {
                             <div className="font-medium">
                               {app.user_info?.name ||
                                 app.student_name ||
-                                `用户 ${app.id}`}
+                                (app.user_id ? `用户 ${app.user_id}` : `申请 ${app.id}`)}
                             </div>
                             <div className="text-sm text-muted-foreground">
                               {app.user_info?.student_id ||

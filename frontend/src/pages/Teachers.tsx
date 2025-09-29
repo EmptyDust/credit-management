@@ -58,6 +58,7 @@ import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { ImportDialog } from "@/components/ui/import-dialog";
 import { apiHelpers } from "@/lib/api";
+import { getOptions } from "@/lib/options";
 
 // Teacher type based on teacher.go
 export type Teacher = {
@@ -112,6 +113,8 @@ export default function TeachersPage() {
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [userStatuses, setUserStatuses] = useState<{ value: string; label: string }[]>([]);
+  const [teacherTitles, setTeacherTitles] = useState<{ value: string; label: string }[]>([]);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -172,6 +175,15 @@ export default function TeachersPage() {
 
   useEffect(() => {
     fetchTeachers();
+    (async () => {
+      try {
+        const opts = await getOptions();
+        setUserStatuses(opts.user_statuses || []);
+        setTeacherTitles(opts.teacher_titles || []);
+      } catch (e) {
+        console.error("Failed to load options", e);
+      }
+    })();
   }, []);
 
   // 处理分页变化
@@ -444,9 +456,9 @@ export default function TeachersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="active">活跃</SelectItem>
-                <SelectItem value="inactive">停用</SelectItem>
-                <SelectItem value="suspended">暂停</SelectItem>
+                {userStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
@@ -684,7 +696,16 @@ export default function TeachersPage() {
                   <FormItem>
                     <FormLabel>职称</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="请输入职称" />
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="请选择职称" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teacherTitles.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -722,9 +743,9 @@ export default function TeachersPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="active">活跃</SelectItem>
-                        <SelectItem value="inactive">停用</SelectItem>
-                        <SelectItem value="suspended">暂停</SelectItem>
+                        {userStatuses.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

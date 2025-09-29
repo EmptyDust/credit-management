@@ -1,0 +1,21 @@
+{
+  "categories": [
+    { "value": "创新创业实践活动", "label": "创新创业实践活动" },
+    { "value": "学科竞赛", "label": "学科竞赛" },
+    { "value": "大学生创业项目", "label": "大学生创业项目" },
+    { "value": "创业实践项目", "label": "创业实践项目" },
+    { "value": "论文专利", "label": "论文专利" }
+  ],
+  "statuses": [
+    { "value": "draft", "label": "草稿" },
+    { "value": "pending_review", "label": "待审核" },
+    { "value": "approved", "label": "已通过" },
+    { "value": "rejected", "label": "已拒绝" }
+  ],
+  "review_actions": [
+    { "value": "approved", "label": "通过" },
+    { "value": "rejected", "label": "拒绝" }
+  ]
+}
+
+

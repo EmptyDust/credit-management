@@ -38,7 +38,7 @@ import {
   Upload,
   Download,
 } from "lucide-react";
-import { colleges as collegeOptions } from "@/lib/colleges";
+import { getOptions } from "@/lib/options";
 import { getStatusBadge } from "@/lib/common-utils.tsx";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useUserManagement } from "@/hooks/useUserManagement";
@@ -127,6 +127,9 @@ export default function StudentsPage() {
   const { hasPermission } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
 
+  // 选项
+  const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
+
   // 使用新的通用列表页面hook
   const listPage = useListPage({
     endpoint: "/search/users",
@@ -158,6 +161,14 @@ export default function StudentsPage() {
   useEffect(() => {
     listPage.fetchList();
     fetchStats();
+    (async () => {
+      try {
+        const opts = await getOptions();
+        setCollegeOptions(opts.colleges);
+      } catch (e) {
+        console.error("Failed to load options", e);
+      }
+    })();
   }, []);
 
   // 处理搜索和过滤

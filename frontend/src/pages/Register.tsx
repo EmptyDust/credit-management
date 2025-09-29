@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import apiClient from "@/lib/api";
+import { getOptions } from "@/lib/options";
 import { useNavigate, Link } from "react-router-dom";
 import { 
   UserPlus, 
@@ -71,73 +72,17 @@ const studentRegisterSchema = z.object({
 
 type StudentRegisterForm = z.infer<typeof studentRegisterSchema>;
 
-// 学院和专业数据
-const colleges = [
-  { value: "计算机学院", label: "计算机学院" },
-  { value: "信息工程学院", label: "信息工程学院" },
-  { value: "数学学院", label: "数学学院" },
-  { value: "物理学院", label: "物理学院" },
-  { value: "化学学院", label: "化学学院" },
-  { value: "生命科学学院", label: "生命科学学院" },
-  { value: "经济管理学院", label: "经济管理学院" },
-  { value: "外国语学院", label: "外国语学院" },
-  { value: "文学院", label: "文学院" },
-  { value: "法学院", label: "法学院" },
-];
+// 学院和专业数据（学院从后端获取）
 
-const majors = {
-  "计算机学院": [
-    { value: "软件工程", label: "软件工程" },
-    { value: "计算机科学与技术", label: "计算机科学与技术" },
-    { value: "人工智能", label: "人工智能" },
-    { value: "数据科学与大数据技术", label: "数据科学与大数据技术" },
-  ],
-  "信息工程学院": [
-    { value: "通信工程", label: "通信工程" },
-    { value: "电子信息工程", label: "电子信息工程" },
-    { value: "自动化", label: "自动化" },
-    { value: "物联网工程", label: "物联网工程" },
-  ],
-  "数学学院": [
-    { value: "数学与应用数学", label: "数学与应用数学" },
-    { value: "信息与计算科学", label: "信息与计算科学" },
-    { value: "统计学", label: "统计学" },
-  ],
-  "物理学院": [
-    { value: "物理学", label: "物理学" },
-    { value: "应用物理学", label: "应用物理学" },
-  ],
-  "化学学院": [
-    { value: "化学", label: "化学" },
-    { value: "应用化学", label: "应用化学" },
-  ],
-  "生命科学学院": [
-    { value: "生物科学", label: "生物科学" },
-    { value: "生物技术", label: "生物技术" },
-  ],
-  "经济管理学院": [
-    { value: "工商管理", label: "工商管理" },
-    { value: "会计学", label: "会计学" },
-    { value: "金融学", label: "金融学" },
-  ],
-  "外国语学院": [
-    { value: "英语", label: "英语" },
-    { value: "日语", label: "日语" },
-    { value: "德语", label: "德语" },
-  ],
-  "文学院": [
-    { value: "汉语言文学", label: "汉语言文学" },
-    { value: "新闻学", label: "新闻学" },
-  ],
-  "法学院": [
-    { value: "法学", label: "法学" },
-    { value: "知识产权", label: "知识产权" },
-  ],
-};
+// 专业、班级、年级将从后端获取
 
 export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [classOptions, setClassOptions] = useState<{ value: string; label: string }[]>([]);
+  const [gradeOptions, setGradeOptions] = useState<{ value: string; label: string }[]>([]);
 
   const form = useForm<StudentRegisterForm>({
     resolver: zodResolver(studentRegisterSchema),
@@ -157,7 +102,21 @@ export default function Register() {
   });
 
   const selectedCollege = form.watch("college");
-  const availableMajors = selectedCollege ? majors[selectedCollege as keyof typeof majors] || [] : [];
+  const availableMajors = selectedCollege ? (majorOptions[selectedCollege] || []) : [];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const opts = await getOptions();
+        setCollegeOptions(opts.colleges);
+        setMajorOptions(opts.majors || {});
+        setClassOptions(opts.classes || []);
+        setGradeOptions(opts.grades || []);
+      } catch (e) {
+        console.error("Failed to load options", e);
+      }
+    })();
+  }, []);
 
   const onSubmit = async (values: StudentRegisterForm) => {
     setLoading(true);
@@ -361,7 +320,7 @@ export default function Register() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {colleges.map((college) => (
+                          {collegeOptions.map((college) => (
                             <SelectItem key={college.value} value={college.value}>
                               {college.label}
                             </SelectItem>
@@ -411,15 +370,16 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>班级</FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            {...field}
-                            placeholder="请输入班级"
-                            className="pl-10"
-                            disabled={loading}
-                          />
-                        </div>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="请选择班级" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {classOptions.map((c) => (
+                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -432,15 +392,16 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>年级</FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            {...field}
-                            placeholder="请输入年级（如：2023）"
-                            className="pl-10"
-                            disabled={loading}
-                          />
-                        </div>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="请选择年级" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {gradeOptions.map((g) => (
+                              <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

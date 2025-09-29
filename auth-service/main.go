@@ -10,6 +10,7 @@ import (
 	"credit-management/auth-service/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -44,6 +45,11 @@ func connectDatabase(dsn string) (*gorm.DB, error) {
 }
 
 func main() {
+	// 加载本地环境变量文件（如果存在）
+	if err := godotenv.Load(); err != nil {
+		log.Printf("No .env file found or failed to load: %v", err)
+	}
+
 	// 数据库连接配置
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort := getEnv("DB_PORT", "5432")

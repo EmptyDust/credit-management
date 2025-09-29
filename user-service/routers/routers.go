@@ -18,6 +18,9 @@ func RegisterRouters(userHandler *handlers.UserHandler) *gin.Engine {
 
 	api := r.Group("/api")
 	{
+		// 公共配置选项（无需认证）
+		api.GET("/config/options", handlers.GetOptions)
+
 		users := api.Group("/users")
 		{
 			users.POST("/register", userHandler.Register)

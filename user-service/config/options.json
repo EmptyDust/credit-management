@@ -1,0 +1,51 @@
+{
+  "colleges": [
+    { "value": "计算机学院", "label": "计算机学院" },
+    { "value": "信息工程学院", "label": "信息工程学院" },
+    { "value": "数学学院", "label": "数学学院" },
+    { "value": "物理学院", "label": "物理学院" },
+    { "value": "化学学院", "label": "化学学院" },
+    { "value": "生命科学学院", "label": "生命科学学院" },
+    { "value": "经济管理学院", "label": "经济管理学院" },
+    { "value": "外国语学院", "label": "外国语学院" },
+    { "value": "文学院", "label": "文学院" },
+    { "value": "法学院", "label": "法学院" }
+  ],
+  "majors": {
+    "计算机学院": [
+      { "value": "软件工程", "label": "软件工程" },
+      { "value": "计算机科学与技术", "label": "计算机科学与技术" },
+      { "value": "人工智能", "label": "人工智能" },
+      { "value": "数据科学与大数据技术", "label": "数据科学与大数据技术" }
+    ],
+    "信息工程学院": [
+      { "value": "通信工程", "label": "通信工程" },
+      { "value": "电子信息工程", "label": "电子信息工程" },
+      { "value": "自动化", "label": "自动化" },
+      { "value": "物联网工程", "label": "物联网工程" }
+    ]
+  },
+  "classes": [
+    { "value": "一班", "label": "一班" },
+    { "value": "二班", "label": "二班" },
+    { "value": "三班", "label": "三班" }
+  ],
+  "grades": [
+    { "value": "2022", "label": "2022" },
+    { "value": "2023", "label": "2023" },
+    { "value": "2024", "label": "2024" }
+  ],
+  "user_statuses": [
+    { "value": "active", "label": "活跃" },
+    { "value": "inactive", "label": "停用" },
+    { "value": "suspended", "label": "暂停" }
+  ],
+  "teacher_titles": [
+    { "value": "助教", "label": "助教" },
+    { "value": "讲师", "label": "讲师" },
+    { "value": "副教授", "label": "副教授" },
+    { "value": "教授", "label": "教授" }
+  ]
+}
+
+

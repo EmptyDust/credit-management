@@ -62,6 +62,7 @@ import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
 import React from "react";
 import { StatCard } from "@/components/ui/stat-card";
 import type { Activity } from "@/types/activity";
+import { getActivityOptions } from "@/lib/options";
 
 
 type CreateActivityForm = z.infer<typeof activitySchema>;
@@ -83,6 +84,8 @@ export default function ActivitiesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
+  const [activityStatuses, setActivityStatuses] = useState<{ value: string; label: string }[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -194,6 +197,18 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     fetchActivities();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const opts = await getActivityOptions();
+        setActivityCategories(opts.categories || []);
+        setActivityStatuses(opts.statuses || []);
+      } catch (e) {
+        console.error("Failed to load activity options", e);
+      }
+    })();
   }, []);
 
   const handlePageChange = (page: number) => {
@@ -342,9 +357,6 @@ export default function ActivitiesPage() {
 
   // 获取所有活动类别
   const safeActivities = Array.isArray(activities) ? activities : [];
-  const categories = Array.from(
-    new Set(safeActivities.map((a) => a.category).filter(Boolean))
-  );
 
   return (
     <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
@@ -460,13 +472,9 @@ export default function ActivitiesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类别</SelectItem>
-                {categories
-                  .filter((category) => Boolean(category))
-                  .map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
+                {activityCategories.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -475,10 +483,9 @@ export default function ActivitiesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="draft">草稿</SelectItem>
-                <SelectItem value="pending_review">待审核</SelectItem>
-                <SelectItem value="approved">已通过</SelectItem>
-                <SelectItem value="rejected">已拒绝</SelectItem>
+                {activityStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
@@ -662,17 +669,9 @@ export default function ActivitiesPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="创新创业实践活动">
-                          创新创业实践活动
-                        </SelectItem>
-                        <SelectItem value="学科竞赛">学科竞赛</SelectItem>
-                        <SelectItem value="大学生创业项目">
-                          大学生创业项目
-                        </SelectItem>
-                        <SelectItem value="创业实践项目">
-                          创业实践项目
-                        </SelectItem>
-                        <SelectItem value="论文专利">论文专利</SelectItem>
+                        {activityCategories.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

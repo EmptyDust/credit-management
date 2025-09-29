@@ -9,12 +9,18 @@ import (
 	"credit-management/credit-activity-service/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func main() {
+	// 加载本地环境变量文件（如果存在）
+	if err := godotenv.Load(); err != nil {
+		log.Printf("No .env file found or failed to load: %v", err)
+	}
+
 	log.Println("=== 学分活动服务启动 ===")
 
 	gin.SetMode(gin.ReleaseMode)
@@ -50,6 +56,9 @@ func main() {
 	r.Use(utils.RecoveryMiddleware())
 	r.Use(utils.LoggingMiddleware())
 	r.Use(utils.CORSMiddleware())
+
+	// 注册公共配置接口（无需鉴权）
+	registerActivityOptionsRoute(r)
 
 	api := r.Group("/api")
 	{
