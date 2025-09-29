@@ -27,9 +27,8 @@ type Attachment struct {
 
 	// 关联关系
 	Activity CreditActivity `json:"activity" gorm:"foreignKey:ActivityID"`
-	Uploader UserInfo       `json:"uploader" gorm:"foreignKey:UploadedBy"`
+	// Uploader field is populated manually in handlers, not via GORM foreign key
 }
-
 
 func (a *Attachment) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
@@ -37,7 +36,6 @@ func (a *Attachment) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
-
 
 func (Attachment) TableName() string {
 	return "attachments"

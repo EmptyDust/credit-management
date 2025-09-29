@@ -57,7 +57,7 @@ const studentRegisterSchema = z.object({
     .length(11, "手机号必须是11位数字")
     .regex(/^1[3-9]\d{9}$/, "请输入有效的手机号"),
   real_name: z.string().min(2, "真实姓名至少2个字符").max(50, "真实姓名最多50个字符"),
-  student_id: z.string()
+  id: z.string()
     .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字"),
   college: z.string().min(1, "请选择学院").max(100, "学院名称最多100个字符"),
@@ -148,7 +148,7 @@ export default function Register() {
       email: "",
       phone: "",
       real_name: "",
-      student_id: "",
+      id: "",
       college: "",
       major: "",
       class: "",
@@ -326,7 +326,7 @@ export default function Register() {
               {/* 学号 */}
               <FormField
                 control={form.control}
-                name="student_id"
+                name="id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>学号</FormLabel>

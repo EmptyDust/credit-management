@@ -294,7 +294,7 @@ func (h *ParticipantHandler) GetActivityParticipants(c *gin.Context) {
 			// 如果获取用户信息失败，创建一个基本的用户信息
 			userInfo = &models.UserInfo{
 				UUID:     participant.UUID,
-				Username: participant.User.Username,
+				Username: userInfo.Username,
 				RealName: "未知用户",
 				UserType: "unknown",
 				Status:   "unknown",
