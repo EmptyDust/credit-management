@@ -59,8 +59,6 @@ import { getStatusBadge } from "@/lib/status-utils";
 import { PasswordInput } from "@/components/ui/password-input";
 import { getOptions } from "@/lib/options";
 
-const colleges: { value: string; label: string }[] = [];
-let majors: Record<string, { value: string; label: string }[]> = {};
 
 const profileSchema = z.object({
   username: z.string().optional(),
@@ -121,6 +119,8 @@ export default function ProfilePage() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
   const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [classOptions, setClassOptions] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [gradeOptions, setGradeOptions] = useState<{ value: string; label: string }[]>([]);
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -181,6 +181,8 @@ export default function ProfilePage() {
         const opts = await getOptions();
         setCollegeOptions(opts.colleges);
         setMajorOptions(opts.majors || {});
+        setClassOptions(opts.classes || {});
+        setGradeOptions(opts.grades || []);
       } catch (e) {
         console.error("Failed to load options", e);
       }
@@ -694,24 +696,41 @@ export default function ProfilePage() {
                   <FormField
                     control={form.control}
                     name="class"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center gap-4">
-                          <Building className="h-5 w-5 text-muted-foreground" />
-                          <div className="flex-1">
-                            <FormLabel>班级</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                disabled={!isEditing}
-                                className="mt-1"
-                              />
-                            </FormControl>
-                            <FormMessage />
+                    render={({ field }) => {
+                      const selectedMajor = form.watch("major");
+                      const availableClasses = selectedMajor
+                        ? classOptions[selectedMajor] || []
+                        : [];
+                      return (
+                        <FormItem>
+                          <div className="flex items-center gap-4">
+                            <Building className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex-1">
+                              <FormLabel>班级</FormLabel>
+                              <FormControl>
+                                <Select
+                                  disabled={!isEditing || !selectedMajor}
+                                  value={field.value || ""}
+                                  onValueChange={field.onChange}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={selectedMajor ? "请选择班级" : "请先选择专业"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableClasses.map((c) => (
+                                      <SelectItem key={c.value} value={c.value}>
+                                        {c.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                              <FormMessage />
+                            </div>
                           </div>
-                        </div>
-                      </FormItem>
-                    )}
+                        </FormItem>
+                      );
+                    }}
                   />
                   <FormField
                     control={form.control}
@@ -723,11 +742,22 @@ export default function ProfilePage() {
                           <div className="flex-1">
                             <FormLabel>年级</FormLabel>
                             <FormControl>
-                              <Input
-                                {...field}
+                              <Select
                                 disabled={!isEditing}
-                                className="mt-1"
-                              />
+                                value={field.value || ""}
+                                onValueChange={field.onChange}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="请选择年级" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {gradeOptions.map((g) => (
+                                    <SelectItem key={g.value} value={g.value}>
+                                      {g.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </FormControl>
                             <FormMessage />
                           </div>

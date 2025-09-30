@@ -16,7 +16,7 @@ type SelectOption struct {
 type OptionsResponse struct {
 	Colleges      []SelectOption            `json:"colleges"`
 	Majors        map[string][]SelectOption `json:"majors"`
-	Classes       []SelectOption            `json:"classes"`
+	Classes       map[string][]SelectOption `json:"classes"`
 	Grades        []SelectOption            `json:"grades"`
 	UserStatuses  []SelectOption            `json:"user_statuses"`
 	TeacherTitles []SelectOption            `json:"teacher_titles"`

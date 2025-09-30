@@ -129,6 +129,11 @@ export default function StudentsPage() {
 
   // 选项
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [classOptions, setClassOptions] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [gradeOptions, setGradeOptions] = useState<{ value: string; label: string }[]>([]);
+  
+  // 筛选状态 - 使用useListPage hook提供的状态
 
   // 使用新的通用列表页面hook
   const listPage = useListPage({
@@ -165,6 +170,9 @@ export default function StudentsPage() {
       try {
         const opts = await getOptions();
         setCollegeOptions(opts.colleges);
+        setMajorOptions(opts.majors || {});
+        setClassOptions(opts.classes || {});
+        setGradeOptions(opts.grades || []);
       } catch (e) {
         console.error("Failed to load options", e);
       }
@@ -260,8 +268,8 @@ export default function StudentsPage() {
         />
       </div>
 
-      {/* 状态过滤 */}
-      <div className="mb-4">
+      {/* 筛选器 */}
+      <div className="mb-4 flex flex-wrap gap-4">
         <Select value={userManagement.statusFilter} onValueChange={userManagement.setStatusFilter}>
           <SelectTrigger className="w-32">
             <SelectValue placeholder="状态" />
@@ -271,6 +279,20 @@ export default function StudentsPage() {
             <SelectItem value="active">活跃</SelectItem>
             <SelectItem value="inactive">停用</SelectItem>
             <SelectItem value="suspended">暂停</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <Select value={listPage.gradeFilter} onValueChange={listPage.setGradeFilter}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="年级" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部年级</SelectItem>
+            {gradeOptions.map((g) => (
+              <SelectItem key={g.value} value={g.value}>
+                {g.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -488,28 +510,70 @@ export default function StudentsPage() {
               <FormField
                 control={userManagement.form.control}
                 name="major"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>专业</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const selectedCollege = userManagement.form.watch("college");
+                  const availableMajors = selectedCollege
+                    ? majorOptions[selectedCollege] || []
+                    : [];
+                  return (
+                    <FormItem>
+                      <FormLabel>专业</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          disabled={!selectedCollege}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedCollege ? "请选择专业" : "请先选择学院"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableMajors.map((m) => (
+                              <SelectItem key={m.value} value={m.value}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               <FormField
                 control={userManagement.form.control}
                 name="class"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>班级</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const selectedMajor = userManagement.form.watch("major");
+                  const availableClasses = selectedMajor
+                    ? classOptions[selectedMajor] || []
+                    : [];
+                  return (
+                    <FormItem>
+                      <FormLabel>班级</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          disabled={!selectedMajor}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedMajor ? "请选择班级" : "请先选择专业"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableClasses.map((c) => (
+                              <SelectItem key={c.value} value={c.value}>
+                                {c.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               <FormField
                 control={userManagement.form.control}
@@ -518,7 +582,21 @@ export default function StudentsPage() {
                   <FormItem>
                     <FormLabel>年级</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Select
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="请选择年级" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {gradeOptions.map((g) => (
+                            <SelectItem key={g.value} value={g.value}>
+                              {g.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

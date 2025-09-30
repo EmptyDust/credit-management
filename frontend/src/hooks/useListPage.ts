@@ -13,6 +13,8 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
   const [searchQuery, setSearchQuery] = useState("");
   const [filterValue, setFilterValue] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [gradeFilter, setGradeFilter] = useState<string>("all");
 
   const fetchList = useCallback(async (page = pagination.currentPage, size = pagination.pageSize) => {
     const params: any = {
@@ -39,9 +41,15 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
     if (statusFilter !== "all") {
       params.status = statusFilter;
     }
+    if (classFilter !== "all") {
+      params.class = classFilter;
+    }
+    if (gradeFilter !== "all") {
+      params.grade = gradeFilter;
+    }
 
     await pagination.fetchData(endpoint, params, setData, errorMessage);
-  }, [pagination, searchQuery, filterValue, statusFilter, endpoint, setData, errorMessage, userType]);
+  }, [pagination, searchQuery, filterValue, statusFilter, classFilter, gradeFilter, endpoint, setData, errorMessage, userType]);
 
   const handleSearchAndFilter = useCallback(() => {
     pagination.resetToFirstPage(fetchList);
@@ -69,6 +77,10 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
     setFilterValue,
     statusFilter,
     setStatusFilter,
+    classFilter,
+    setClassFilter,
+    gradeFilter,
+    setGradeFilter,
     handleSearchAndFilter,
   };
 } 

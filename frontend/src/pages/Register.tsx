@@ -79,7 +79,7 @@ export default function Register() {
   const navigate = useNavigate();
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
   const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
-  const [classOptions, setClassOptions] = useState<{ value: string; label: string }[]>([]);
+  const [classOptions, setClassOptions] = useState<Record<string, { value: string; label: string }[]>>({});
   const [gradeOptions, setGradeOptions] = useState<{ value: string; label: string }[]>([]);
 
   const form = useForm<StudentRegisterForm>({
@@ -101,6 +101,8 @@ export default function Register() {
 
   const selectedCollege = form.watch("college");
   const availableMajors = selectedCollege ? (majorOptions[selectedCollege] || []) : [];
+  const selectedMajor = form.watch("major");
+  const availableClasses = selectedMajor ? (classOptions[selectedMajor] || []) : [];
 
   useEffect(() => {
     (async () => {
@@ -108,7 +110,7 @@ export default function Register() {
         const opts = await getOptions();
         setCollegeOptions(opts.colleges);
         setMajorOptions(opts.majors || {});
-        setClassOptions(opts.classes || []);
+        setClassOptions(opts.classes || {});
         setGradeOptions(opts.grades || []);
       } catch (e) {
         console.error("Failed to load options", e);
@@ -368,12 +370,16 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>班级</FormLabel>
                       <FormControl>
-                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value} 
+                          disabled={loading || !selectedMajor}
+                        >
                           <SelectTrigger>
-                            <SelectValue placeholder="请选择班级" />
+                            <SelectValue placeholder={selectedMajor ? "请选择班级" : "请先选择专业"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {classOptions.map((c) => (
+                            {availableClasses.map((c) => (
                               <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                             ))}
                           </SelectContent>
