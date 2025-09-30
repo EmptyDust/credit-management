@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { useListPage } from "@/hooks/useListPage";
+import { useUserManagement } from "@/hooks/useUserManagement";
 import {
   Table,
   TableBody,
@@ -38,13 +38,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient from "@/lib/api";
 import {
   PlusCircle,
-  Search,
-  Edit,
-  Trash,
-  Filter,
   RefreshCw,
   Users,
   Building,
@@ -52,13 +47,14 @@ import {
   Upload,
   Download,
 } from "lucide-react";
-import toast from "react-hot-toast";
-import { StatCard } from "@/components/ui/stat-card";
 import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { ImportDialog } from "@/components/ui/import-dialog";
-import { apiHelpers } from "@/lib/api";
 import { getOptions } from "@/lib/options";
+import { PageHeader, createPageActions } from "@/components/ui/page-header";
+import { StatsGrid } from "@/components/ui/stats-grid";
+import { TableActions, createEditDeleteActions } from "@/components/ui/table-actions";
+import { SearchFilterBar } from "@/components/ui/search-filter-bar";
 
 // Teacher type based on teacher.go
 export type Teacher = {
@@ -92,7 +88,7 @@ const formSchema = z.object({
     .regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号")
     .optional()
     .or(z.literal("")),
-  department: z.string().min(1, "院系不能为空"),
+  department: z.string().min(1, "学院不能为空"),
   title: z.string().optional().or(z.literal("")),
   status: z.enum(["active", "inactive", "suspended"]),
   user_type: z.literal("teacher"),
@@ -101,29 +97,22 @@ const formSchema = z.object({
 export default function TeachersPage() {
   const { hasPermission } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [userStatuses, setUserStatuses] = useState<{ value: string; label: string }[]>([]);
   const [teacherTitles, setTeacherTitles] = useState<{ value: string; label: string }[]>([]);
+  const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
 
-  // 分页状态
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  // 使用新的通用列表页面hook
+  const listPage = useListPage({
+    endpoint: "/search/users",
+    setData: setTeachers,
+    errorMessage: "获取教师列表失败",
+    userType: "teacher"
+  });
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  // 使用用户管理hook
+  const userManagement = useUserManagement({
+    userType: "teacher",
+    formSchema,
     defaultValues: {
       username: "",
       password: "",
@@ -134,50 +123,18 @@ export default function TeachersPage() {
       status: "active",
       user_type: "teacher",
     },
+    fetchFunction: listPage.fetchList,
   });
 
-  const fetchTeachers = async (page = currentPage, size = pageSize) => {
-    try {
-      setLoading(true);
-
-      // 构建查询参数
-      const params: any = {
-        page,
-        page_size: size,
-        user_type: "teacher", 
-      };
-
-      if (searchQuery) {
-        params.query = searchQuery;
-      }
-      if (departmentFilter !== "all") {
-        params.department = departmentFilter;
-      }
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-
-      const response = await apiClient.get("/search/users", { params });
-
-      // 使用统一的响应处理函数
-      const { data: teachersData, pagination: paginationData } = apiHelpers.processPaginatedResponse(response);
-
-      setTeachers(teachersData);
-      setTotalItems(paginationData.total);
-      setTotalPages(paginationData.total_pages);
-    } catch (error) {
-      console.error("Failed to fetch teachers:", error);
-      toast.error("获取教师列表失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchTeachers();
+    // 初始化数据
+    listPage.fetchList();
+    
+    // 加载选项数据
     (async () => {
       try {
         const opts = await getOptions();
+        setCollegeOptions(opts.colleges || []);
         setUserStatuses(opts.user_statuses || []);
         setTeacherTitles(opts.teacher_titles || []);
       } catch (e) {
@@ -186,293 +143,109 @@ export default function TeachersPage() {
     })();
   }, []);
 
-  // 处理分页变化
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    fetchTeachers(page, pageSize);
-  };
-
-  // 处理每页数量变化
-  const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
-    fetchTeachers(1, size);
-  };
-
-  // 处理搜索和筛选
-  const handleSearchAndFilter = () => {
-    setCurrentPage(1);
-    fetchTeachers(1, pageSize);
-  };
-
+  // 处理搜索和筛选变化
   useEffect(() => {
-    handleSearchAndFilter();
-  }, [searchQuery, departmentFilter, statusFilter]);
+    listPage.handleSearchAndFilter();
+  }, [listPage.searchQuery, listPage.filterValue, listPage.statusFilter]);
 
-  const handleDialogOpen = (teacher: Teacher | null) => {
-    setEditingTeacher(teacher);
-    if (teacher) {
-      // 转换null值为空字符串以匹配表单schema
-      const formData = {
-        ...teacher,
-        department: teacher.department || "",
-        title: teacher.title || "",
-        phone: teacher.phone || "",
-      };
-      form.reset(formData);
-    } else {
-      form.reset({
-        username: "",
-        password: "",
-        real_name: "",
-        email: "",
-        phone: "",
-        department: "",
-        title: "",
-        status: "active",
-        user_type: "teacher",
-      });
-    }
-    setIsDialogOpen(true);
-  };
+  // 使用hook提供的handleDialogOpen
+  const handleDialogOpen = userManagement.handleDialogOpen;
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsSubmitting(true);
-    try {
-      if (editingTeacher) {
-        if (!editingTeacher.id) {
-          toast.error("无法找到教师ID");
-          return;
-        }
-        await apiClient.put(`/users/${editingTeacher.id}`, values);
-        toast.success("教师信息更新成功");
-      } else {
-        // 使用正确的API端点创建教师
-        const createData = {
-          ...values,
-          password: values.password || "Password123", // Default password that meets requirements
-          user_type: "teacher",
-        };
-        await apiClient.post("/users/teachers", createData);
-        toast.success("教师创建成功");
-      }
-      setIsDialogOpen(false);
-      fetchTeachers();
-    } catch (err: any) {
-      if (err.response?.status === 409) {
-        toast.error("用户名或邮箱已存在");
-      } else {
-        toast.error(`教师${editingTeacher ? "更新" : "创建"}失败`);
-      }
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  // 使用hook提供的onSubmit
+  const onSubmit = userManagement.onSubmit;
 
-  const departments = Array.from(
-    new Set(teachers.map((t) => t.department).filter(Boolean))
-  );
   const canManageTeachers = hasPermission("manage_teachers");
 
-  const handleDeleteConfirm = async () => {
-    if (!teacherToDelete) return;
+  // 使用hook提供的函数
+  const handleDeleteConfirm = userManagement.handleDeleteConfirm;
+  const handleImport = userManagement.handleImport;
+  const handleExport = userManagement.handleExport;
 
-    try {
-      await apiClient.delete(`/users/${teacherToDelete.id}`);
-      toast.success("教师删除成功");
-      fetchTeachers();
-    } catch (err) {
-      toast.error("删除教师失败");
-    } finally {
-      setDeleteDialogOpen(false);
-      setTeacherToDelete(null);
-    }
-  };
-
-  const handleImport = async (file: File) => {
-    setImporting(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("user_type", "teacher");
-
-      const response = await apiClient.post("/users/import", formData, {
-        headers: {
-          // Remove Content-Type header to let browser set it with boundary
-        },
-      });
-
-      if (response.data.code === 0) {
-        toast.success("批量导入成功");
-        setIsImportDialogOpen(false);
-        fetchTeachers();
-      } else {
-        toast.error(response.data.message || "导入失败");
-      }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "导入失败";
-      toast.error(errorMessage);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      const response = await apiClient.get("/users/export", {
-        params: { user_type: "teacher" },
-        responseType: "blob",
-      });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute(
-        "download",
-        `teachers_${new Date().toISOString().split("T")[0]}.xlsx`
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("导出成功");
-    } catch (err) {
-      toast.error("导出失败");
-    }
-  };
 
   return (
     <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">教师列表</h1>
-          <p className="text-muted-foreground">管理教师用户信息</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canManageTeachers && (
-            <Button
-              onClick={() => handleDialogOpen(null)}
-              className="rounded-lg shadow transition-all duration-200 hover:scale-105"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              添加教师
-            </Button>
-          )}
-          {canManageTeachers && (
-            <>
-              <Button
-                onClick={() => setIsImportDialogOpen(true)}
-                variant="outline"
-                className="rounded-lg shadow transition-all duration-200 hover:scale-105"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                批量导入
-              </Button>
-              <Button
-                onClick={handleExport}
-                variant="outline"
-                className="rounded-lg shadow transition-all duration-200 hover:scale-105"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                导出数据
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="教师列表"
+        description="管理教师用户信息"
+        actions={createPageActions(
+          canManageTeachers ? {
+            label: "添加教师",
+            onClick: () => handleDialogOpen(null),
+            icon: PlusCircle,
+          } : undefined,
+          canManageTeachers ? [
+            {
+              label: "批量导入",
+              onClick: () => userManagement.setIsImportDialogOpen(true),
+              icon: Upload,
+            },
+            {
+              label: "导出数据",
+              onClick: handleExport,
+              icon: Download,
+            },
+          ] : undefined
+        )}
+      />
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          title="总教师数"
-          value={teachers.length}
-          icon={Users}
-          color="info"
-          subtitle={`活跃教师: ${
-            teachers.filter((t) => t.status === "active").length
-          }`}
-        />
-        <StatCard
-          title="院系数量"
-          value={departments.length}
-          icon={Building}
-          color="purple"
-          subtitle="不同院系"
-        />
-        <StatCard
-          title="活跃教师数"
-          value={teachers.filter((t) => t.status === "active").length}
-          icon={Users}
-          color="success"
-          subtitle="当前活跃"
+      <StatsGrid
+        stats={[
+          {
+            title: "总教师数",
+            value: teachers.length,
+            icon: Users,
+            color: "info",
+            subtitle: `活跃教师: ${
+              teachers.filter((t) => t.status === "active").length
+            }`,
+          },
+          {
+            title: "学院数量",
+            value: collegeOptions.length,
+            icon: Building,
+            color: "purple",
+            subtitle: "不同学院",
+          },
+          {
+            title: "活跃教师数",
+            value: teachers.filter((t) => t.status === "active").length,
+            icon: Users,
+            color: "success",
+            subtitle: "当前活跃",
+          },
+        ]}
+      />
+
+      {/* 搜索和过滤栏 */}
+      <div className="mb-6">
+        <SearchFilterBar
+          searchQuery={listPage.searchQuery}
+          onSearchChange={listPage.setSearchQuery}
+          onSearch={listPage.handleSearchAndFilter}
+          onRefresh={() => listPage.fetchList()}
+          filterOptions={collegeOptions}
+          filterValue={listPage.filterValue}
+          onFilterChange={listPage.setFilterValue}
+          filterPlaceholder="选择学院"
+          searchPlaceholder="搜索教师姓名、学院..."
         />
       </div>
 
-      {/* Filters */}
-      <Card className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            筛选和搜索
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="搜索姓名、院系或专业..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="选择院系" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部院系</SelectItem>
-                {departments.map((department) => (
-                  <SelectItem
-                    key={department ?? "unknown"}
-                    value={department ?? ""}
-                  >
-                    {department ?? "未知院系"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                {userStatuses.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={handleSearchAndFilter}
-              disabled={loading}
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 状态过滤 */}
+      <div className="mb-4">
+        <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="状态" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部状态</SelectItem>
+            {userStatuses.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Teachers Table */}
       <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
@@ -486,29 +259,20 @@ export default function TeachersPage() {
                 <TableRow>
                   <TableHead>用户名</TableHead>
                   <TableHead>姓名</TableHead>
-                  <TableHead>院系</TableHead>
+                   <TableHead>学院</TableHead>
                   <TableHead>职称</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {listPage.loading ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
                         <RefreshCw className="h-4 w-4 animate-spin" />
                         加载中...
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : error ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8 text-red-500 dark:text-red-400"
-                    >
-                      {error}
                     </TableCell>
                   </TableRow>
                 ) : teachers.length === 0 ? (
@@ -540,29 +304,19 @@ export default function TeachersPage() {
                       <TableCell>{teacher.department || "-"}</TableCell>
                       <TableCell>{teacher.title || "-"}</TableCell>
                       <TableCell>{getStatusBadge(teacher.status)}</TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {canManageTeachers && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleDialogOpen(teacher)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={() => {
-                                setTeacherToDelete(teacher);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </TableCell>
+                       <TableCell className="text-right">
+                         {canManageTeachers && (
+                           <TableActions
+                             actions={createEditDeleteActions(
+                               () => handleDialogOpen(teacher),
+                               () => {
+                                 userManagement.setItemToDelete(teacher);
+                                 userManagement.setDeleteDialogOpen(true);
+                               }
+                             )}
+                           />
+                         )}
+                       </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -571,37 +325,37 @@ export default function TeachersPage() {
           </div>
 
           {/* 分页组件 */}
-          {!loading && totalItems > 0 && (
+          {!listPage.loading && listPage.totalItems > 0 && (
             <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
+              currentPage={listPage.currentPage}
+              totalPages={listPage.totalPages}
+              totalItems={listPage.totalItems}
+              pageSize={listPage.pageSize}
+              onPageChange={listPage.handlePageChange}
+              onPageSizeChange={listPage.handlePageSizeChange}
             />
           )}
         </CardContent>
       </Card>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={userManagement.isDialogOpen} onOpenChange={userManagement.setIsDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>
-              {editingTeacher ? "编辑教师" : "添加新教师"}
+              {userManagement.editingItem ? "编辑教师" : "添加新教师"}
             </DialogTitle>
             <DialogDescription>
-              {editingTeacher ? "修改教师信息" : "填写教师详细信息"}
+              {userManagement.editingItem ? "修改教师信息" : "填写教师详细信息"}
             </DialogDescription>
           </DialogHeader>
-          <Form {...form}>
+          <Form {...userManagement.form}>
             <form
-              onSubmit={form.handleSubmit(onSubmit)}
+              onSubmit={userManagement.form.handleSubmit(onSubmit)}
               className="grid grid-cols-2 gap-4 py-4"
             >
               <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="username"
                 render={({ field }) => (
                   <FormItem>
@@ -609,7 +363,7 @@ export default function TeachersPage() {
                     <FormControl>
                       <Input
                         {...field}
-                        disabled={!!editingTeacher}
+                        disabled={!!userManagement.editingItem}
                         placeholder="请输入用户名"
                       />
                     </FormControl>
@@ -617,9 +371,9 @@ export default function TeachersPage() {
                   </FormItem>
                 )}
               />
-              {!editingTeacher && (
+              {!userManagement.editingItem && (
                 <FormField
-                  control={form.control}
+                  control={userManagement.form.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
@@ -637,7 +391,7 @@ export default function TeachersPage() {
                 />
               )}
               <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="real_name"
                 render={({ field }) => (
                   <FormItem>
@@ -650,7 +404,7 @@ export default function TeachersPage() {
                 )}
               />
               <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
@@ -662,35 +416,35 @@ export default function TeachersPage() {
                   </FormItem>
                 )}
               />
+               <FormField
+                 control={userManagement.form.control}
+                 name="department"
+                 render={({ field }) => (
+                   <FormItem>
+                     <FormLabel>学院</FormLabel>
+                     <Select
+                       onValueChange={field.onChange}
+                       defaultValue={field.value}
+                     >
+                       <FormControl>
+                         <SelectTrigger>
+                           <SelectValue placeholder="选择学院" />
+                         </SelectTrigger>
+                       </FormControl>
+                       <SelectContent>
+                         {collegeOptions.map((college) => (
+                           <SelectItem key={college.value} value={college.value}>
+                             {college.label}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                     <FormMessage />
+                   </FormItem>
+                 )}
+               />
               <FormField
-                control={form.control}
-                name="department"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>院系</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择院系" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {departments.map((dep) => (
-                          <SelectItem key={dep} value={dep ?? ""}>
-                            {dep ?? "未知院系"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="title"
                 render={({ field }) => (
                   <FormItem>
@@ -712,7 +466,7 @@ export default function TeachersPage() {
                 )}
               />
               <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem className="col-span-2">
@@ -728,7 +482,7 @@ export default function TeachersPage() {
                 )}
               />
               <FormField
-                control={form.control}
+                control={userManagement.form.control}
                 name="status"
                 render={({ field }) => (
                   <FormItem className="col-span-2">
@@ -753,8 +507,8 @@ export default function TeachersPage() {
                 )}
               />
               <DialogFooter className="col-span-2">
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "保存中..." : "保存"}
+                <Button type="submit" disabled={userManagement.isSubmitting}>
+                  {userManagement.isSubmitting ? "保存中..." : "保存"}
                 </Button>
               </DialogFooter>
             </form>
@@ -764,22 +518,22 @@ export default function TeachersPage() {
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        open={userManagement.deleteDialogOpen}
+        onOpenChange={userManagement.setDeleteDialogOpen}
         title="确认删除教师"
-        itemName={teacherToDelete?.real_name}
+        itemName={userManagement.itemToDelete?.real_name}
         onConfirm={handleDeleteConfirm}
       />
 
       {/* Import Dialog */}
       <ImportDialog
-        open={isImportDialogOpen}
-        onOpenChange={setIsImportDialogOpen}
+        open={userManagement.isImportDialogOpen}
+        onOpenChange={userManagement.setIsImportDialogOpen}
         title="批量导入教师"
         description="请选择Excel或CSV文件进行批量导入。文件应包含教师的基本信息。"
         userType="teacher"
         onImport={handleImport}
-        importing={importing}
+        importing={userManagement.importing}
       />
     </div>
   );

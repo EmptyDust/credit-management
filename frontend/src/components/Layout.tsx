@@ -9,10 +9,8 @@ import {
   FileText,
   LogOut,
   User as UserIcon,
-  Settings,
   Menu,
   Award,
-  Upload,
 } from "lucide-react";
 import {
   DropdownMenu,

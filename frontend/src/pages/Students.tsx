@@ -39,7 +39,7 @@ import {
   Download,
 } from "lucide-react";
 import { getOptions } from "@/lib/options";
-import { getStatusBadge } from "@/lib/common-utils.tsx";
+import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useUserManagement } from "@/hooks/useUserManagement";
 import { useListPage } from "@/hooks/useListPage";

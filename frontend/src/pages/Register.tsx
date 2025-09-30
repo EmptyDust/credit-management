@@ -34,8 +34,6 @@ import {
   Phone, 
   FileSignature, 
   GraduationCap,
-  Building,
-  Users
 } from "lucide-react";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
