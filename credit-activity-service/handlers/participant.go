@@ -185,7 +185,7 @@ func (h *ParticipantHandler) BatchSetCredits(c *gin.Context) {
 
 func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 	activityID := c.Param("id")
-	participantID := c.Param("participant_id")
+	participantID := c.Param("uuid")
 	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
@@ -244,7 +244,7 @@ func (h *ParticipantHandler) SetSingleCredits(c *gin.Context) {
 
 func (h *ParticipantHandler) RemoveParticipant(c *gin.Context) {
 	activityID := c.Param("id")
-	participantID := c.Param("participant_id")
+	participantID := c.Param("uuid")
 	userID, _ := c.Get("id")
 	userType, _ := c.Get("user_type")
 
