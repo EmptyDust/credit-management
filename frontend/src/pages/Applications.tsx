@@ -501,6 +501,8 @@ export default function ApplicationsPage() {
                                 {app.user_info.college} - {app.user_info.major}
                                 {app.user_info.class &&
                                   ` - ${app.user_info.class}`}
+                                {app.user_info.grade &&
+                                  ` (${app.user_info.grade}级)`}
                               </div>
                             )}
                           </div>

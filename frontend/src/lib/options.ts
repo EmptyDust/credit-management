@@ -5,7 +5,7 @@ export type SelectOption = { value: string; label: string };
 export type OptionsResponse = {
   colleges: SelectOption[];
   majors: Record<string, SelectOption[]>;
-  classes: SelectOption[];
+  classes: Record<string, SelectOption[]>;
   grades: SelectOption[];
   user_statuses: SelectOption[];
   teacher_titles: SelectOption[];
@@ -17,7 +17,7 @@ export async function getOptions(): Promise<OptionsResponse> {
   return {
     colleges: Array.isArray(data.colleges) ? data.colleges : [],
     majors: typeof data.majors === 'object' && data.majors !== null ? data.majors : {},
-    classes: Array.isArray(data.classes) ? data.classes : [],
+    classes: typeof data.classes === 'object' && data.classes !== null ? data.classes : {},
     grades: Array.isArray(data.grades) ? data.grades : [],
     user_statuses: Array.isArray(data.user_statuses) ? data.user_statuses : [],
     teacher_titles: Array.isArray(data.teacher_titles) ? data.teacher_titles : [],

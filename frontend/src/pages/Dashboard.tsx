@@ -30,8 +30,10 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import toast from "react-hot-toast";
 import type { ActivityCategory } from "@/types/activity";
+import { getActivityCategories } from "@/types/activity";
 import { StatCard } from "@/components/ui/stat-card";
 import { getStatusBadge } from "@/lib/status-utils";
+import type { SelectOption } from "@/lib/options";
 
 interface UserStats {
   total_users: number;
@@ -92,29 +94,24 @@ interface RecentActivity {
   owner_name?: string;
 }
 
-interface CreditTypeStats {
-  innovation_practice: number;
-  discipline_competition: number;
-  entrepreneurship_project: number;
-  entrepreneurship_practice: number;
-  paper_patent: number;
-}
 
 const ActivityCard = ({ activity }: { activity: RecentActivity }) => {
   const getCategoryIcon = (category: ActivityCategory) => {
-    switch (category) {
-      case "创新创业实践活动":
-        return <Lightbulb className="h-4 w-4" />;
-      case "学科竞赛":
-        return <Trophy className="h-4 w-4" />;
-      case "大学生创业项目":
-        return <Zap className="h-4 w-4" />;
-      case "创业实践项目":
-        return <Briefcase className="h-4 w-4" />;
-      case "论文专利":
-        return <BookOpen className="h-4 w-4" />;
-      default:
-        return <Activity className="h-4 w-4" />;
+    // 动态图标映射 - 基于分类名称的关键词
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes("创新") || categoryLower.includes("创业")) {
+      return <Lightbulb className="h-4 w-4" />;
+    } else if (categoryLower.includes("竞赛") || categoryLower.includes("比赛")) {
+      return <Trophy className="h-4 w-4" />;
+    } else if (categoryLower.includes("项目")) {
+      return <Zap className="h-4 w-4" />;
+    } else if (categoryLower.includes("实践")) {
+      return <Briefcase className="h-4 w-4" />;
+    } else if (categoryLower.includes("论文") || categoryLower.includes("专利")) {
+      return <BookOpen className="h-4 w-4" />;
+    } else {
+      return <Activity className="h-4 w-4" />;
     }
   };
 
@@ -251,6 +248,7 @@ const CreditTypeCard = ({
 export default function Dashboard() {
   const { user, hasPermission } = useAuth();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [activityCategories, setActivityCategories] = useState<SelectOption[]>([]);
   const [activityStats, setActivityStats] = useState<ActivityStats>({
     total_activities: 0,
     active_activities: 0,
@@ -260,25 +258,13 @@ export default function Dashboard() {
     rejected_activities: 0,
     recent_activities: [],
     popular_activities: [],
-    category_stats: {
-      创新创业实践活动: 0,
-      学科竞赛: 0,
-      大学生创业项目: 0,
-      创业实践项目: 0,
-      论文专利: 0,
-    },
+    category_stats: {},
     total_participants: 0,
     total_applications: 0,
     total_credits_awarded: 0,
     average_credits_per_activity: 0,
   });
-  const [creditTypeStats, setCreditTypeStats] = useState<CreditTypeStats>({
-    innovation_practice: 0,
-    discipline_competition: 0,
-    entrepreneurship_project: 0,
-    entrepreneurship_practice: 0,
-    paper_patent: 0,
-  });
+  const [creditTypeStats, setCreditTypeStats] = useState<Record<string, number>>({});
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
     []
   );
@@ -339,21 +325,15 @@ export default function Dashboard() {
           (activity: any) => activity.status === "rejected"
         ).length;
 
-        // Calculate category stats
-        const categoryStats = {
-          创新创业实践活动: 0,
-          学科竞赛: 0,
-          大学生创业项目: 0,
-          创业实践项目: 0,
-          论文专利: 0,
-        };
+        // Calculate category stats - 动态分类统计
+        const categoryStats: Record<string, number> = {};
 
         activitiesData.forEach((activity: any) => {
-          if (
-            activity.category &&
-            categoryStats.hasOwnProperty(activity.category)
-          ) {
-            categoryStats[activity.category as ActivityCategory]++;
+          if (activity.category) {
+            if (!categoryStats[activity.category]) {
+              categoryStats[activity.category] = 0;
+            }
+            categoryStats[activity.category]++;
           }
         });
 
@@ -406,7 +386,7 @@ export default function Dashboard() {
             id: activity.id || "",
             title: activity.title || "无标题",
             description: activity.description || "暂无描述",
-            category: activity.category || "创新创业实践活动",
+            category: activity.category || "未分类",
             status: activity.status || "draft",
             participant_count: activity.participants?.length || 0,
             application_count: activity.applications?.length || 0,
@@ -451,14 +431,8 @@ export default function Dashboard() {
         // Set recent activities for the card
         setRecentActivities(recentActivitiesData);
 
-        // Update credit type stats based on activities
-        setCreditTypeStats({
-          innovation_practice: categoryStats["创新创业实践活动"],
-          discipline_competition: categoryStats["学科竞赛"],
-          entrepreneurship_project: categoryStats["大学生创业项目"],
-          entrepreneurship_practice: categoryStats["创业实践项目"],
-          paper_patent: categoryStats["论文专利"],
-        });
+        // Update credit type stats based on activities - 动态分类统计
+        setCreditTypeStats(categoryStats);
       } catch (error) {
         console.error("Failed to fetch activities:", error);
         if (error instanceof Error && error.message.includes("Network Error")) {
@@ -475,6 +449,21 @@ export default function Dashboard() {
       setRefreshing(false);
     }
   };
+
+  // 加载活动配置
+  useEffect(() => {
+    const loadActivityConfig = async () => {
+      try {
+        const categories = await getActivityCategories();
+        setActivityCategories(categories);
+      } catch (error) {
+        console.error("Failed to load activity categories:", error);
+        toast.error("加载活动配置失败");
+      }
+    };
+    
+    loadActivityConfig();
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -766,56 +755,52 @@ export default function Dashboard() {
               活动类型分布
             </h4>
             <div className="grid gap-4 md:grid-cols-5">
-              <CreditTypeCard
-                type="创新创业实践"
-                count={creditTypeStats.innovation_practice}
-                total={Object.values(creditTypeStats).reduce(
-                  (a, b) => a + b,
-                  0
-                )}
-                icon={Lightbulb}
-                color="bg-blue-500"
-              />
-              <CreditTypeCard
-                type="学科竞赛"
-                count={creditTypeStats.discipline_competition}
-                total={Object.values(creditTypeStats).reduce(
-                  (a, b) => a + b,
-                  0
-                )}
-                icon={Trophy}
-                color="bg-yellow-500"
-              />
-              <CreditTypeCard
-                type="创业项目"
-                count={creditTypeStats.entrepreneurship_project}
-                total={Object.values(creditTypeStats).reduce(
-                  (a, b) => a + b,
-                  0
-                )}
-                icon={Zap}
-                color="bg-green-500"
-              />
-              <CreditTypeCard
-                type="创业实践"
-                count={creditTypeStats.entrepreneurship_practice}
-                total={Object.values(creditTypeStats).reduce(
-                  (a, b) => a + b,
-                  0
-                )}
-                icon={Briefcase}
-                color="bg-purple-500"
-              />
-              <CreditTypeCard
-                type="论文专利"
-                count={creditTypeStats.paper_patent}
-                total={Object.values(creditTypeStats).reduce(
-                  (a, b) => a + b,
-                  0
-                )}
-                icon={BookOpen}
-                color="bg-red-500"
-              />
+              {activityCategories.map((category, index) => {
+                const getCategoryIcon = (categoryName: string) => {
+                  const categoryLower = categoryName.toLowerCase();
+                  if (categoryLower.includes("创新") || categoryLower.includes("创业")) {
+                    return Lightbulb;
+                  } else if (categoryLower.includes("竞赛") || categoryLower.includes("比赛")) {
+                    return Trophy;
+                  } else if (categoryLower.includes("项目")) {
+                    return Zap;
+                  } else if (categoryLower.includes("实践")) {
+                    return Briefcase;
+                  } else if (categoryLower.includes("论文") || categoryLower.includes("专利")) {
+                    return BookOpen;
+                  } else {
+                    return Activity;
+                  }
+                };
+
+                const getCategoryColor = (index: number) => {
+                  const colors = [
+                    "bg-blue-500",
+                    "bg-yellow-500", 
+                    "bg-green-500",
+                    "bg-purple-500",
+                    "bg-red-500",
+                    "bg-indigo-500",
+                    "bg-pink-500",
+                    "bg-orange-500"
+                  ];
+                  return colors[index % colors.length];
+                };
+
+                const IconComponent = getCategoryIcon(category.label);
+                const totalCount = Object.values(creditTypeStats).reduce((a, b) => a + b, 0);
+
+                return (
+                  <CreditTypeCard
+                    key={category.value}
+                    type={category.label}
+                    count={creditTypeStats[category.value] || 0}
+                    total={totalCount}
+                    icon={IconComponent}
+                    color={getCategoryColor(index)}
+                  />
+                );
+              })}
             </div>
           </div>
         </CardContent>

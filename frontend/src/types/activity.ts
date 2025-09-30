@@ -1,26 +1,64 @@
-// 活动类型定义
-export type ActivityCategory = 
-  | "创新创业实践活动"
-  | "学科竞赛"
-  | "大学生创业项目"
-  | "创业实践项目"
-  | "论文专利";
+import { getActivityOptions } from "@/lib/options";
+import type { SelectOption } from "@/lib/options";
 
-// 活动类别常量
-export const ACTIVITY_CATEGORIES: ActivityCategory[] = [
-  "创新创业实践活动",
-  "学科竞赛", 
-  "大学生创业项目",
-  "创业实践项目",
-  "论文专利"
-];
+// 动态活动类型定义 - 从API配置获取
+export type ActivityCategory = string;
 
-// 活动状态
-export type ActivityStatus = 
-  | "draft"           // 草稿
-  | "pending_review"  // 待审核
-  | "approved"        // 已通过
-  | "rejected";       // 已拒绝
+// 动态活动状态定义 - 从API配置获取  
+export type ActivityStatus = string;
+
+// 活动配置类型
+export interface ActivityConfig {
+  categories: SelectOption[];
+  statuses: SelectOption[];
+  review_actions: SelectOption[];
+  category_fields: Record<string, Array<{
+    name: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    options?: SelectOption[];
+    min?: number;
+    max?: number;
+    maxLength?: number;
+    filterable?: boolean;
+  }>>;
+}
+
+// 获取活动配置的工具函数
+export async function getActivityConfig(): Promise<ActivityConfig> {
+  const options = await getActivityOptions();
+  return {
+    categories: options.categories || [],
+    statuses: options.statuses || [],
+    review_actions: options.review_actions || [],
+    category_fields: options.category_fields || {},
+  };
+}
+
+// 获取活动分类选项
+export async function getActivityCategories(): Promise<SelectOption[]> {
+  const config = await getActivityConfig();
+  return config.categories;
+}
+
+// 获取活动状态选项
+export async function getActivityStatuses(): Promise<SelectOption[]> {
+  const config = await getActivityConfig();
+  return config.statuses;
+}
+
+// 获取审核操作选项
+export async function getReviewActions(): Promise<SelectOption[]> {
+  const config = await getActivityConfig();
+  return config.review_actions;
+}
+
+// 获取特定分类的字段配置
+export async function getCategoryFields(category: string) {
+  const config = await getActivityConfig();
+  return config.category_fields[category] || [];
+}
 
 // 基础活动信息
 export interface Activity {
@@ -138,10 +176,10 @@ export interface ActivityDetailProps {
   onRefresh: () => void;
 }
 
-// 活动类型详情组件属性
+// 活动类型详情组件属性 - 使用通用的details字段
 export interface ActivityTypeDetailProps {
   activity: Activity;
-  detail: InnovationActivityDetail | CompetitionActivityDetail | EntrepreneurshipProjectDetail | EntrepreneurshipPracticeDetail | PaperPatentDetail;
+  detail: Record<string, any>; // 使用通用的details字段，支持动态配置
 }
 
 // 附件类型定义
