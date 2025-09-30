@@ -50,7 +50,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
 import type { Activity, Application } from "@/types/activity";
-import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/status-utils";
 import React from "react";
 
 interface ActivityApplicationsProps {

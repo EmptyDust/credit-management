@@ -34,8 +34,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
-import apiClient from "@/lib/api";
-import userService from "@/lib/userService";
+import apiClient, { apiHelpers } from "@/lib/api";
 import toast from "react-hot-toast";
 import type { Activity, Participant, UserInfo } from "@/types/activity";
 
@@ -154,16 +153,21 @@ export default function ActivityParticipants({
 
     setUserSearchLoading(true);
     try {
-      // 使用userService的searchUsers方法
-      const response = await userService.searchUsers({
-        query: query.trim(),
-        user_type: "student",
-        page: 1,
-        page_size: 20,
+      // 直接使用apiClient搜索用户
+      const response = await apiClient.get("/search/users", {
+        params: {
+          query: query.trim(),
+          user_type: "student",
+          page: 1,
+          page_size: 20,
+        }
       });
 
+      // 使用统一的响应处理函数
+      const { data: usersData } = apiHelpers.processPaginatedResponse(response);
+      
       // 直接使用 uuid
-      const users = (response.users || []).map((u: any) => ({
+      const users = (usersData || []).map((u: any) => ({
         ...u,
         uuid: u.uuid ?? u.id,
       }));

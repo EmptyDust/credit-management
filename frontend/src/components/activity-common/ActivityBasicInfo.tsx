@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/status-utils";
 import { getActivityOptions } from "@/lib/options";
 
 interface ActivityBasicInfoProps {

@@ -58,7 +58,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/utils";
+import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/status-utils";
 import React from "react";
 import { StatCard } from "@/components/ui/stat-card";
 import type { Activity } from "@/types/activity";
@@ -595,7 +595,7 @@ export default function ActivitiesPage() {
                           <Eye className="h-4 w-4" />
                         </Button>
                         {(hasPermission("manage_activities") ||
-                          user?.id === activity.owner_id) && (
+                          user?.uuid === activity.owner_id) && (
                           <>
                             <Button
                               variant="outline"

@@ -9,20 +9,6 @@ import {
   FileText,
 } from "lucide-react";
 import type { ComponentType } from "react";
-// 导入统一的状态处理函数
-export { 
-  getStatusText, 
-  getStatusStyle, 
-  getStatusIcon, 
-  getStatusBadge,
-  getStatusColor,
-  getStatusConfig,
-  isActiveStatus,
-  isPendingStatus,
-  isRejectedStatus,
-  isDraftStatus,
-  type StatusType
-} from "./status-utils";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
