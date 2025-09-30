@@ -11,6 +11,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// isNumeric checks if a string contains only numeric characters
+func isNumeric(s string) bool {
+	for _, char := range s {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 type UserHandler struct {
 	db *gorm.DB
 }
@@ -129,7 +139,10 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		user.DepartmentID = &req.DepartmentID
 	}
 	if req.Grade != nil {
-		user.Grade = req.Grade
+		// Only update grade if it's a valid 4-digit string or null
+		if *req.Grade == "" || (len(*req.Grade) == 4 && isNumeric(*req.Grade)) {
+			user.Grade = req.Grade
+		}
 	}
 	if req.Title != nil {
 		user.Title = req.Title

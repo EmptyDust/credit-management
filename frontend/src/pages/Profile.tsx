@@ -192,14 +192,44 @@ export default function ProfilePage() {
     setError("");
     setSaving(true);
     try {
+      // Only send fields that are allowed by the backend UserUpdateRequest
+      const updateData: any = {};
+      
+      // Only include fields that have values and are valid for updates
+      if (values.email && values.email !== profile.email) {
+        updateData.email = values.email;
+      }
+      if (values.phone && values.phone !== profile.phone) {
+        updateData.phone = values.phone;
+      }
+      if (values.real_name && values.real_name !== profile.real_name) {
+        updateData.real_name = values.real_name;
+      }
+      if (values.department && values.department !== profile.department) {
+        updateData.department_id = values.department;
+      }
+      
+      // Handle grade field - only send if it's a valid 4-digit string
+      if (values.grade && values.grade.length === 4 && /^\d{4}$/.test(values.grade)) {
+        updateData.grade = values.grade;
+      }
+      
+      // Handle title field
+      if (values.title && values.title !== profile.title) {
+        updateData.title = values.title;
+      }
+      
+      // Only make the request if there are fields to update
+      if (Object.keys(updateData).length > 0) {
+        await apiClient.put("/users/profile", updateData);
+      }
+      
+      // Update local state with the new values
       const updatedProfile = { ...profile, ...values };
-      const { status, ...profileWithoutStatus } = updatedProfile;
-      // 统一用 /api/users/profile 修改自己
-      await apiClient.put("/users/profile", profileWithoutStatus);
       setProfile(updatedProfile);
       updateUser({
         ...user,
-        ...profileWithoutStatus,
+        ...values,
       });
       setIsEditing(false);
       toast.success("个人资料更新成功！");
