@@ -50,6 +50,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
 import { PageHeader, createPageActions } from "@/components/ui/page-header";
 import { StatsGrid } from "@/components/ui/stats-grid";
+import { FilterCard } from "@/components/ui/filter-card";
 
 // Updated Student type based on student.go
 export type Student = {
@@ -124,9 +125,24 @@ const defaultValues = {
   user_type: "student" as const,
 };
 
+type StudentStats = {
+  total: number;
+  active: number;
+  collegeCount: number;
+  majorCount: number;
+  gradeCount: number;
+};
+
 export default function StudentsPage() {
   const { hasPermission } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentStats, setStudentStats] = useState<StudentStats>({
+    total: 0,
+    active: 0,
+    collegeCount: 0,
+    majorCount: 0,
+    gradeCount: 0,
+  });
 
   // 选项
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
@@ -155,10 +171,17 @@ export default function StudentsPage() {
   // 获取统计数据
   const fetchStats = async () => {
     try {
-      await apiClient.get("/users/stats", {
-        params: { user_type: "student" },
-      });
-      // 处理统计数据...
+      const response = await apiClient.get("/users/stats/students");
+      if (response.data.code === 0) {
+        const data = response.data.data || {};
+        setStudentStats({
+          total: data.total_students || 0,
+          active: data.active_students || 0,
+          collegeCount: Object.keys(data.students_by_college || {}).length,
+          majorCount: Object.keys(data.students_by_major || {}).length,
+          gradeCount: Object.keys(data.students_by_grade || {}).length,
+        });
+      }
     } catch (error) {
       console.error("Failed to fetch stats:", error);
     }
@@ -180,10 +203,15 @@ export default function StudentsPage() {
     })();
   }, []);
 
-  // 处理搜索和过滤
-  const handleSearchAndFilter = () => {
+  // 实时监听搜索与筛选变化
+  useEffect(() => {
     listPage.handleSearchAndFilter();
-  };
+  }, [
+    listPage.searchQuery,
+    listPage.filterValue,
+    listPage.statusFilter,
+    listPage.gradeFilter,
+  ]);
 
   // 处理分页变化
   const handlePageChange = (page: number) => {
@@ -225,28 +253,28 @@ export default function StudentsPage() {
         stats={[
           {
             title: "总学生数",
-            value: students.length,
+            value: studentStats.total,
             icon: Users,
             color: "info",
-            subtitle: `活跃学生: ${students.filter((s) => s.status === "active").length}`,
+            subtitle: `活跃学生: ${studentStats.active}`,
           },
           {
             title: "学院数量",
-            value: collegeOptions.length,
+            value: studentStats.collegeCount,
             icon: School,
             color: "purple",
             subtitle: "不同学院",
           },
           {
             title: "专业数量",
-            value: Array.from(new Set(students.map((s) => s.major).filter(Boolean))).length,
+            value: studentStats.majorCount,
             icon: GraduationCap,
             color: "success",
             subtitle: "不同专业",
           },
           {
             title: "年级分布",
-            value: Array.from(new Set(students.map((s) => s.grade).filter(Boolean))).length,
+            value: studentStats.gradeCount,
             icon: UserCheck,
             color: "warning",
             subtitle: "不同年级",
@@ -255,55 +283,47 @@ export default function StudentsPage() {
       />
 
       {/* 搜索与筛选 */}
-      <Card className="rounded-xl shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            筛选和搜索
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SearchFilterBar
-            searchQuery={listPage.searchQuery}
-            onSearchChange={listPage.setSearchQuery}
-            onSearch={handleSearchAndFilter}
-            onRefresh={() => listPage.fetchList()}
-            filterOptions={collegeOptions}
-            filterValue={listPage.filterValue}
-            onFilterChange={listPage.setFilterValue}
-            filterPlaceholder="选择学院"
-            searchPlaceholder="搜索学生姓名、学号..."
-            className="flex-col md:flex-row items-stretch md:items-center"
-          />
-          <div className="flex flex-wrap gap-4">
-            <Select value={userManagement.statusFilter} onValueChange={userManagement.setStatusFilter}>
-              <SelectTrigger className="w-32 rounded-lg">
-                <SelectValue placeholder="状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="active">活跃</SelectItem>
-                <SelectItem value="inactive">停用</SelectItem>
-                <SelectItem value="suspended">暂停</SelectItem>
-              </SelectContent>
-            </Select>
+      <FilterCard icon={Filter}>
+        <SearchFilterBar
+          searchQuery={listPage.searchQuery}
+          onSearchChange={listPage.setSearchQuery}
+          onSearch={listPage.handleSearchAndFilter}
+          onRefresh={() => listPage.fetchList()}
+          filterOptions={collegeOptions}
+          filterValue={listPage.filterValue}
+          onFilterChange={listPage.setFilterValue}
+          filterPlaceholder="选择学院"
+          searchPlaceholder="搜索学生姓名、学号..."
+          className="flex-col md:flex-row items-stretch md:items-center"
+        />
+        <div className="flex flex-wrap gap-4">
+          <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
+            <SelectTrigger className="w-32 rounded-lg">
+              <SelectValue placeholder="状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              <SelectItem value="active">活跃</SelectItem>
+              <SelectItem value="inactive">停用</SelectItem>
+              <SelectItem value="suspended">暂停</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <Select value={listPage.gradeFilter} onValueChange={listPage.setGradeFilter}>
-              <SelectTrigger className="w-32 rounded-lg">
-                <SelectValue placeholder="年级" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部年级</SelectItem>
-                {gradeOptions.map((g) => (
-                  <SelectItem key={g.value} value={g.value}>
-                    {g.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          <Select value={listPage.gradeFilter} onValueChange={listPage.setGradeFilter}>
+            <SelectTrigger className="w-32 rounded-lg">
+              <SelectValue placeholder="年级" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部年级</SelectItem>
+              {gradeOptions.map((g) => (
+                <SelectItem key={g.value} value={g.value}>
+                  {g.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </FilterCard>
 
       {/* Students Table */}
       <Card className="rounded-xl shadow-lg">

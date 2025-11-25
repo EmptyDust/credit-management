@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
@@ -41,6 +41,7 @@ import { getFileIcon, formatFileSize } from "@/lib/utils";
 import React from "react";
 import { getStatusBadge } from "@/lib/status-utils";
 import { getActivityOptions } from "@/lib/options";
+import { FilterCard } from "@/components/ui/filter-card";
 
 // Types
 interface Application {
@@ -123,7 +124,7 @@ export default function ApplicationsPage() {
     }
   };
 
-  const fetchApplications = async (page = currentPage, size = pageSize) => {
+  const fetchApplications = useCallback(async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
 
@@ -236,29 +237,29 @@ export default function ApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, searchTerm, statusFilter, user]);
 
   // 分页处理函数
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
     fetchApplications(page, pageSize);
-  };
+  }, [fetchApplications, pageSize]);
 
-  const handlePageSizeChange = (size: number) => {
+  const handlePageSizeChange = useCallback((size: number) => {
     setPageSize(size);
     setCurrentPage(1);
     fetchApplications(1, size);
-  };
+  }, [fetchApplications]);
 
   // 搜索和筛选处理
-  const handleSearchAndFilter = () => {
+  const handleSearchAndFilter = useCallback(() => {
     setCurrentPage(1);
     fetchApplications(1, pageSize);
-  };
+  }, [fetchApplications, pageSize]);
 
   useEffect(() => {
-    fetchApplications();
-  }, [user]);
+    handleSearchAndFilter();
+  }, [handleSearchAndFilter]);
 
   useEffect(() => {
     (async () => {
@@ -369,72 +370,64 @@ export default function ApplicationsPage() {
       </div>
 
       {/* Filters */}
-      <Card className="rounded-xl shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            筛选和搜索
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索申请人姓名、学号、学院、专业、班级或事务名称..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleSearchAndFilter();
-                  }
-                }}
-                className="pl-10 rounded-lg shadow-sm"
-              />
-            </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => {
-                setStatusFilter(value);
-                handleSearchAndFilter();
+      <FilterCard icon={Filter} contentClassName="space-y-0">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative w-full max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索申请人姓名、学号、学院、专业、班级或事务名称..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchAndFilter();
+                }
               }}
-            >
-              <SelectTrigger className="w-48 rounded-lg">
-                <SelectValue placeholder="选择状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                {applicationStatuses.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={handleSearchAndFilter}
-              disabled={loading}
-              className="rounded-lg shadow"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setCurrentPage(1);
-                fetchApplications(1, pageSize);
-              }}
-              disabled={loading}
-              className="rounded-lg shadow"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-            </Button>
+              className="pl-10 rounded-lg shadow-sm"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value);
+              handleSearchAndFilter();
+            }}
+          >
+            <SelectTrigger className="w-48 rounded-lg">
+              <SelectValue placeholder="选择状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              {applicationStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={handleSearchAndFilter}
+            disabled={loading}
+            className="rounded-lg shadow"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("all");
+              setCurrentPage(1);
+              fetchApplications(1, pageSize);
+            }}
+            disabled={loading}
+            className="rounded-lg shadow"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
+      </FilterCard>
 
       {/* Applications Table */}
       <Card className="rounded-xl shadow-lg">

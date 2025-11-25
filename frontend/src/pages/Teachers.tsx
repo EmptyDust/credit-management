@@ -56,6 +56,8 @@ import { PageHeader, createPageActions } from "@/components/ui/page-header";
 import { StatsGrid } from "@/components/ui/stats-grid";
 import { TableActions, createEditDeleteActions } from "@/components/ui/table-actions";
 import { SearchFilterBar } from "@/components/ui/search-filter-bar";
+import { FilterCard } from "@/components/ui/filter-card";
+import apiClient from "@/lib/api";
 
 // Teacher type based on teacher.go
 export type Teacher = {
@@ -101,9 +103,22 @@ const formSchema = z.object({
   user_type: z.literal("teacher"),
 });
 
+type TeacherStats = {
+  total: number;
+  active: number;
+  departmentCount: number;
+  titleCount: number;
+};
+
 export default function TeachersPage() {
   const { hasPermission } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [teacherStats, setTeacherStats] = useState<TeacherStats>({
+    total: 0,
+    active: 0,
+    departmentCount: 0,
+    titleCount: 0,
+  });
   const [userStatuses, setUserStatuses] = useState<{ value: string; label: string }[]>([]);
   const [teacherTitles, setTeacherTitles] = useState<{ value: string; label: string }[]>([]);
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
@@ -134,9 +149,27 @@ export default function TeachersPage() {
     fetchFunction: listPage.fetchList,
   });
 
+  const fetchTeacherStats = async () => {
+    try {
+      const response = await apiClient.get("/users/stats/teachers");
+      if (response.data.code === 0) {
+        const data = response.data.data || {};
+        setTeacherStats({
+          total: data.total_teachers || 0,
+          active: data.active_teachers || 0,
+          departmentCount: Object.keys(data.teachers_by_department || {}).length,
+          titleCount: Object.keys(data.teachers_by_title || {}).length,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch teacher stats:", error);
+    }
+  };
+
   useEffect(() => {
     // 初始化数据
     listPage.fetchList();
+    fetchTeacherStats();
     
     // 加载选项数据
     (async () => {
@@ -201,23 +234,21 @@ export default function TeachersPage() {
         stats={[
           {
             title: "总教师数",
-            value: teachers.length,
+            value: teacherStats.total,
             icon: Users,
             color: "info",
-            subtitle: `活跃教师: ${
-              teachers.filter((t) => t.status === "active").length
-            }`,
+            subtitle: `活跃教师: ${teacherStats.active}`,
           },
           {
             title: "学院数量",
-            value: collegeOptions.length,
+            value: teacherStats.departmentCount,
             icon: Building,
             color: "purple",
             subtitle: "不同学院",
           },
           {
             title: "活跃教师数",
-            value: teachers.filter((t) => t.status === "active").length,
+            value: teacherStats.active,
             icon: Users,
             color: "success",
             subtitle: "当前活跃",
@@ -226,41 +257,33 @@ export default function TeachersPage() {
       />
 
       {/* 搜索与筛选 */}
-      <Card className="rounded-xl shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            筛选和搜索
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SearchFilterBar
-            searchQuery={listPage.searchQuery}
-            onSearchChange={listPage.setSearchQuery}
-            onSearch={listPage.handleSearchAndFilter}
-            onRefresh={() => listPage.fetchList()}
-            filterOptions={collegeOptions}
-            filterValue={listPage.filterValue}
-            onFilterChange={listPage.setFilterValue}
-            filterPlaceholder="选择学院"
-            searchPlaceholder="搜索教师姓名、学院..."
-            className="flex-col md:flex-row items-stretch md:items-center"
-          />
-          <div className="flex flex-wrap gap-4">
-            <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
-              <SelectTrigger className="w-32 rounded-lg">
-                <SelectValue placeholder="状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                {userStatuses.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <FilterCard icon={Filter}>
+        <SearchFilterBar
+          searchQuery={listPage.searchQuery}
+          onSearchChange={listPage.setSearchQuery}
+          onSearch={listPage.handleSearchAndFilter}
+          onRefresh={() => listPage.fetchList()}
+          filterOptions={collegeOptions}
+          filterValue={listPage.filterValue}
+          onFilterChange={listPage.setFilterValue}
+          filterPlaceholder="选择学院"
+          searchPlaceholder="搜索教师姓名、学院..."
+          className="flex-col md:flex-row items-stretch md:items-center"
+        />
+        <div className="flex flex-wrap gap-4">
+          <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
+            <SelectTrigger className="w-32 rounded-lg">
+              <SelectValue placeholder="状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              {userStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </FilterCard>
 
       {/* Teachers Table */}
       <Card className="rounded-xl shadow-lg">

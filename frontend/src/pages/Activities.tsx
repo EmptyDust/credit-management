@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -61,6 +61,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/status-utils";
 import React from "react";
 import { StatCard } from "@/components/ui/stat-card";
+import { FilterCard } from "@/components/ui/filter-card";
 import type { Activity } from "@/types/activity";
 import { getActivityOptions } from "@/lib/options";
 
@@ -103,6 +104,13 @@ export default function ActivitiesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [activityStats, setActivityStats] = useState({
+    totalActivities: 0,
+    approvedCount: 0,
+    pendingCount: 0,
+    totalParticipants: 0,
+  });
+  const [globalApplicationCount, setGlobalApplicationCount] = useState(0);
 
   const form = useForm<CreateActivityForm>({
     resolver: zodResolver(activitySchema),
@@ -120,11 +128,7 @@ export default function ActivitiesPage() {
     }
   }, [searchParams]);
 
-  const fetchActivities = async (
-    page = currentPage,
-    size = pageSize,
-    filters?: { query?: string; category?: string; status?: string }
-  ) => {
+  const fetchActivities = useCallback(async (page = currentPage, size = pageSize) => {
     try {
       setLoading(true);
 
@@ -134,18 +138,14 @@ export default function ActivitiesPage() {
         page_size: size,
       };
 
-      const appliedSearchTerm = filters?.query ?? searchTerm;
-      const appliedCategory = filters?.category ?? categoryFilter;
-      const appliedStatus = filters?.status ?? statusFilter;
-
-      if (appliedSearchTerm) {
-        params.query = appliedSearchTerm;
+      if (searchTerm) {
+        params.query = searchTerm;
       }
-      if (appliedCategory !== "all") {
-        params.category = appliedCategory;
+      if (categoryFilter !== "all") {
+        params.category = categoryFilter;
       }
-      if (appliedStatus !== "all") {
-        params.status = appliedStatus;
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
       }
 
       const response = await apiClient.get("/activities", { params });
@@ -203,11 +203,49 @@ export default function ActivitiesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, searchTerm, categoryFilter, statusFilter]);
+
+  const fetchActivityStats = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/activities/stats");
+      if (response.data.code === 0) {
+        const data = response.data.data || {};
+        setActivityStats({
+          totalActivities: data.total_activities || 0,
+          approvedCount: data.approved_count || 0,
+          pendingCount: data.pending_count || 0,
+          totalParticipants: data.total_participants || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch activity stats:", error);
+    }
+  }, []);
+
+  const fetchGlobalApplicationCount = useCallback(async () => {
+    try {
+      const endpoint =
+        user?.userType === "student" ? "/applications" : "/applications/all";
+      const response = await apiClient.get(endpoint, {
+        params: { page: 1, page_size: 1 },
+      });
+      if (response.data.code === 0 && response.data.data) {
+        const total =
+          response.data.data.total ??
+          response.data.data?.total_count ??
+          (response.data.data.data?.length ?? 0);
+        setGlobalApplicationCount(Number(total) || 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch application stats:", error);
+    }
+  }, [user?.userType]);
 
   useEffect(() => {
-    fetchActivities();
-  }, []);
+    fetchActivityStats();
+    fetchGlobalApplicationCount();
+  }, [fetchActivityStats, fetchGlobalApplicationCount]);
+
 
   useEffect(() => {
     (async () => {
@@ -222,21 +260,25 @@ export default function ActivitiesPage() {
     })();
   }, []);
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
     fetchActivities(page, pageSize);
-  };
+  }, [fetchActivities, pageSize]);
 
-  const handlePageSizeChange = (size: number) => {
+  const handlePageSizeChange = useCallback((size: number) => {
     setPageSize(size);
     setCurrentPage(1);
     fetchActivities(1, size);
-  };
+  }, [fetchActivities]);
 
-  const handleSearchAndFilter = () => {
+  const handleSearchAndFilter = useCallback(() => {
     setCurrentPage(1);
     fetchActivities(1, pageSize);
-  };
+  }, [fetchActivities, pageSize]);
+
+  useEffect(() => {
+    handleSearchAndFilter();
+  }, [handleSearchAndFilter]);
 
   const handleDialogOpen = (activity: Activity | null) => {
     setEditingActivity(activity);
@@ -420,36 +462,28 @@ export default function ActivitiesPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
           title="总活动数"
-          value={totalItems}
+          value={activityStats.totalActivities}
           icon={Award}
           color="info"
-          subtitle={`已通过: ${
-            safeActivities.filter((a) => a.status === "approved").length
-          }`}
+          subtitle={`已通过: ${activityStats.approvedCount}`}
         />
         <StatCard
           title="参与学生"
-          value={safeActivities.reduce(
-            (sum, activity) => sum + (activity.participants?.length || 0),
-            0
-          )}
+          value={activityStats.totalParticipants}
           icon={Users}
           color="success"
           subtitle="总参与人次"
         />
         <StatCard
           title="申请数量"
-          value={safeActivities.reduce(
-            (sum, activity) => sum + (activity.applications?.length || 0),
-            0
-          )}
+          value={globalApplicationCount}
           icon={FileText}
           color="purple"
           subtitle="总申请数量"
         />
         <StatCard
           title="待审核"
-          value={safeActivities.filter((a) => a.status === "pending_review").length}
+          value={activityStats.pendingCount}
           icon={Clock}
           color="warning"
           subtitle="待审核活动"
@@ -457,82 +491,70 @@ export default function ActivitiesPage() {
       </div>
 
       {/* Filters */}
-      <Card className="rounded-xl shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            筛选和搜索
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索活动名称..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleSearchAndFilter();
-                  }
-                }}
-                className="pl-10 rounded-lg shadow-sm"
-              />
-            </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-48 rounded-lg">
-                <SelectValue placeholder="选择类别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部类别</SelectItem>
-                {activityCategories.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32 rounded-lg">
-                <SelectValue placeholder="状态" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                {activityStatuses.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={handleSearchAndFilter}
-              disabled={loading}
-              className="rounded-lg shadow"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm("");
-                setCategoryFilter("all");
-                setStatusFilter("all");
-                setCurrentPage(1);
-                fetchActivities(1, pageSize, {
-                  query: "",
-                  category: "all",
-                  status: "all",
-                });
+      <FilterCard icon={Filter} contentClassName="space-y-0">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索活动名称..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchAndFilter();
+                }
               }}
-              disabled={loading}
-              className="rounded-lg shadow"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-              />
-            </Button>
+              className="pl-10 rounded-lg shadow-sm"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-48 rounded-lg">
+              <SelectValue placeholder="选择类别" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部类别</SelectItem>
+              {activityCategories.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-32 rounded-lg">
+              <SelectValue placeholder="状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部状态</SelectItem>
+              {activityStatuses.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={handleSearchAndFilter}
+            disabled={loading}
+            className="rounded-lg shadow"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchTerm("");
+              setCategoryFilter("all");
+              setStatusFilter("all");
+              setCurrentPage(1);
+              fetchActivities(1, pageSize);
+            }}
+            disabled={loading}
+            className="rounded-lg shadow"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
+      </FilterCard>
 
       {/* Activities Table */}
       <Card className="rounded-xl shadow-lg">

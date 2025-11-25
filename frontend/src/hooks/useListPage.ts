@@ -10,13 +10,29 @@ interface ListPageOptions<T> {
 
 export function useListPage<T>({ endpoint, setData, errorMessage, userType }: ListPageOptions<T>) {
   const pagination = usePagination(10);
+  const {
+    currentPage,
+    pageSize,
+    totalItems,
+    totalPages,
+    loading,
+    setCurrentPage,
+    setPageSize,
+    setTotalItems,
+    setTotalPages,
+    setLoading,
+    handlePageChange: paginationHandlePageChange,
+    handlePageSizeChange: paginationHandlePageSizeChange,
+    resetToFirstPage,
+    fetchData,
+  } = pagination;
   const [searchQuery, setSearchQuery] = useState("");
   const [filterValue, setFilterValue] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [classFilter, setClassFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
 
-  const fetchList = useCallback(async (page = pagination.currentPage, size = pagination.pageSize) => {
+  const fetchList = useCallback(async (page = currentPage, size = pageSize) => {
     const params: any = {
       page,
       page_size: size,
@@ -48,24 +64,46 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
       params.grade = gradeFilter;
     }
 
-    await pagination.fetchData(endpoint, params, setData, errorMessage);
-  }, [pagination, searchQuery, filterValue, statusFilter, classFilter, gradeFilter, endpoint, setData, errorMessage, userType]);
+    await fetchData(endpoint, params, setData, errorMessage);
+  }, [
+    currentPage,
+    pageSize,
+    searchQuery,
+    filterValue,
+    statusFilter,
+    classFilter,
+    gradeFilter,
+    endpoint,
+    setData,
+    errorMessage,
+    userType,
+    fetchData,
+  ]);
 
   const handleSearchAndFilter = useCallback(() => {
-    pagination.resetToFirstPage(fetchList);
-  }, [pagination, fetchList]);
+    resetToFirstPage(fetchList);
+  }, [resetToFirstPage, fetchList]);
 
   const handlePageChange = useCallback((page: number) => {
-    pagination.handlePageChange(page, fetchList);
-  }, [pagination, fetchList]);
+    paginationHandlePageChange(page, fetchList);
+  }, [paginationHandlePageChange, fetchList]);
 
   const handlePageSizeChange = useCallback((size: number) => {
-    pagination.handlePageSizeChange(size, fetchList);
-  }, [pagination, fetchList]);
+    paginationHandlePageSizeChange(size, fetchList);
+  }, [paginationHandlePageSizeChange, fetchList]);
 
   return {
     // 分页相关
-    ...pagination,
+    currentPage,
+    pageSize,
+    totalItems,
+    totalPages,
+    loading,
+    setCurrentPage,
+    setPageSize,
+    setTotalItems,
+    setTotalPages,
+    setLoading,
     fetchList,
     handlePageChange,
     handlePageSizeChange,
