@@ -109,9 +109,6 @@ export default function Layout() {
             <Button variant="ghost" size="icon" className="sm:hidden">
               <Menu className="h-4 w-4" />
             </Button>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-semibold">双创分申请平台</h1>
-            </div>
           </div>
 
           <div className="flex items-center gap-4">

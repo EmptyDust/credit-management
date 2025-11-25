@@ -37,6 +37,7 @@ import {
   UserCheck,
   Upload,
   Download,
+  Filter,
 } from "lucide-react";
 import { getOptions } from "@/lib/options";
 import { getStatusBadge } from "@/lib/status-utils";
@@ -46,6 +47,7 @@ import { useListPage } from "@/hooks/useListPage";
 import { SearchFilterBar } from "@/components/ui/search-filter-bar";
 import { TableActions, createEditDeleteActions } from "@/components/ui/table-actions";
 import { DataTable } from "@/components/ui/data-table";
+import { Pagination } from "@/components/ui/pagination";
 import { PageHeader, createPageActions } from "@/components/ui/page-header";
 import { StatsGrid } from "@/components/ui/stats-grid";
 
@@ -193,7 +195,7 @@ export default function StudentsPage() {
   };
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
+    <div className="space-y-8 p-4 md:p-8">
       <PageHeader
         title="学生列表"
         description="管理学生用户信息"
@@ -252,57 +254,64 @@ export default function StudentsPage() {
         ]}
       />
 
-      {/* 搜索和过滤栏 */}
-      <div className="mb-6">
-        <SearchFilterBar
-          searchQuery={listPage.searchQuery}
-          onSearchChange={listPage.setSearchQuery}
-          onSearch={handleSearchAndFilter}
-          onRefresh={() => listPage.fetchList()}
-          filterOptions={collegeOptions}
-          filterValue={listPage.filterValue}
-          onFilterChange={listPage.setFilterValue}
-          filterPlaceholder="选择学院"
-          searchPlaceholder="搜索学生姓名、学号..."
-        />
-      </div>
+      {/* 搜索与筛选 */}
+      <Card className="rounded-xl shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            筛选和搜索
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SearchFilterBar
+            searchQuery={listPage.searchQuery}
+            onSearchChange={listPage.setSearchQuery}
+            onSearch={handleSearchAndFilter}
+            onRefresh={() => listPage.fetchList()}
+            filterOptions={collegeOptions}
+            filterValue={listPage.filterValue}
+            onFilterChange={listPage.setFilterValue}
+            filterPlaceholder="选择学院"
+            searchPlaceholder="搜索学生姓名、学号..."
+            className="flex-col md:flex-row items-stretch md:items-center"
+          />
+          <div className="flex flex-wrap gap-4">
+            <Select value={userManagement.statusFilter} onValueChange={userManagement.setStatusFilter}>
+              <SelectTrigger className="w-32 rounded-lg">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="active">活跃</SelectItem>
+                <SelectItem value="inactive">停用</SelectItem>
+                <SelectItem value="suspended">暂停</SelectItem>
+              </SelectContent>
+            </Select>
 
-      {/* 筛选器 */}
-      <div className="mb-4 flex flex-wrap gap-4">
-        <Select value={userManagement.statusFilter} onValueChange={userManagement.setStatusFilter}>
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="状态" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="active">活跃</SelectItem>
-            <SelectItem value="inactive">停用</SelectItem>
-            <SelectItem value="suspended">暂停</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <Select value={listPage.gradeFilter} onValueChange={listPage.setGradeFilter}>
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="年级" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部年级</SelectItem>
-            {gradeOptions.map((g) => (
-              <SelectItem key={g.value} value={g.value}>
-                {g.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            <Select value={listPage.gradeFilter} onValueChange={listPage.setGradeFilter}>
+              <SelectTrigger className="w-32 rounded-lg">
+                <SelectValue placeholder="年级" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部年级</SelectItem>
+                {gradeOptions.map((g) => (
+                  <SelectItem key={g.value} value={g.value}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Students Table */}
-      <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle>学生列表</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-md bg-white dark:bg-gray-900/60">
+          <div className="border rounded-xl overflow-x-auto bg-white dark:bg-gray-900/60">
             <DataTable
               data={students}
               columns={[
@@ -371,22 +380,27 @@ export default function StudentsPage() {
                   </Button>
                 ) : undefined,
               }}
-              pagination={
-                listPage.totalItems > 0
-                  ? {
-                      currentPage: listPage.currentPage,
-                      totalPages: listPage.totalPages,
-                      totalItems: listPage.totalItems,
-                      pageSize: listPage.pageSize,
-                      onPageChange: handlePageChange,
-                      onPageSizeChange: handlePageSizeChange,
-                    }
-                  : undefined
-              }
+              className="min-w-full"
             />
           </div>
         </CardContent>
       </Card>
+
+      {/* 分页 */}
+      {!listPage.loading && listPage.totalItems > 0 && (
+        <Card className="rounded-xl shadow-lg">
+          <CardContent className="pt-6">
+            <Pagination
+              currentPage={listPage.currentPage}
+              totalPages={listPage.totalPages}
+              totalItems={listPage.totalItems}
+              pageSize={listPage.pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={userManagement.isDialogOpen} onOpenChange={userManagement.setIsDialogOpen}>

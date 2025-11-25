@@ -46,6 +46,7 @@ import {
   AlertCircle,
   Upload,
   Download,
+  Filter,
 } from "lucide-react";
 import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
@@ -170,7 +171,7 @@ export default function TeachersPage() {
 
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
+    <div className="space-y-8 p-4 md:p-8">
       <PageHeader
         title="教师列表"
         description="管理教师用户信息"
@@ -224,45 +225,52 @@ export default function TeachersPage() {
         ]}
       />
 
-      {/* 搜索和过滤栏 */}
-      <div className="mb-6">
-        <SearchFilterBar
-          searchQuery={listPage.searchQuery}
-          onSearchChange={listPage.setSearchQuery}
-          onSearch={listPage.handleSearchAndFilter}
-          onRefresh={() => listPage.fetchList()}
-          filterOptions={collegeOptions}
-          filterValue={listPage.filterValue}
-          onFilterChange={listPage.setFilterValue}
-          filterPlaceholder="选择学院"
-          searchPlaceholder="搜索教师姓名、学院..."
-        />
-      </div>
-
-      {/* 状态过滤 */}
-      <div className="mb-4">
-        <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="状态" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            {userStatuses.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* 搜索与筛选 */}
+      <Card className="rounded-xl shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            筛选和搜索
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SearchFilterBar
+            searchQuery={listPage.searchQuery}
+            onSearchChange={listPage.setSearchQuery}
+            onSearch={listPage.handleSearchAndFilter}
+            onRefresh={() => listPage.fetchList()}
+            filterOptions={collegeOptions}
+            filterValue={listPage.filterValue}
+            onFilterChange={listPage.setFilterValue}
+            filterPlaceholder="选择学院"
+            searchPlaceholder="搜索教师姓名、学院..."
+            className="flex-col md:flex-row items-stretch md:items-center"
+          />
+          <div className="flex flex-wrap gap-4">
+            <Select value={listPage.statusFilter} onValueChange={listPage.setStatusFilter}>
+              <SelectTrigger className="w-32 rounded-lg">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                {userStatuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Teachers Table */}
-      <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle>教师列表</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-md bg-white dark:bg-gray-900/60">
+          <div className="border rounded-xl overflow-x-auto bg-white dark:bg-gray-900/60">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/60">
                 <TableRow>
                   <TableHead>用户名</TableHead>
                   <TableHead>工号</TableHead>
@@ -276,28 +284,28 @@ export default function TeachersPage() {
               <TableBody>
                 {listPage.loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex items-center justify-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        加载中...
+                    <TableCell colSpan={7} className="py-8 text-center">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin" />
+                        <span>加载中...</span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : teachers.length === 0 ? (
                   <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center py-8"
-                    >
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="w-8 h-8" />
+                    <TableCell colSpan={7} className="py-12 text-center">
+                      <div className="flex flex-col items-center text-muted-foreground">
+                        <AlertCircle className="w-10 h-10 mb-2" />
                         <p>暂无教师记录</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   teachers.map((teacher) => (
-                    <TableRow key={teacher.uuid}>
+                    <TableRow
+                      key={teacher.uuid}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
                       <TableCell className="font-medium">
                         {teacher.username}
                       </TableCell>
@@ -313,28 +321,32 @@ export default function TeachersPage() {
                       <TableCell>{teacher.department || "-"}</TableCell>
                       <TableCell>{teacher.title || "-"}</TableCell>
                       <TableCell>{getStatusBadge(teacher.status)}</TableCell>
-                       <TableCell className="text-right">
-                         {canManageTeachers && (
-                           <TableActions
-                             actions={createEditDeleteActions(
-                               () => handleDialogOpen(teacher),
-                               () => {
-                                 userManagement.setItemToDelete(teacher);
-                                 userManagement.setDeleteDialogOpen(true);
-                               }
-                             )}
-                           />
-                         )}
-                       </TableCell>
+                      <TableCell className="text-right">
+                        {canManageTeachers && (
+                          <TableActions
+                            actions={createEditDeleteActions(
+                              () => handleDialogOpen(teacher),
+                              () => {
+                                userManagement.setItemToDelete(teacher);
+                                userManagement.setDeleteDialogOpen(true);
+                              }
+                            )}
+                          />
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* 分页组件 */}
-          {!listPage.loading && listPage.totalItems > 0 && (
+      {/* 分页组件 */}
+      {!listPage.loading && listPage.totalItems > 0 && (
+        <Card className="rounded-xl shadow-lg">
+          <CardContent className="pt-6">
             <Pagination
               currentPage={listPage.currentPage}
               totalPages={listPage.totalPages}
@@ -343,9 +355,9 @@ export default function TeachersPage() {
               onPageChange={listPage.handlePageChange}
               onPageSizeChange={listPage.handlePageSizeChange}
             />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={userManagement.isDialogOpen} onOpenChange={userManagement.setIsDialogOpen}>

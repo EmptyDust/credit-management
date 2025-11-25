@@ -120,7 +120,11 @@ export default function ActivitiesPage() {
     }
   }, [searchParams]);
 
-  const fetchActivities = async (page = currentPage, size = pageSize) => {
+  const fetchActivities = async (
+    page = currentPage,
+    size = pageSize,
+    filters?: { query?: string; category?: string; status?: string }
+  ) => {
     try {
       setLoading(true);
 
@@ -130,14 +134,18 @@ export default function ActivitiesPage() {
         page_size: size,
       };
 
-      if (searchTerm) {
-        params.query = searchTerm;
+      const appliedSearchTerm = filters?.query ?? searchTerm;
+      const appliedCategory = filters?.category ?? categoryFilter;
+      const appliedStatus = filters?.status ?? statusFilter;
+
+      if (appliedSearchTerm) {
+        params.query = appliedSearchTerm;
       }
-      if (categoryFilter !== "all") {
-        params.category = categoryFilter;
+      if (appliedCategory !== "all") {
+        params.category = appliedCategory;
       }
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
+      if (appliedStatus !== "all") {
+        params.status = appliedStatus;
       }
 
       const response = await apiClient.get("/activities", { params });
@@ -367,7 +375,7 @@ export default function ActivitiesPage() {
   const safeActivities = Array.isArray(activities) ? activities : [];
 
   return (
-    <div className="space-y-8 p-4 md:p-8 bg-background min-h-screen">
+    <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">活动列表</h1>
@@ -449,7 +457,7 @@ export default function ActivitiesPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -457,25 +465,23 @@ export default function ActivitiesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="搜索活动名称..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearchAndFilter();
-                    }
-                  }}
-                  className="pl-10"
-                />
-              </div>
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="relative w-full max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索活动名称..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSearchAndFilter();
+                  }
+                }}
+                className="pl-10 rounded-lg shadow-sm"
+              />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-48 rounded-lg">
                 <SelectValue placeholder="选择类别" />
               </SelectTrigger>
               <SelectContent>
@@ -486,7 +492,7 @@ export default function ActivitiesPage() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-32 rounded-lg">
                 <SelectValue placeholder="状态" />
               </SelectTrigger>
               <SelectContent>
@@ -500,6 +506,25 @@ export default function ActivitiesPage() {
               variant="outline"
               onClick={handleSearchAndFilter}
               disabled={loading}
+              className="rounded-lg shadow"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchTerm("");
+                setCategoryFilter("all");
+                setStatusFilter("all");
+                setCurrentPage(1);
+                fetchActivities(1, pageSize, {
+                  query: "",
+                  category: "all",
+                  status: "all",
+                });
+              }}
+              disabled={loading}
+              className="rounded-lg shadow"
             >
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -510,14 +535,14 @@ export default function ActivitiesPage() {
       </Card>
 
       {/* Activities Table */}
-      <Card className="bg-gray-100/80 dark:bg-gray-900/40 border-0 shadow-sm">
+      <Card className="rounded-xl shadow-lg">
         <CardHeader>
           <CardTitle>活动列表</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-md bg-white dark:bg-gray-900/60">
+          <div className="border rounded-xl overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/60">
                 <TableRow>
                   <TableHead>名称</TableHead>
                   <TableHead>类别</TableHead>
@@ -531,25 +556,28 @@ export default function ActivitiesPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex items-center justify-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        加载中...
+                    <TableCell colSpan={7} className="py-8 text-center">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <RefreshCw className="h-6 w-6 animate-spin" />
+                        <span>加载中...</span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : !safeActivities || safeActivities.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <AlertCircle className="w-8 h-8" />
+                    <TableCell colSpan={7} className="py-12 text-center">
+                      <div className="flex flex-col items-center text-muted-foreground">
+                        <AlertCircle className="w-10 h-10 mb-2" />
                         <p>暂无活动记录</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   safeActivities.map((activity) => (
-                    <TableRow key={activity.id}>
+                    <TableRow
+                      key={activity.id}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
                       <TableCell>
                         <div>
                           <div className="font-medium">{activity.title}</div>
@@ -621,8 +649,13 @@ export default function ActivitiesPage() {
             </Table>
           </div>
 
-          {/* 分页组件 */}
-          {!loading && totalItems > 0 && (
+        </CardContent>
+      </Card>
+
+      {/* 分页组件 */}
+      {!loading && totalItems > 0 && (
+        <Card className="rounded-xl shadow-lg">
+          <CardContent className="pt-6">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -631,9 +664,9 @@ export default function ActivitiesPage() {
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
