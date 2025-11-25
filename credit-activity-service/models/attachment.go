@@ -21,8 +21,8 @@ type Attachment struct {
 	UploadedAt    time.Time      `json:"uploaded_at" gorm:"default:CURRENT_TIMESTAMP"`
 	DownloadCount int64          `json:"download_count" gorm:"default:0"` // 下载次数
 	MD5Hash       string         `json:"md5_hash" gorm:"uniqueIndex"`     // 文件MD5哈希（可选）
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
+	CreatedAt     time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt     time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt     gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 
 	// 关联关系

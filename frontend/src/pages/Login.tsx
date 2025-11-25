@@ -61,7 +61,8 @@ export default function Login() {
           // 转换用户数据格式以匹配前端接口（以数据库模型为准）
           const normalizedUser = {
             uuid: user.uuid,
-            user_id: user.user_id,
+            student_id: user.student_id,
+            teacher_id: user.teacher_id,
             username: user.username,
             userType: user.user_type,
             email: user.email,

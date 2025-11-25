@@ -93,7 +93,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			utils.SendUnauthorized(c)
 			return
 		}
-		userID = claims["id"].(string)
+		userID = claims["uuid"].(string)
 	}
 
 	var req models.UserUpdateRequest
@@ -101,6 +101,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		utils.SendBadRequest(c, "请求参数错误: "+err.Error())
 		return
 	}
+
+	validator := utils.NewValidator()
 
 	var user models.User
 	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
@@ -146,6 +148,40 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 	if req.Title != nil {
 		user.Title = req.Title
+	}
+
+	if req.StudentID != nil {
+		if user.UserType != "student" {
+			utils.SendBadRequest(c, "只有学生用户可以设置学号")
+			return
+		}
+		if err := validator.ValidateStudentID(*req.StudentID); err != nil {
+			utils.SendBadRequest(c, err.Error())
+			return
+		}
+		var existing models.User
+		if err := h.db.Where("student_id = ? AND uuid != ?", *req.StudentID, userID).First(&existing).Error; err == nil {
+			utils.SendConflict(c, "学号已被使用")
+			return
+		}
+		user.StudentID = req.StudentID
+	}
+
+	if req.TeacherID != nil {
+		if user.UserType != "teacher" {
+			utils.SendBadRequest(c, "只有教师用户可以设置工号")
+			return
+		}
+		if err := validator.ValidateTeacherID(*req.TeacherID); err != nil {
+			utils.SendBadRequest(c, err.Error())
+			return
+		}
+		var existing models.User
+		if err := h.db.Where("teacher_id = ? AND uuid != ?", *req.TeacherID, userID).First(&existing).Error; err == nil {
+			utils.SendConflict(c, "工号已被使用")
+			return
+		}
+		user.TeacherID = req.TeacherID
 	}
 
 	if err := h.db.Save(&user).Error; err != nil {
@@ -389,7 +425,8 @@ func (h *UserHandler) ExportUsers(c *gin.Context) {
 func (h *UserHandler) convertToUserResponse(user models.User) models.UserResponse {
 	return models.UserResponse{
 		UUID:         user.UUID,
-		ID:           user.ID,
+		StudentID:    user.StudentID,
+		TeacherID:    user.TeacherID,
 		Username:     user.Username,
 		Email:        user.Email,
 		Phone:        utils.DerefString(user.Phone),

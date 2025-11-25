@@ -37,20 +37,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// 检查至少提供了ID或用户名
-	if req.ID == "" && req.Username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须提供 id 或 username", "data": nil})
+	// 检查至少提供了一个登录标识
+	if req.Username == "" && req.StudentID == "" && req.TeacherID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须提供用户名、学号或工号", "data": nil})
 		return
 	}
 
 	var user models.User
 	query := h.db
-	if req.ID != "" {
-		// 使用ID查询
-		query = query.Where("id = ?", req.ID)
-	} else {
-		// 使用用户名查询
+	switch {
+	case req.Username != "":
 		query = query.Where("username = ?", req.Username)
+	case req.StudentID != "":
+		query = query.Where("student_id = ?", req.StudentID)
+	case req.TeacherID != "":
+		query = query.Where("teacher_id = ?", req.TeacherID)
 	}
 
 	if err := query.First(&user).Error; err != nil {
@@ -87,6 +88,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	userResponse := models.UserResponse{
 		UUID:         user.UUID,
+		StudentID:    user.StudentID,
+		TeacherID:    user.TeacherID,
 		Username:     user.Username,
 		Email:        user.Email,
 		Phone:        "",
@@ -216,6 +219,8 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	// 构建用户响应
 	userResponse := models.UserResponse{
 		UUID:         user.UUID,
+		StudentID:    user.StudentID,
+		TeacherID:    user.TeacherID,
 		Username:     user.Username,
 		Email:        user.Email,
 		Phone:        "",

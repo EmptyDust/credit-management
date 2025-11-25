@@ -5,7 +5,8 @@ import toast from "react-hot-toast";
 // Define a comprehensive user interface
 interface User {
   uuid: string;
-  user_id?: string; // 学号或工号
+  student_id?: string;
+  teacher_id?: string;
   username: string;
   userType: "student" | "teacher" | "admin";
   email?: string;
@@ -68,7 +69,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             ...userData,
             userType: userData.userType || userData.user_type,
             uuid: userData.uuid,
-            user_id: userData.user_id,
+            student_id: userData.student_id,
+            teacher_id: userData.teacher_id,
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -93,7 +95,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       ...user,
       userType: user.userType,
       uuid: (user as any).uuid ?? (user as any).id,
-      user_id: user.user_id,
+      student_id: (user as any).student_id,
+      teacher_id: (user as any).teacher_id,
     };
 
     localStorage.setItem("token", token);
@@ -134,7 +137,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...userData,
         userType: userData.userType || userData.user_type,
         uuid: userData.uuid,
-        user_id: userData.user_id,
+        student_id: userData.student_id,
+        teacher_id: userData.teacher_id,
       };
       setUser(normalizedUser);
       localStorage.setItem("user", JSON.stringify(normalizedUser));

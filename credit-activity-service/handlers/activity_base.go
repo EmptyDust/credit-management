@@ -46,7 +46,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 	}
 
 	var participants []models.ActivityParticipant
-	h.db.Where("activity_id = ?", activity.ID).Find(&participants)
+	h.db.Where("activity_id = ? AND deleted_at IS NULL", activity.ID).Find(&participants)
 
 	var participantResponses []models.ParticipantResponse
 	for _, participant := range participants {
@@ -67,7 +67,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 	response.Participants = participantResponses
 
 	var applications []models.Application
-	h.db.Where("activity_id = ?", activity.ID).Find(&applications)
+	h.db.Where("activity_id = ? AND deleted_at IS NULL", activity.ID).Find(&applications)
 
 	var applicationResponses []models.ApplicationResponse
 	for _, application := range applications {

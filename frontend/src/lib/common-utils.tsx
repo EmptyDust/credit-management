@@ -32,6 +32,15 @@ export const downloadFile = (response: any, filename: string) => {
   window.URL.revokeObjectURL(url);
 };
 
+const resolveItemIdentifier = (item: any): string | undefined => {
+  if (!item) return undefined;
+  if (typeof item === "string") {
+    return item;
+  }
+
+  return typeof item.uuid === "string" ? item.uuid : undefined;
+};
+
 // 通用删除确认处理
 export const handleDeleteConfirm = async (
   itemToDelete: any,
@@ -43,7 +52,13 @@ export const handleDeleteConfirm = async (
   if (!itemToDelete) return;
 
   try {
-    await deleteApiCall(itemToDelete.id || itemToDelete.id);
+    const identifier = resolveItemIdentifier(itemToDelete);
+    if (!identifier) {
+      toast.error("无法找到删除项的唯一标识");
+      return;
+    }
+
+    await deleteApiCall(identifier);
     toast.success(successMessage);
     onSuccess?.();
   } catch (err) {

@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -28,36 +26,55 @@ func (h *ActivityHandler) BatchDeleteActivities(c *gin.Context) {
 		return
 	}
 
-	userType, _ := c.Get("user_type")
+	userType := c.GetString("user_type")
+	if userType != "admin" {
+		utils.SendForbidden(c, "只有管理员可以批量删除活动")
+		return
+	}
+
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
 
 	var deletedCount int
-	err := h.db.Raw("SELECT batch_delete_activities(?, ?, ?)", req.ActivityIDs, userID, userType).Scan(&deletedCount).Error
+	var attachmentsToCleanup []models.Attachment
 
-	if err != nil {
+	for _, activityID := range req.ActivityIDs {
+		if err := h.validator.ValidateUUID(activityID); err != nil {
+			continue
+		}
+
+		var activity models.CreditActivity
+		if err := tx.Where("id = ? AND deleted_at IS NULL", activityID).First(&activity).Error; err != nil {
+			continue
+		}
+
+		attachments, err := h.softDeleteActivityRelations(tx, activity.ID)
+		if err != nil {
+			tx.Rollback()
+			utils.SendInternalServerError(c, err)
+			return
+		}
+
+		if err := tx.Delete(&models.CreditActivity{ID: activity.ID}).Error; err != nil {
+			tx.Rollback()
+			utils.SendInternalServerError(c, err)
+			return
+		}
+
+		attachmentsToCleanup = append(attachmentsToCleanup, attachments...)
+		deletedCount++
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
 
-	for _, activityID := range req.ActivityIDs {
-		var attachments []models.Attachment
-		if err := h.db.Where("activity_id = ? AND deleted_at IS NOT NULL", activityID).Find(&attachments).Error; err == nil {
-			for _, attachment := range attachments {
-				var otherAttachmentsCount int64
-				h.db.Model(&models.Attachment{}).
-					Where("md5_hash = ? AND activity_id != ? AND deleted_at IS NULL", attachment.MD5Hash, activityID).
-					Count(&otherAttachmentsCount)
-
-				if otherAttachmentsCount == 0 {
-					filePath := filepath.Join("uploads/attachments", attachment.FileName)
-					if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-						fmt.Printf("删除物理文件失败: %v\n", err)
-					} else {
-						fmt.Printf("彻底删除物理文件: %s\n", filePath)
-					}
-				}
-			}
-		}
-	}
+	h.cleanupAttachmentFiles(attachmentsToCleanup)
 
 	utils.SendSuccessResponse(c, gin.H{
 		"message":       "批量删除活动成功",

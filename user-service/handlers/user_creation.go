@@ -37,7 +37,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	}
 
 	// 验证学号格式
-	if err := validator.ValidateStudentID(req.ID); err != nil {
+	if err := validator.ValidateStudentID(req.StudentID); err != nil {
 		utils.SendBadRequest(c, err.Error())
 		return
 	}
@@ -67,7 +67,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	}
 
 	// 检查学号唯一性
-	if err := h.checkIDUniqueness(req.ID); err != nil {
+	if err := h.checkStudentIDUniqueness(req.StudentID); err != nil {
 		utils.SendConflict(c, err.Error())
 		return
 	}
@@ -78,8 +78,9 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
+	studentID := req.StudentID
 	user := models.User{
-		ID:           req.ID,
+		StudentID:    &studentID,
 		Username:     req.Username,
 		Password:     string(hashedPassword),
 		Email:        req.Email,
@@ -159,8 +160,9 @@ func (h *UserHandler) CreateTeacher(c *gin.Context) {
 		return
 	}
 
+	teacherID := req.TeacherID
 	user := models.User{
-		ID:           req.ID,
+		TeacherID:    &teacherID,
 		Username:     req.Username,
 		Password:     string(hashedPassword),
 		Email:        req.Email,
@@ -224,12 +226,14 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		}
 	}
 
-	// 验证学号格式（如果提供）
-	if req.ID != "" {
-		if err := validator.ValidateStudentID(req.ID); err != nil {
-			utils.SendBadRequest(c, err.Error())
-			return
-		}
+	// 学生必须提供学号
+	if req.StudentID == "" {
+		utils.SendBadRequest(c, "学生必须提供学号")
+		return
+	}
+	if err := validator.ValidateStudentID(req.StudentID); err != nil {
+		utils.SendBadRequest(c, err.Error())
+		return
 	}
 
 	// 验证年级格式（如果提供）
@@ -271,12 +275,9 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		}
 	}
 
-	// 检查学号唯一性（如果提供）
-	if req.ID != "" {
-		if err := h.checkIDUniqueness(req.ID); err != nil {
-			utils.SendConflict(c, err.Error())
-			return
-		}
+	if err := h.checkStudentIDUniqueness(req.StudentID); err != nil {
+		utils.SendConflict(c, err.Error())
+		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -285,14 +286,15 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
+	studentID := req.StudentID
 	user := models.User{
-		ID:       req.ID,
-		Username: req.Username,
-		Password: string(hashedPassword),
-		Email:    req.Email,
-		RealName: req.RealName,
-		UserType: "student",
-		Status:   "active",
+		StudentID: &studentID,
+		Username:  req.Username,
+		Password:  string(hashedPassword),
+		Email:     req.Email,
+		RealName:  req.RealName,
+		UserType:  "student",
+		Status:    "active",
 	}
 
 	if req.Phone != "" {
@@ -356,14 +358,33 @@ func (h *UserHandler) checkPhoneUniqueness(phone string) error {
 	return nil
 }
 
-// 辅助函数：检查ID唯一性（学号或工号）
-func (h *UserHandler) checkIDUniqueness(id string) error {
+// 辅助函数：检查学号唯一性
+func (h *UserHandler) checkStudentIDUniqueness(studentID string) error {
+	if studentID == "" {
+		return nil
+	}
 	var existingUser models.User
-	if err := h.db.Unscoped().Where("id = ?", id).First(&existingUser).Error; err == nil {
+	if err := h.db.Unscoped().Where("student_id = ?", studentID).First(&existingUser).Error; err == nil {
 		if existingUser.DeletedAt.Valid {
-			return fmt.Errorf("学号/工号已被删除的用户使用，请使用其他学号/工号")
+			return fmt.Errorf("学号已被删除的用户使用，请使用其他学号")
 		} else {
-			return fmt.Errorf("学号/工号已存在")
+			return fmt.Errorf("学号已存在")
+		}
+	}
+	return nil
+}
+
+// 辅助函数：检查工号唯一性
+func (h *UserHandler) checkTeacherIDUniqueness(teacherID string) error {
+	if teacherID == "" {
+		return nil
+	}
+	var existingUser models.User
+	if err := h.db.Unscoped().Where("teacher_id = ?", teacherID).First(&existingUser).Error; err == nil {
+		if existingUser.DeletedAt.Valid {
+			return fmt.Errorf("工号已被删除的用户使用，请使用其他工号")
+		} else {
+			return fmt.Errorf("工号已存在")
 		}
 	}
 	return nil
@@ -528,7 +549,7 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 	// 根据用户类型验证特定列
 	switch userType {
 	case "student":
-		studentColumns := []string{"id", "department_id", "grade"}
+		studentColumns := []string{"student_id", "department_id", "grade"}
 		for _, col := range studentColumns {
 			if _, exists := headerMap[col]; !exists {
 				utils.SendBadRequest(c, fmt.Sprintf("学生导入缺少必需的列: %s", col))
@@ -536,7 +557,7 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 			}
 		}
 	case "teacher":
-		teacherColumns := []string{"id", "department_id", "title"}
+		teacherColumns := []string{"teacher_id", "department_id", "title"}
 		for _, col := range teacherColumns {
 			if _, exists := headerMap[col]; !exists {
 				utils.SendBadRequest(c, fmt.Sprintf("教师导入缺少必需的列: %s", col))
@@ -559,7 +580,6 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 
 		// 构建用户请求
 		user := models.UserRequest{
-			ID:       strings.TrimSpace(record[headerMap["id"]]),
 			Username: strings.TrimSpace(record[headerMap["username"]]),
 			Password: strings.TrimSpace(record[headerMap["password"]]),
 			Email:    strings.TrimSpace(record[headerMap["email"]]),
@@ -569,15 +589,25 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 		}
 
 		if userType == "student" {
+			user.StudentID = strings.TrimSpace(record[headerMap["student_id"]])
 			user.DepartmentID = strings.TrimSpace(record[headerMap["department_id"]])
 			user.Grade = strings.TrimSpace(record[headerMap["grade"]])
 		} else {
+			user.TeacherID = strings.TrimSpace(record[headerMap["teacher_id"]])
 			user.DepartmentID = strings.TrimSpace(record[headerMap["department_id"]])
 			user.Title = strings.TrimSpace(record[headerMap["title"]])
 		}
 
 		if user.UserType != "student" && user.UserType != "teacher" {
 			errors = append(errors, fmt.Sprintf("第%d行: 用户类型必须是student或teacher", rowNum))
+			continue
+		}
+		if user.UserType == "student" && strings.TrimSpace(user.StudentID) == "" {
+			errors = append(errors, fmt.Sprintf("第%d行: 学生必须提供学号", rowNum))
+			continue
+		}
+		if user.UserType == "teacher" && strings.TrimSpace(user.TeacherID) == "" {
+			errors = append(errors, fmt.Sprintf("第%d行: 教师必须提供工号", rowNum))
 			continue
 		}
 		if user.UserType == "student" && strings.TrimSpace(user.DepartmentID) == "" {
@@ -616,22 +646,32 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 		}
 
 		user := models.User{
-			ID:       userReq.ID,
 			Username: userReq.Username,
 			Password: string(hashedPassword),
 			Email:    userReq.Email,
-			Phone:    &userReq.Phone,
 			RealName: userReq.RealName,
 			UserType: userReq.UserType,
 			Status:   "active",
 		}
+		if userReq.Phone != "" {
+			user.Phone = &userReq.Phone
+		}
+		if userReq.DepartmentID != "" {
+			user.DepartmentID = &userReq.DepartmentID
+		}
 
 		if userType == "student" {
-			user.DepartmentID = &userReq.DepartmentID
-			user.Grade = &userReq.Grade
+			studentID := userReq.StudentID
+			user.StudentID = &studentID
+			if userReq.Grade != "" {
+				user.Grade = &userReq.Grade
+			}
 		} else {
-			user.DepartmentID = &userReq.DepartmentID
-			user.Title = &userReq.Title
+			teacherID := userReq.TeacherID
+			user.TeacherID = &teacherID
+			if userReq.Title != "" {
+				user.Title = &userReq.Title
+			}
 		}
 
 		if err := tx.Create(&user).Error; err != nil {
@@ -686,13 +726,13 @@ func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 	var template [][]string
 	if userType == "student" {
 		template = [][]string{
-			{"id", "username", "password", "email", "phone", "real_name", "department_id", "grade"},
+			{"student_id", "username", "password", "email", "phone", "real_name", "department_id", "grade"},
 			{"20240001", "student001", "Password123", "student001@example.com", "13800138001", "张三", "dept-uuid-1", "2024"},
 			{"20240002", "student002", "Password123", "student002@example.com", "13800138002", "李四", "dept-uuid-1", "2024"},
 		}
 	} else {
 		template = [][]string{
-			{"id", "username", "password", "email", "phone", "real_name", "department_id", "title"},
+			{"teacher_id", "username", "password", "email", "phone", "real_name", "department_id", "title"},
 			{"T001", "teacher001", "Password123", "teacher001@example.com", "13800138003", "王老师", "dept-uuid-1", "副教授"},
 			{"T002", "teacher002", "Password123", "teacher002@example.com", "13800138004", "赵老师", "dept-uuid-1", "讲师"},
 		}
@@ -735,13 +775,13 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 	var examples [][]string
 
 	if userType == "student" {
-		headers = []string{"id", "username", "password", "email", "phone", "real_name", "department_id", "grade"}
+		headers = []string{"student_id", "username", "password", "email", "phone", "real_name", "department_id", "grade"}
 		examples = [][]string{
 			{"20240001", "student001", "Password123", "student001@example.com", "13800138001", "张三", "dept-uuid-1", "2024"},
 			{"20240002", "student002", "Password123", "student002@example.com", "13800138002", "李四", "dept-uuid-1", "2024"},
 		}
 	} else {
-		headers = []string{"id", "username", "password", "email", "phone", "real_name", "department_id", "title"}
+		headers = []string{"teacher_id", "username", "password", "email", "phone", "real_name", "department_id", "title"}
 		examples = [][]string{
 			{"T001", "teacher001", "Password123", "teacher001@example.com", "13800138003", "王老师", "dept-uuid-1", "副教授"},
 			{"T002", "teacher002", "Password123", "teacher002@example.com", "13800138004", "赵老师", "dept-uuid-1", "讲师"},

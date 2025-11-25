@@ -1,12 +1,12 @@
 package handlers
 
 import (
-    "credit-management/credit-activity-service/models"
-    "credit-management/credit-activity-service/utils"
+	"credit-management/credit-activity-service/models"
+	"credit-management/credit-activity-service/utils"
 
-    "github.com/gin-gonic/gin"
-    "gorm.io/datatypes"
-    "gorm.io/gorm"
+	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 func (h *ActivityHandler) CreateActivity(c *gin.Context) {
@@ -33,7 +33,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		return
 	}
 
-    activity := models.CreditActivity{
+	activity := models.CreditActivity{
 		Title:       req.Title,
 		Description: req.Description,
 		StartDate:   startDate,
@@ -41,7 +41,7 @@ func (h *ActivityHandler) CreateActivity(c *gin.Context) {
 		Status:      models.StatusDraft,
 		Category:    req.Category,
 		OwnerID:     userID,
-        Details:     datatypes.JSONMap(req.Details),
+		Details:     datatypes.JSONMap(req.Details),
 	}
 
 	if err := h.db.Create(&activity).Error; err != nil {
@@ -170,7 +170,7 @@ func (h *ActivityHandler) UpdateActivity(c *gin.Context) {
 	}
 
 	updates := h.buildUpdateMap(req)
-    if err := h.db.Model(&models.CreditActivity{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	if err := h.db.Model(&models.CreditActivity{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -197,9 +197,9 @@ func (h *ActivityHandler) buildUpdateMap(req models.ActivityUpdateRequest) map[s
 	if req.Category != nil {
 		updates["category"] = *req.Category
 	}
-    if req.Details != nil {
-        updates["details"] = datatypes.JSONMap(req.Details)
-    }
+	if req.Details != nil {
+		updates["details"] = datatypes.JSONMap(req.Details)
+	}
 
 	if req.StartDate != nil || req.EndDate != nil {
 		startDateStr := ""
@@ -231,7 +231,19 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	if err := h.base.CheckActivityExists(id); err != nil {
+	userID := c.GetString("id")
+	if userID == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
+	userType := c.GetString("user_type")
+	if userType == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
+
+	activity, err := h.base.GetActivityByID(id)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			utils.SendNotFound(c, "活动不存在")
 		} else {
@@ -240,10 +252,37 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Delete(&models.CreditActivity{ID: id}).Error; err != nil {
+	if userType != "admin" && activity.OwnerID != userID {
+		utils.SendForbidden(c, "无权限删除该活动")
+		return
+	}
+
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	attachments, err := h.softDeleteActivityRelations(tx, activity.ID)
+	if err != nil {
+		tx.Rollback()
 		utils.SendInternalServerError(c, err)
 		return
 	}
+
+	if err := tx.Delete(&models.CreditActivity{ID: activity.ID}).Error; err != nil {
+		tx.Rollback()
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	h.cleanupAttachmentFiles(attachments)
 
 	utils.SendSuccessResponse(c, gin.H{"message": "活动删除成功"})
 }

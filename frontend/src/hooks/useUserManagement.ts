@@ -10,7 +10,7 @@ import {
   handleExport as handleExportUtil
 } from "@/lib/common-utils";
 
-interface UserManagementOptions<T> {
+interface UserManagementOptions {
   userType: string;
   formSchema: z.ZodSchema<any>;
   defaultValues: any;
@@ -18,13 +18,13 @@ interface UserManagementOptions<T> {
   onSuccess?: () => void;
 }
 
-export function useUserManagement<T extends { id?: string; user_id?: string; real_name?: string }>({
+export function useUserManagement<T extends { uuid?: string; real_name?: string }>({
   userType,
   formSchema,
   defaultValues,
   fetchFunction,
   onSuccess,
-}: UserManagementOptions<T>) {
+}: UserManagementOptions) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,6 +37,11 @@ export function useUserManagement<T extends { id?: string; user_id?: string; rea
   const [itemToDelete, setItemToDelete] = useState<T | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  const getUserIdentifier = useCallback((item: T | null) => {
+    if (!item) return undefined;
+    return typeof (item as any).uuid === "string" ? (item as any).uuid : undefined;
+  }, []);
 
   const form = useForm({
     resolver: zodResolver(formSchema as any),
@@ -57,12 +62,12 @@ export function useUserManagement<T extends { id?: string; user_id?: string; rea
     setIsSubmitting(true);
     try {
       if (editingItem) {
-        const itemId = (editingItem as any).id;
-        if (!itemId) {
-          toast.error("无法找到用户ID");
+        const userIdentifier = getUserIdentifier(editingItem);
+        if (!userIdentifier) {
+          toast.error("无法找到用户UUID");
           return;
         }
-        await apiClient.put(`/users/${itemId}`, values);
+        await apiClient.put(`/users/${userIdentifier}`, values);
         toast.success("用户信息更新成功");
       } else {
         const createData = {
@@ -84,7 +89,7 @@ export function useUserManagement<T extends { id?: string; user_id?: string; rea
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingItem, userType, fetchFunction, onSuccess]);
+  }, [editingItem, userType, fetchFunction, onSuccess, getUserIdentifier]);
 
   const handleDeleteConfirm = useCallback(async () => {
     await handleDeleteConfirmUtil(

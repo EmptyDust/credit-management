@@ -11,7 +11,8 @@ import (
 type User struct {
 	// 基础用户信息
 	UUID         string         `json:"uuid" gorm:"primaryKey;column:uuid;type:uuid;default:gen_random_uuid()"`
-	ID           string         `json:"id" gorm:"column:id;type:varchar(18);unique;not null"` // 学号或工号
+	StudentID    *string        `json:"student_id,omitempty" gorm:"column:student_id;uniqueIndex"`
+	TeacherID    *string        `json:"teacher_id,omitempty" gorm:"column:teacher_id;uniqueIndex"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null;size:20"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex;not null;size:100"`
@@ -42,7 +43,8 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 
 // UserRequest 用户注册/创建请求
 type UserRequest struct {
-	ID           string `json:"id" binding:"required,min=1,max=18"` // 学号或工号
+	StudentID    string `json:"student_id" binding:"omitempty,len=8,numeric"`
+	TeacherID    string `json:"teacher_id" binding:"omitempty,min=1,max=18"`
 	Username     string `json:"username" binding:"required,min=3,max=20,alphanum"`
 	Password     string `json:"password" binding:"required,min=8"`
 	Email        string `json:"email" binding:"required,email"`
@@ -60,7 +62,7 @@ type UserRequest struct {
 
 // StudentRegisterRequest 学生注册请求（更严格的验证）
 type StudentRegisterRequest struct {
-	ID           string `json:"id" binding:"required,min=1,max=18"` // 学号
+	StudentID    string `json:"student_id" binding:"required,len=8,numeric"`
 	Username     string `json:"username" binding:"required,min=3,max=20,alphanum"`
 	Password     string `json:"password" binding:"required,min=8"`
 	Email        string `json:"email" binding:"required,email"`
@@ -72,7 +74,7 @@ type StudentRegisterRequest struct {
 
 // TeacherRegisterRequest 教师注册请求
 type TeacherRegisterRequest struct {
-	ID           string `json:"id" binding:"required,min=1,max=18"` // 工号
+	TeacherID    string `json:"teacher_id" binding:"required,min=1,max=18"`
 	Username     string `json:"username" binding:"required,min=3,max=20,alphanum"`
 	Password     string `json:"password" binding:"required,min=8"`
 	Email        string `json:"email" binding:"required,email"`
@@ -84,13 +86,15 @@ type TeacherRegisterRequest struct {
 
 // UserUpdateRequest 用户更新请求
 type UserUpdateRequest struct {
-	Email        string `json:"email" binding:"omitempty,email"`
-	Phone        string `json:"phone" binding:"omitempty,len=11,startswith=1"`
-	RealName     string `json:"real_name" binding:"omitempty,min=2,max=50"`
-	UserType     string `json:"user_type" binding:"omitempty,oneof=student teacher admin"`
-	Status       string `json:"status" binding:"omitempty,oneof=active inactive suspended"`
-	Avatar       string `json:"avatar" binding:"omitempty"`
-	DepartmentID string `json:"department_id" binding:"omitempty,uuid"`
+	Email        string  `json:"email" binding:"omitempty,email"`
+	Phone        string  `json:"phone" binding:"omitempty,len=11,startswith=1"`
+	RealName     string  `json:"real_name" binding:"omitempty,min=2,max=50"`
+	UserType     string  `json:"user_type" binding:"omitempty,oneof=student teacher admin"`
+	Status       string  `json:"status" binding:"omitempty,oneof=active inactive suspended"`
+	Avatar       string  `json:"avatar" binding:"omitempty"`
+	DepartmentID string  `json:"department_id" binding:"omitempty,uuid"`
+	StudentID    *string `json:"student_id" binding:"omitempty,len=8,numeric"`
+	TeacherID    *string `json:"teacher_id" binding:"omitempty,min=1,max=18"`
 
 	// 学生特有字段
 	Grade *string `json:"grade" binding:"omitempty,len=4,numeric"`
@@ -102,7 +106,8 @@ type UserUpdateRequest struct {
 // UserResponse 用户响应
 type UserResponse struct {
 	UUID         string     `json:"uuid"`
-	ID           string     `json:"id"` // 学号或工号
+	StudentID    *string    `json:"student_id,omitempty"`
+	TeacherID    *string    `json:"teacher_id,omitempty"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`

@@ -55,7 +55,7 @@ interface UserSearchResult {
   uuid: string;
   username: string;
   real_name: string;
-  student_id?: string;
+  id?: string;
   college?: string;
   major?: string;
   class?: string;

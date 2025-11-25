@@ -10,7 +10,8 @@ import (
 // User 用户模型（认证服务专用）
 type User struct {
 	UUID         string         `json:"uuid" gorm:"column:uuid;type:uuid;primaryKey;default:gen_random_uuid()"`
-	ID           string         `json:"id" gorm:"column:id;type:varchar(18);unique;not null"`
+	StudentID    *string        `json:"student_id,omitempty" gorm:"column:student_id;uniqueIndex"`
+	TeacherID    *string        `json:"teacher_id,omitempty" gorm:"column:teacher_id;uniqueIndex"`
 	Username     string         `json:"username" gorm:"uniqueIndex;not null"`
 	Password     string         `json:"-" gorm:"not null"` // 不在JSON中显示密码
 	Email        string         `json:"email" gorm:"uniqueIndex;not null"`
@@ -36,15 +37,17 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 
 // UserLoginRequest 用户登录请求
 type UserLoginRequest struct {
-	ID       string `json:"id"`                          // 支持接收id字段
-	Username string `json:"username"`                    // 可选用户名
-	Password string `json:"password" binding:"required"` // 密码保持必需
+	StudentID string `json:"student_id"` // 可选学号
+	TeacherID string `json:"teacher_id"` // 可选工号
+	Username  string `json:"username"`   // 可选用户名
+	Password  string `json:"password" binding:"required"`
 }
 
 // UserResponse 用户响应
 type UserResponse struct {
 	UUID         string     `json:"uuid"`
-	ID           string     `json:"id"`
+	StudentID    *string    `json:"student_id,omitempty"`
+	TeacherID    *string    `json:"teacher_id,omitempty"`
 	Username     string     `json:"username"`
 	Email        string     `json:"email"`
 	Phone        string     `json:"phone"`

@@ -124,12 +124,12 @@ func searchUserByType(client *http.Client, apiURL string, useInternal bool, inte
 
 	user := response.Data.Users[0]
 
-	userID, _ := user["id"].(string)
+	userUUID, _ := user["uuid"].(string)
 	username, _ := user["username"].(string)
 	realName, _ := user["real_name"].(string)
 	userType, _ := user["user_type"].(string)
 	status, _ := user["status"].(string)
-	studentID, _ := user["student_id"].(string)
+	studentID, _ := user["id"].(string)
 	college, _ := user["college"].(string)
 	major, _ := user["major"].(string)
 	class, _ := user["class"].(string)
@@ -146,7 +146,7 @@ func searchUserByType(client *http.Client, apiURL string, useInternal bool, inte
 	}
 
 	return &models.UserInfo{
-		UUID:       userID,
+		UUID:       userUUID,
 		Username:   username,
 		RealName:   realName,
 		UserType:   userType,

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Validator 验证器结构
@@ -125,7 +126,7 @@ func (v *Validator) ValidateStudentID(studentID string) error {
 
 	year := studentID[:4]
 	yearNum, _ := strconv.Atoi(year)
-	currentYear := 2024 // 可以根据实际情况调整
+	currentYear := time.Now().Year()
 
 	if yearNum < 2000 || yearNum > currentYear+10 {
 		return fmt.Errorf("学号年份不合理")
@@ -146,10 +147,24 @@ func (v *Validator) ValidateGrade(grade string) error {
 	}
 
 	year, _ := strconv.Atoi(grade)
-	currentYear := 2024 // 可以根据实际情况调整
+	currentYear := time.Now().Year()
 
 	if year < 2000 || year > currentYear+10 {
 		return fmt.Errorf("年级年份不合理")
+	}
+
+	return nil
+}
+
+// ValidateTeacherID 验证工号格式
+func (v *Validator) ValidateTeacherID(teacherID string) error {
+	if teacherID == "" {
+		return fmt.Errorf("工号不能为空")
+	}
+
+	teacherIDRegex := regexp.MustCompile(`^[A-Za-z0-9]{4,18}$`)
+	if !teacherIDRegex.MatchString(teacherID) {
+		return fmt.Errorf("工号格式不正确，应为4-18位字母或数字")
 	}
 
 	return nil

@@ -66,6 +66,7 @@ const profileSchema = z.object({
   phone: z.string().optional(),
   real_name: z.string().optional(),
   student_id: z.string().optional(),
+  teacher_id: z.string().optional(),
   college: z.string().optional(),
   major: z.string().optional(),
   class: z.string().optional(),
@@ -104,6 +105,7 @@ type UserProfile = {
   class?: string;
   grade?: string;
   // Teacher specific fields
+  teacher_id?: string;
   department?: string;
   title?: string;
 };
@@ -128,6 +130,7 @@ export default function ProfilePage() {
       email: "",
       phone: "",
       real_name: "",
+      id: "",
       college: "",
       major: "",
       class: "",
@@ -166,6 +169,7 @@ export default function ProfilePage() {
           department: profileData.department || "",
           title: profileData.title || "",
           student_id: profileData.student_id || "",
+          teacher_id: profileData.teacher_id || "",
         });
       } catch (err) {
         setError("获取个人资料失败");
@@ -258,6 +262,7 @@ export default function ProfilePage() {
         department: profile.department || "",
         title: profile.title || "",
         student_id: profile.student_id || "",
+        teacher_id: profile.teacher_id || "",
       });
     }
     setIsEditing(false);
@@ -606,7 +611,7 @@ export default function ProfilePage() {
                             <FormControl>
                               <Input
                                 {...field}
-                                disabled={!isEditing}
+                                disabled
                                 className="mt-1"
                               />
                             </FormControl>
@@ -778,6 +783,28 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="teacher_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-4">
+                          <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex-1">
+                            <FormLabel>工号</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                disabled
+                                className="mt-1"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </div>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="department"

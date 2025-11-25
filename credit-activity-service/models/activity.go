@@ -50,8 +50,8 @@ type CreditActivity struct {
 	ReviewComments string            `json:"review_comments"`
 	ReviewedAt     *time.Time        `json:"reviewed_at"`
 	Details        datatypes.JSONMap `json:"details" gorm:"type:jsonb;default:'{}'::jsonb"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+	CreatedAt      time.Time         `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time         `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt      gorm.DeletedAt    `json:"deleted_at" gorm:"index"`
 
 	// 关联关系
@@ -77,8 +77,8 @@ type ActivityParticipant struct {
 	UUID       string         `json:"user_id" gorm:"column:user_id;type:uuid;not null;index"`
 	Credits    float64        `json:"credits" gorm:"type:decimal(5,2);not null;default:0"`
 	JoinedAt   time.Time      `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt  gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 
 	// 关联关系
@@ -106,8 +106,8 @@ type Application struct {
 	AppliedCredits float64        `json:"applied_credits" gorm:"type:decimal(5,2);not null"`
 	AwardedCredits float64        `json:"awarded_credits" gorm:"type:decimal(5,2);not null"`
 	SubmittedAt    time.Time      `json:"submitted_at" gorm:"default:CURRENT_TIMESTAMP"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt      gorm.DeletedAt `json:"deleted_at" gorm:"index"`
 
 	// 关联关系

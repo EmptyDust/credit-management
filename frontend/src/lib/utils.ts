@@ -58,6 +58,3 @@ export const formatFileSize = (bytes: number) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
-
-// 活动类别配置
-// 旧的活动类别与详情配置已迁移到后端配置驱动，前端不再保留硬编码。

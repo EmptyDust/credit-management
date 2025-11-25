@@ -176,96 +176,9 @@ attachments (
 - `file_category`: 只能是预定义的类型
 - `download_count`: 必须大于等于 0
 
-## 活动类型详情表
+## 活动详情存储策略
 
-### 6. 创新创业实践活动详情表 (innovation_activity_details)
-
-**表描述**: 存储创新创业实践活动的具体信息
-
-```sql
-innovation_activity_details (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    activity_id UUID NOT NULL,
-    item VARCHAR(200),
-    company VARCHAR(200),
-    project_no VARCHAR(100),
-    issuer VARCHAR(100),
-    date DATE,
-    total_hours DECIMAL(6,2),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMPTZ
-)
-```
-
-### 7. 学科竞赛学分详情表 (competition_activity_details)
-
-**表描述**: 存储学科竞赛活动的具体信息
-
-```sql
-competition_activity_details (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    activity_id UUID NOT NULL,
-    level VARCHAR(100),
-    competition VARCHAR(200),
-    award_level VARCHAR(100),
-    rank VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMPTZ
-)
-```
-
-### 8. 大学生创业项目详情表 (entrepreneurship_project_details)
-
-**表描述**: 存储大学生创业项目的具体信息
-
-```sql
-entrepreneurship_project_details (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    activity_id UUID NOT NULL,
-    project_name VARCHAR(200),
-    project_level VARCHAR(100),
-    project_rank VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMPTZ
-)
-```
-
-### 9. 创业实践项目详情表 (entrepreneurship_practice_details)
-
-**表描述**: 存储创业实践项目的具体信息
-
-```sql
-entrepreneurship_practice_details (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    activity_id UUID NOT NULL,
-    company_name VARCHAR(200),
-    legal_person VARCHAR(100),
-    share_percent DECIMAL(5,2),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMPTZ
-)
-```
-
-### 10. 论文专利详情表 (paper_patent_details)
-
-**表描述**: 存储论文专利活动的具体信息
-
-```sql
-paper_patent_details (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    activity_id UUID NOT NULL,
-    title VARCHAR(200),
-    category VARCHAR(100),
-    rank VARCHAR(50),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMPTZ
-)
-```
+为了简化schema并降低迁移成本，历史上的五类详情表（创新创业、学科竞赛、大学生创业、创业实践、论文专利）已经移除。现在所有扩展字段统一写入 `credit_activities.details` JSONB 字段或 `description` 中，由后端根据 `category` 决定序列化结构并在应用层做校验。
 
 ## 关系图
 
@@ -278,11 +191,6 @@ users (1) ←→ (N) attachments
 credit_activities (1) ←→ (N) activity_participants
 credit_activities (1) ←→ (N) applications
 credit_activities (1) ←→ (N) attachments
-credit_activities (1) ←→ (1) innovation_activity_details
-credit_activities (1) ←→ (1) competition_activity_details
-credit_activities (1) ←→ (1) entrepreneurship_project_details
-credit_activities (1) ←→ (1) entrepreneurship_practice_details
-credit_activities (1) ←→ (1) paper_patent_details
 ```
 
 ## 索引设计
@@ -294,6 +202,7 @@ credit_activities (1) ←→ (1) paper_patent_details
 - `idx_users_user_type`: 用户类型索引
 - `idx_users_status`: 状态索引
 - `idx_users_student_id`: 学号索引
+- `idx_users_teacher_id`: 工号索引
 - `idx_users_deleted_at`: 删除时间索引
 - `idx_users_type_status`: 用户类型+状态复合索引
 - `idx_users_college_major`: 学院+专业复合索引
@@ -330,21 +239,9 @@ credit_activities (1) ←→ (1) paper_patent_details
 - `idx_attachments_md5_hash`: MD5 哈希索引
 - `idx_attachments_deleted_at`: 删除时间索引
 
-## 触发器设计
+## 触发器与存储过程
 
-### 1. 时间戳更新触发器
-
-- 所有表都有 `updated_at` 字段的自动更新触发器
-
-### 2. 数据验证触发器
-
-- `trigger_validate_user_data`: 用户数据格式验证
-
-### 3. 业务逻辑触发器
-
-- `trigger_generate_applications`: 活动通过后自动生成申请
-- `trigger_delete_applications_on_withdraw`: 活动撤回时删除申请
-- `trigger_cleanup_orphaned_attachments`: 清理孤立附件
+历史版本依赖的触发器（时间戳更新、用户格式校验、活动审批联动申请、附件清理等）以及存储过程（包括 `delete_activity_with_permission_check`、`batch_delete_activities`、`restore_deleted_activity` 等）已全部下移到微服务层实现。数据库现在只保留必要的约束、索引和视图，所有业务规则、数据校验以及文件清理均由后端代码负责，便于统一控制和扩展。
 
 ## 视图设计
 
@@ -361,21 +258,6 @@ credit_activities (1) ←→ (1) paper_patent_details
 
 - `detailed_credit_activity_view`: 详细活动信息（包含参与者）
 - `detailed_applications_view`: 详细申请信息（包含申请人和活动）
-
-## 存储过程
-
-### 1. 数据验证函数
-
-- `validate_password_complexity()`: 密码复杂度验证
-- `validate_email_format()`: 邮箱格式验证
-- `validate_file_type()`: 文件类型验证
-- `validate_file_size()`: 文件大小验证
-
-### 2. 业务操作函数
-
-- `delete_activity_with_permission_check()`: 权限检查的活动删除
-- `batch_delete_activities()`: 批量删除活动
-- `restore_deleted_activity()`: 恢复已删除活动
 
 ## 数据完整性约束
 

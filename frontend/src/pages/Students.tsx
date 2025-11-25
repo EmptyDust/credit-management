@@ -51,7 +51,8 @@ import { StatsGrid } from "@/components/ui/stats-grid";
 
 // Updated Student type based on student.go
 export type Student = {
-  id?: string;
+  uuid: string;
+  student_id?: string;
   username: string;
   real_name: string;
   college?: string | null;
@@ -80,12 +81,10 @@ const formSchema = z.object({
     .regex(/[a-z]/, "密码必须包含至少一个小写字母")
     .regex(/[0-9]/, "密码必须包含至少一个数字")
     .optional(),
-  id: z
+  student_id: z
     .string()
     .length(8, "学号必须是8位数字")
-    .regex(/^\d{8}$/, "学号必须是8位数字")
-    .optional()
-    .or(z.literal("")),
+    .regex(/^\d{8}$/, "学号必须是8位数字"),
   real_name: z.string().min(2, "姓名至少2个字符").max(50, "姓名最多50个字符"),
   college: z.string().min(1, "学院不能为空").max(100, "学院名称最多100个字符"),
   major: z.string().min(1, "专业不能为空").max(100, "专业名称最多100个字符"),
@@ -111,7 +110,7 @@ const formSchema = z.object({
 const defaultValues = {
   username: "",
   password: "",
-  id: "",
+  student_id: "",
   real_name: "",
   college: "",
   major: "",
@@ -315,9 +314,9 @@ export default function StudentsPage() {
                   ),
                 },
                 {
-                  key: "id",
+                  key: "student_id",
                   header: "学号",
-                  render: (student: Student) => student.id || "-",
+                  render: (student: Student) => student.student_id || "-",
                 },
                 {
                   key: "college",
@@ -443,7 +442,7 @@ export default function StudentsPage() {
               )}
               <FormField
                 control={userManagement.form.control}
-                name="id"
+                name="student_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>学号</FormLabel>

@@ -58,7 +58,8 @@ import { SearchFilterBar } from "@/components/ui/search-filter-bar";
 
 // Teacher type based on teacher.go
 export type Teacher = {
-  id?: string;
+  uuid: string;
+  teacher_id?: string;
   username: string;
   real_name: string;
   email?: string;
@@ -81,6 +82,11 @@ const formSchema = z.object({
     .regex(/[a-z]/, "密码必须包含至少一个小写字母")
     .regex(/[0-9]/, "密码必须包含至少一个数字")
     .optional(),
+  teacher_id: z
+    .string()
+    .min(1, "工号不能为空")
+    .max(18, "工号最多18个字符")
+    .regex(/^[A-Za-z0-9]+$/, "工号只能包含字母和数字"),
   real_name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
   email: z.string().email({ message: "请输入有效的邮箱地址" }),
   phone: z
@@ -116,6 +122,7 @@ export default function TeachersPage() {
     defaultValues: {
       username: "",
       password: "",
+      teacher_id: "",
       real_name: "",
       email: "",
       phone: "",
@@ -258,8 +265,9 @@ export default function TeachersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>用户名</TableHead>
+                  <TableHead>工号</TableHead>
                   <TableHead>姓名</TableHead>
-                   <TableHead>学院</TableHead>
+                  <TableHead>学院</TableHead>
                   <TableHead>职称</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -278,7 +286,7 @@ export default function TeachersPage() {
                 ) : teachers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canManageTeachers ? 6 : 5}
+                      colSpan={7}
                       className="text-center py-8"
                     >
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -289,10 +297,11 @@ export default function TeachersPage() {
                   </TableRow>
                 ) : (
                   teachers.map((teacher) => (
-                    <TableRow key={teacher.username}>
+                    <TableRow key={teacher.uuid}>
                       <TableCell className="font-medium">
                         {teacher.username}
                       </TableCell>
+                      <TableCell>{teacher.teacher_id || "-"}</TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{teacher.real_name}</div>
@@ -390,6 +399,19 @@ export default function TeachersPage() {
                   )}
                 />
               )}
+              <FormField
+                control={userManagement.form.control}
+                name="teacher_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>工号</FormLabel>
+                    <FormControl>
+                      <Input {...field} disabled={!!userManagement.editingItem} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={userManagement.form.control}
                 name="real_name"

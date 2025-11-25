@@ -72,9 +72,10 @@ export function usePagination(initialPageSize: number = 10): PaginationState & P
       // 使用统一的响应处理函数
       const { data, pagination: paginationData } = apiHelpers.processPaginatedResponse(response);
 
-      setData(data);
-      setTotalItems(paginationData.total);
-      setTotalPages(paginationData.total_pages);
+      const list = Array.isArray(data) ? data : [];
+      setData(list);
+      setTotalItems(paginationData.total ?? list.length);
+      setTotalPages(paginationData.total_pages ?? 1);
     } catch (error) {
       console.error(`Failed to fetch data from ${endpoint}:`, error);
       toast.error(errorMessage);

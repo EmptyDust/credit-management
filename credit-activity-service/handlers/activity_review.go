@@ -100,7 +100,26 @@ func (h *ActivityHandler) ReviewActivity(c *gin.Context) {
 		"reviewed_at":     &now,
 	}
 
-	if err := h.db.Model(&activity).Updates(updates).Error; err != nil {
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Model(&models.CreditActivity{}).Where("id = ?", activity.ID).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	if err := h.handleStatusSideEffects(tx, activity.Status, req.Status, activity.ID); err != nil {
+		tx.Rollback()
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -176,7 +195,26 @@ func (h *ActivityHandler) WithdrawActivity(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&activity).Update("status", models.StatusDraft).Error; err != nil {
+	tx := h.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Model(&models.CreditActivity{}).Where("id = ?", activity.ID).Update("status", models.StatusDraft).Error; err != nil {
+		tx.Rollback()
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	if err := h.handleStatusSideEffects(tx, activity.Status, models.StatusDraft, activity.ID); err != nil {
+		tx.Rollback()
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		utils.SendInternalServerError(c, err)
 		return
 	}
