@@ -13,24 +13,13 @@ import ReviewActionCard from "../activity-common/ReviewActionCard";
 interface GenericActivityDetailProps {
   activity: Activity;
   detail?: any;
-  isEditing?: boolean;
-  onEditModeChange?: (isEditing: boolean) => void;
   onRefresh?: () => void;
-  onSave?: (basicInfo: any, detailInfo: any) => Promise<void>;
-  basicInfo: any;
-  setBasicInfo: React.Dispatch<React.SetStateAction<any>>;
-  detailInfo: any;
-  setDetailInfo: React.Dispatch<React.SetStateAction<any>>;
 }
 
 const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
   activity,
   detail,
-  isEditing,
-  onEditModeChange,
   onRefresh,
-  basicInfo,
-  setBasicInfo,
 }) => {
   const { user } = useAuth();
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
@@ -48,11 +37,7 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
       {/* 活动基本信息 */}
       <ActivityBasicInfo
         activity={activity}
-        isEditing={isEditing}
-        onEditModeChange={onEditModeChange}
         onRefresh={handleRefresh}
-        basicInfo={basicInfo}
-        setBasicInfo={setBasicInfo}
       />
 
       {/* 活动详情 */}

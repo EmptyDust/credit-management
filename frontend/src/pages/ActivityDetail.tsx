@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Clock,
@@ -16,6 +16,7 @@ import type { Activity } from "@/types/activity";
 
 // 导入活动详情组件
 import { ActivityDetailContainer } from "@/components/activity-details/index";
+import { ActivityEditDialog } from "@/components/activity-common";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,21 +40,17 @@ import { getActivityOptions } from "@/lib/options";
 export default function ActivityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<"approved" | "rejected">(
     "approved"
   );
   const [reviewComment, setReviewComment] = useState("");
-  const [basicInfo, setBasicInfo] = useState<any>({});
-  const [detailInfo, setDetailInfo] = useState<any>({});
-  const detailContainerRef = useRef<any>(null);
   const [reviewActions, setReviewActions] = useState<{ value: string; label: string }[]>([]);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const fetchActivity = async () => {
     if (!id) return;
@@ -73,11 +70,6 @@ export default function ActivityDetailPage() {
 
   useEffect(() => {
     fetchActivity();
-    // 检查URL参数，自动进入编辑模式
-    const editParam = searchParams.get("edit");
-    if (editParam === "1") {
-      setIsEditing(true);
-    }
     (async () => {
       try {
         const opts = await getActivityOptions();
@@ -86,7 +78,7 @@ export default function ActivityDetailPage() {
         console.error("Failed to load review actions", e);
       }
     })();
-  }, [id, searchParams]);
+  }, [id]);
 
   const isOwner = user && activity && (user.uuid === activity.owner_id || user.userType === "admin");
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
@@ -111,87 +103,8 @@ export default function ActivityDetailPage() {
     (user?.uuid === activity?.owner_id && activity?.status === "draft");
 
   const handleEdit = () => {
-    setIsEditing(true);
-  };
-
-  // 辅助函数：将ISO日期字符串转换为yyyy-MM-dd格式
-  const formatDateForAPI = (dateString: string): string | null => {
-    if (
-      !dateString ||
-      dateString.trim() === "" ||
-      dateString === "0001-01-01T00:00:00Z"
-    ) {
-      return null;
-    }
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return null;
-      }
-      return date.toISOString().split("T")[0]; // 返回 yyyy-MM-dd 格式
-    } catch (error) {
-      console.error("Date parsing error:", error);
-      return null;
-    }
-  };
-
-  const handleSave = async (basicInfo: any, detailInfo: any) => {
     if (!activity) return;
-
-    // 验证日期
-    if (basicInfo.start_date && basicInfo.end_date) {
-      const startDate = new Date(basicInfo.start_date);
-      const endDate = new Date(basicInfo.end_date);
-
-      if (endDate <= startDate) {
-        toast.error("结束时间必须在开始时间之后");
-        return;
-      }
-    }
-
-    setSubmitting(true);
-
-    try {
-      // 构建更新请求数据
-      const updateData: any = {
-        title: basicInfo.title || activity.title,
-        description: basicInfo.description || activity.description,
-        category: basicInfo.category || activity.category,
-      };
-
-      // 处理日期字段，转换为正确的格式
-      const startDate = formatDateForAPI(
-        basicInfo.start_date || activity.start_date
-      );
-      if (startDate) {
-        updateData.start_date = startDate;
-      }
-
-      const endDate = formatDateForAPI(basicInfo.end_date || activity.end_date);
-      if (endDate) {
-        updateData.end_date = endDate;
-      }
-
-      // 直接将 detailInfo 作为 details 提交（由配置驱动）
-      updateData.details = detailInfo || {};
-
-      await apiClient.put(`/activities/${activity.id}`, updateData);
-      toast.success("活动保存成功");
-      setIsEditing(false);
-      fetchActivity();
-    } catch (err: any) {
-      console.error("Save error:", err);
-      const errorMessage = err.response?.data?.message || "保存失败";
-      toast.error(errorMessage);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSaveClick = async () => {
-    if (detailContainerRef.current) {
-      await detailContainerRef.current.handleSave();
-    }
+    setIsEditDialogOpen(true);
   };
 
   const handleSubmitForReview = async () => {
@@ -200,7 +113,6 @@ export default function ActivityDetailPage() {
     try {
       await apiClient.post(`/activities/${activity.id}/submit`);
       toast.success("活动提交审核成功");
-      setIsEditing(false);
       fetchActivity();
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "提交审核失败";
@@ -209,6 +121,7 @@ export default function ActivityDetailPage() {
       setSubmitting(false);
     }
   };
+
 
   const handleWithdraw = async () => {
     if (!activity) return;
@@ -321,52 +234,31 @@ export default function ActivityDetailPage() {
           返回活动列表
         </button>
         <div className="flex gap-3 items-center">
-          {canEdit &&
-            (isEditing ? (
-              <>
+          {canEdit && (
+            <>
+              <Button
+                onClick={handleEdit}
+                size="lg"
+                variant="outline"
+                className="font-bold px-6"
+                disabled={submitting}
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                编辑
+              </Button>
+              {canSubmitForReview && (
                 <Button
-                  onClick={() => setIsEditing(false)}
-                  size="lg"
-                  variant="outline"
-                  className="font-bold px-6"
-                  disabled={submitting}
-                >
-                  取消
-                </Button>
-                <Button
-                  onClick={handleSaveClick}
+                  onClick={handleSubmitForReview}
                   size="lg"
                   className="bg-blue-600 hover:bg-blue-700 font-bold px-8 shadow-lg"
                   disabled={submitting}
                 >
-                  {submitting ? "保存中..." : "保存"}
+                  <Send className="h-4 w-4 mr-2" />
+                  {submitting ? "提交中..." : "提交审核"}
                 </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={handleEdit}
-                  size="lg"
-                  variant="outline"
-                  className="font-bold px-6"
-                  disabled={isEditing}
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  编辑
-                </Button>
-                {canSubmitForReview && (
-                  <Button
-                    onClick={handleSubmitForReview}
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 font-bold px-8 shadow-lg"
-                    disabled={submitting}
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    {submitting ? "提交中..." : "提交审核"}
-                  </Button>
-                )}
-              </>
-            ))}
+              )}
+            </>
+          )}
           {canWithdraw && (
             <Button
               onClick={handleWithdraw}
@@ -404,18 +296,15 @@ export default function ActivityDetailPage() {
         </div>
       </div>
 
-      {/* 活动详情容器 */}
-      <ActivityDetailContainer
-        ref={detailContainerRef}
+      {/* 活动详情容器（仅展示，不在此处编辑基础信息） */}
+      <ActivityDetailContainer activity={activity} />
+
+      {/* 基础信息编辑弹窗（与列表页共用 ActivityEditDialog） */}
+      <ActivityEditDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
         activity={activity}
-        isEditing={isEditing}
-        onEditModeChange={setIsEditing}
-        onRefresh={fetchActivity}
-        onSave={handleSave}
-        basicInfo={basicInfo}
-        setBasicInfo={setBasicInfo}
-        detailInfo={detailInfo}
-        setDetailInfo={setDetailInfo}
+        onSuccess={fetchActivity}
       />
 
       {/* 审批弹窗 */}

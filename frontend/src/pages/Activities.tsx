@@ -1,7 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
@@ -11,22 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +38,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getStatusText, getStatusStyle, getStatusIcon } from "@/lib/status-utils";
 import React from "react";
@@ -64,17 +53,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { FilterCard } from "@/components/ui/filter-card";
 import type { Activity } from "@/types/activity";
 import { getActivityOptions } from "@/lib/options";
-
-
-type CreateActivityForm = z.infer<typeof activitySchema>;
-
-const activitySchema = z.object({
-  title: z
-    .string()
-    .min(1, "活动名称不能为空")
-    .max(200, "活动名称不能超过200个字符"),
-  category: z.string().min(1, "请选择活动类型"),
-});
+import { ActivityEditDialog } from "@/components/activity-common";
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
@@ -87,8 +66,6 @@ export default function ActivitiesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
   const [activityStatuses, setActivityStatuses] = useState<{ value: string; label: string }[]>([]);
-  const [categoryFields, setCategoryFields] = useState<Record<string, Array<{ name: string; label: string; type: string; required?: boolean; options?: { value: string; label: string }[]; min?: number; max?: number; maxLength?: number }>>>({});
-  const [details, setDetails] = useState<Record<string, any>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -111,14 +88,6 @@ export default function ActivitiesPage() {
     totalParticipants: 0,
   });
   const [globalApplicationCount, setGlobalApplicationCount] = useState(0);
-
-  const form = useForm<CreateActivityForm>({
-    resolver: zodResolver(activitySchema),
-    defaultValues: {
-      title: "",
-      category: "",
-    },
-  });
 
   // 根据URL参数设置初始过滤器
   useEffect(() => {
@@ -253,7 +222,6 @@ export default function ActivitiesPage() {
         const opts = await getActivityOptions();
         setActivityCategories(opts.categories || []);
         setActivityStatuses(opts.statuses || []);
-        setCategoryFields(opts.category_fields || {});
       } catch (e) {
         console.error("Failed to load activity options", e);
       }
@@ -280,23 +248,20 @@ export default function ActivitiesPage() {
     handleSearchAndFilter();
   }, [handleSearchAndFilter]);
 
+  // 根据 URL 参数自动打开编辑弹窗，例如 /activities?edit=123
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId) return;
+    if (!activities || activities.length === 0) return;
+
+    const target = activities.find((a) => String(a.id) === editId);
+    if (target) {
+      handleDialogOpen(target);
+    }
+  }, [searchParams, activities]);
+
   const handleDialogOpen = (activity: Activity | null) => {
     setEditingActivity(activity);
-    if (activity) {
-      form.reset({
-        title: activity.title,
-        category: activity.category || "",
-      });
-      // 尝试回填 details（后端响应已包含 details）
-      // @ts-ignore
-      setDetails((activity as any).details || {});
-    } else {
-      form.reset({
-        title: "",
-        category: "",
-      });
-      setDetails({});
-    }
     setIsDialogOpen(true);
   };
 
@@ -391,25 +356,6 @@ export default function ActivitiesPage() {
       toast.success("导出成功");
     } catch (err) {
       toast.error("导出失败");
-    }
-  };
-
-  const onSubmit = async (values: CreateActivityForm) => {
-    try {
-      const payload: any = { ...values, details };
-      if (editingActivity) {
-        await apiClient.put(`/activities/${editingActivity.id}`, payload);
-        toast.success("活动更新成功");
-      } else {
-        await apiClient.post("/activities", payload);
-        toast.success("活动创建成功");
-      }
-      setIsDialogOpen(false);
-      setEditingActivity(null);
-      fetchActivities();
-    } catch (error) {
-      console.error("Failed to save activity:", error);
-      toast.error(editingActivity ? "更新活动失败" : "创建活动失败");
     }
   };
 
@@ -690,104 +636,18 @@ export default function ActivitiesPage() {
         </Card>
       )}
 
-      {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingActivity ? "编辑活动" : "添加新活动"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingActivity ? "修改活动信息" : "创建新的活动"}
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>活动名称</FormLabel>
-                    <FormControl>
-                      <Input placeholder="请输入活动名称" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>活动类型</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择活动类型" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {activityCategories.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {/* 动态详情字段 */}
-              {(() => {
-                const selectedCategory = form.watch("category");
-                const fields = categoryFields[selectedCategory] || [];
-                if (!fields.length) return null;
-                return (
-                  <div className="space-y-4">
-                    {fields.map((f) => (
-                      <div key={f.name} className="grid gap-2">
-                        <FormLabel>{f.label}{f.required ? " *" : ""}</FormLabel>
-                        {f.type === "select" ? (
-                          <Select
-                            onValueChange={(v) => setDetails((d) => ({ ...d, [f.name]: v }))}
-                            defaultValue={details?.[f.name] ?? ""}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder={`请选择${f.label}`} />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {(f.options || []).map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                            defaultValue={details?.[f.name] ?? ""}
-                            onChange={(e) => setDetails((d) => ({ ...d, [f.name]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-              <DialogFooter>
-                <Button type="submit" className="w-full">
-                  {editingActivity ? "更新活动" : "创建活动"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Create/Edit Dialog — 统一使用 ActivityEditDialog 组件 */}
+      <ActivityEditDialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) {
+            setEditingActivity(null);
+          }
+        }}
+        activity={editingActivity}
+        onSuccess={fetchActivities}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
