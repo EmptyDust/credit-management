@@ -152,22 +152,6 @@ export default function StudentsPage() {
   
   // 筛选状态 - 使用useListPage hook提供的状态
 
-  // 使用新的通用列表页面hook
-  const listPage = useListPage({
-    endpoint: "/search/users",
-    setData: setStudents,
-    errorMessage: "获取学生列表失败",
-    userType: "student" // 添加用户类型参数
-  });
-
-  // 使用用户管理hook
-  const userManagement = useUserManagement({
-    userType: "student",
-    formSchema,
-    defaultValues,
-    fetchFunction: listPage.fetchList,
-  });
-
   // 获取统计数据
   const fetchStats = async () => {
     try {
@@ -186,6 +170,23 @@ export default function StudentsPage() {
       console.error("Failed to fetch stats:", error);
     }
   };
+
+  // 使用新的通用列表页面hook
+  const listPage = useListPage({
+    endpoint: "/search/users",
+    setData: setStudents,
+    errorMessage: "获取学生列表失败",
+    userType: "student" // 添加用户类型参数
+  });
+
+  // 使用用户管理hook
+  const userManagement = useUserManagement({
+    userType: "student",
+    formSchema,
+    defaultValues,
+    fetchFunction: listPage.fetchList,
+    onSuccess: fetchStats,
+  });
 
   useEffect(() => {
     listPage.fetchList();

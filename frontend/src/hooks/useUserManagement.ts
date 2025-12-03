@@ -101,9 +101,10 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
         setDeleteDialogOpen(false);
         setItemToDelete(null);
         fetchFunction(1, 10);
+        onSuccess?.();
       }
     );
-  }, [itemToDelete, fetchFunction]);
+  }, [itemToDelete, fetchFunction, onSuccess]);
 
   const handleImport = useCallback(async (file: File) => {
     setImporting(true);
@@ -118,10 +119,11 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
       () => {
         setIsImportDialogOpen(false);
         fetchFunction(1, 10);
+        onSuccess?.();
       }
     );
     setImporting(false);
-  }, [userType, fetchFunction]);
+  }, [userType, fetchFunction, onSuccess]);
 
   const handleExport = useCallback(async () => {
     await handleExportUtil(

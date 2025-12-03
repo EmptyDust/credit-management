@@ -48,6 +48,37 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 处理班级/部门信息：
+	// 如果提供了专业 + 班级名称，则始终根据它们反查 department_id，并覆盖前端传入的 department_id
+	if req.Major != "" && req.Class != "" {
+		type deptRow struct {
+			ID string
+		}
+		var classDept deptRow
+		// 班级节点的 name 是班级代码（例如 202405C1），父节点是专业名称（例如 计算机科学与技术）
+		if err := h.db.Raw(`
+			SELECT c.id
+			FROM departments c
+			JOIN departments m ON c.parent_id = m.id
+			WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
+			LIMIT 1
+		`, req.Major, req.Class).Scan(&classDept).Error; err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		if classDept.ID == "" {
+			utils.SendBadRequest(c, "未找到对应的班级，请检查学部/专业/班级是否匹配")
+			return
+		}
+		req.DepartmentID = classDept.ID
+	}
+
+	// 最终仍然没有 department_id，则认为未指定班级
+	if req.DepartmentID == "" {
+		utils.SendBadRequest(c, "学生必须指定班级")
+		return
+	}
+
 	// 检查用户名唯一性
 	if err := h.checkUsernameUniqueness(req.Username); err != nil {
 		utils.SendConflict(c, err.Error())
@@ -133,6 +164,39 @@ func (h *UserHandler) CreateTeacher(c *gin.Context) {
 	// 验证手机号格式
 	if err := validator.ValidatePhone(req.Phone); err != nil {
 		utils.SendBadRequest(c, err.Error())
+		return
+	}
+
+	// 教师必须隶属某个学部/部门：
+	// 1. 如果前端直接提供了 department_id，则优先使用
+	// 2. 否则根据传入的学部名称（department/college）反查学部 department_id
+	if req.DepartmentID == "" && (req.Department != "" || req.College != "") {
+		type deptRow struct {
+			ID string
+		}
+		var collegeDept deptRow
+		name := req.Department
+		if name == "" {
+			name = req.College
+		}
+		if err := h.db.Raw(`
+			SELECT id
+			FROM departments
+			WHERE dept_type = 'college' AND name = ?
+			LIMIT 1
+		`, name).Scan(&collegeDept).Error; err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		if collegeDept.ID == "" {
+			utils.SendBadRequest(c, "未找到对应的学部，请检查学部名称是否匹配")
+			return
+		}
+		req.DepartmentID = collegeDept.ID
+	}
+
+	if req.DepartmentID == "" {
+		utils.SendBadRequest(c, "教师必须指定学部")
 		return
 	}
 
@@ -249,10 +313,38 @@ func (h *UserHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	// 恢复：学生创建时必须指定班级（department_id）
-	if req.UserType == "student" && req.DepartmentID == "" {
-		utils.SendBadRequest(c, "学生必须指定部门/班级")
-		return
+	// 学生创建时要求指定班级：
+	// 1. 如果直接提供了 department_id，则优先使用
+	// 2. 否则尝试根据专业名称 + 班级代码（major + class）反查班级 department_id
+	if req.UserType == "student" {
+		if req.DepartmentID == "" && req.Major != "" && req.Class != "" {
+			type deptRow struct {
+				ID string
+			}
+			var classDept deptRow
+			// 班级节点的 name 是班级代码（例如 202405C1），父节点是专业名称（例如 计算机科学与技术）
+			if err := h.db.Raw(`
+				SELECT c.id
+				FROM departments c
+				JOIN departments m ON c.parent_id = m.id
+				WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
+				LIMIT 1
+			`, req.Major, req.Class).Scan(&classDept).Error; err != nil {
+				utils.SendInternalServerError(c, err)
+				return
+			}
+			if classDept.ID == "" {
+				utils.SendBadRequest(c, "未找到对应的班级，请检查学部/专业/班级是否匹配")
+				return
+			}
+			req.DepartmentID = classDept.ID
+		}
+
+		// 最终仍然没有 department_id，则认为未指定班级
+		if req.DepartmentID == "" {
+			utils.SendBadRequest(c, "学生必须指定班级")
+			return
+		}
 	}
 
 	// 检查用户名唯一性

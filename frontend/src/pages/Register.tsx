@@ -131,8 +131,12 @@ export default function Register() {
         email: values.email,
         phone: values.phone,
         real_name: values.real_name,
-        // 班级在后端用 department_id 表示（班级/部门 UUID）
+        // 班级在后端用 department_id 表示（班级/部门 UUID），
+        // 同时传递 college/major/class 便于后端在缺少UUID时反查
         department_id: values.class,
+        college: values.college,
+        major: values.major,
+        class: values.class,
         grade: values.grade,
       };
 

@@ -123,6 +123,23 @@ export default function TeachersPage() {
   const [teacherTitles, setTeacherTitles] = useState<{ value: string; label: string }[]>([]);
   const [collegeOptions, setCollegeOptions] = useState<{ value: string; label: string }[]>([]);
 
+  const fetchTeacherStats = async () => {
+    try {
+      const response = await apiClient.get("/users/stats/teachers");
+      if (response.data.code === 0) {
+        const data = response.data.data || {};
+        setTeacherStats({
+          total: data.total_teachers || 0,
+          active: data.active_teachers || 0,
+          departmentCount: Object.keys(data.teachers_by_department || {}).length,
+          titleCount: Object.keys(data.teachers_by_title || {}).length,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch teacher stats:", error);
+    }
+  };
+
   // 使用新的通用列表页面hook
   const listPage = useListPage({
     endpoint: "/search/users",
@@ -147,24 +164,8 @@ export default function TeachersPage() {
       user_type: "teacher",
     },
     fetchFunction: listPage.fetchList,
+    onSuccess: fetchTeacherStats,
   });
-
-  const fetchTeacherStats = async () => {
-    try {
-      const response = await apiClient.get("/users/stats/teachers");
-      if (response.data.code === 0) {
-        const data = response.data.data || {};
-        setTeacherStats({
-          total: data.total_teachers || 0,
-          active: data.active_teachers || 0,
-          departmentCount: Object.keys(data.teachers_by_department || {}).length,
-          titleCount: Object.keys(data.teachers_by_title || {}).length,
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch teacher stats:", error);
-    }
-  };
 
   useEffect(() => {
     // 初始化数据

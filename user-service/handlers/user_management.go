@@ -88,12 +88,12 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
 
 	if userID == "" {
-		claims, exists := utils.GetUserClaims(c)
-		if !exists {
+		// 从上下文中获取当前用户ID（由认证中间件设置）
+		userID = utils.GetCurrentUserID(c)
+		if userID == "" {
 			utils.SendUnauthorized(c)
 			return
 		}
-		userID = claims["uuid"].(string)
 	}
 
 	var req models.UserUpdateRequest
