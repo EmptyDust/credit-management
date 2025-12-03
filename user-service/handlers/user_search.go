@@ -141,6 +141,11 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 		return
 	}
 
+	// 移除列表中每个用户记录的敏感字段（如密码哈希）
+	for _, u := range users {
+		sanitizeUserResult(u)
+	}
+
 	totalPages := (total + int64(req.PageSize) - 1) / int64(req.PageSize)
 
 	response := models.ViewBasedSearchResponse{

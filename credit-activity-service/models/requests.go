@@ -51,23 +51,26 @@ type ActivityReviewRequest struct {
 
 // ActivityResponse 活动响应
 type ActivityResponse struct {
-	ID             string                `json:"id"`
-	Title          string                `json:"title"`
-	Description    string                `json:"description"`
-	StartDate      time.Time             `json:"start_date"`
-	EndDate        time.Time             `json:"end_date"`
-	Status         string                `json:"status"`
-	Category       string                `json:"category"`
-	OwnerID        string                `json:"owner_id"`
-	OwnerInfo      *UserInfo             `json:"owner_info,omitempty"`
-	ReviewerID     *string               `json:"reviewer_id"`
-	ReviewComments string                `json:"review_comments"`
-	ReviewedAt     *time.Time            `json:"reviewed_at"`
-	CreatedAt      time.Time             `json:"created_at"`
-	UpdatedAt      time.Time             `json:"updated_at"`
-	Participants   []ParticipantResponse `json:"participants"`
-	Applications   []ApplicationResponse `json:"applications"`
-	Details        map[string]any        `json:"details"`
+	ID                 string                `json:"id"`
+	Title              string                `json:"title"`
+	Description        string                `json:"description"`
+	StartDate          time.Time             `json:"start_date"`
+	EndDate            time.Time             `json:"end_date"`
+	Status             string                `json:"status"`
+	Category           string                `json:"category"`
+	OwnerID            string                `json:"owner_id"`
+	OwnerInfo          *UserInfo             `json:"owner_info,omitempty"`
+	ReviewerID         *string               `json:"reviewer_id"`
+	ReviewComments     string                `json:"review_comments"`
+	ReviewedAt         *time.Time            `json:"reviewed_at"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	// 列表场景下使用的聚合字段，避免一次性加载全部关联数据
+	ParticipantsCount  int64                 `json:"participants_count,omitempty"`
+	ApplicationsCount  int64                 `json:"applications_count,omitempty"`
+	Participants       []ParticipantResponse `json:"participants,omitempty"`
+	Applications       []ApplicationResponse `json:"applications,omitempty"`
+	Details            map[string]any        `json:"details"`
 }
 
 // ApplicationResponse 申请响应

@@ -58,10 +58,14 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		default:
 			// 管理员等其他类型直接查users表所有字段
 			h.db.Table("users").Where("uuid = ?", userID).Find(&result)
+			// 移除敏感字段（如密码哈希），避免暴露给前端
+			sanitizeUserResult(result)
 			utils.SendSuccessResponse(c, result)
 			return
 		}
 		h.db.Table(viewName).Where("uuid = ?", userID).Find(&result)
+		// 视图中如果包含密码等敏感字段，同样进行清理
+		sanitizeUserResult(result)
 		utils.SendSuccessResponse(c, result)
 		return
 	}

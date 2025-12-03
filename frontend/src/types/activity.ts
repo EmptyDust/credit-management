@@ -76,6 +76,9 @@ export interface Activity {
   reviewed_at?: string;
   created_at: string;
   updated_at: string;
+  // 列表场景下由后端返回的聚合字段
+  participants_count?: number;
+  applications_count?: number;
   participants?: Participant[];
   applications?: Application[];
   // 配置驱动下的通用详情

@@ -604,12 +604,16 @@ export default function ActivitiesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-blue-600 dark:text-blue-400">
-                          {activity.participants?.length || 0}
+                          {activity.participants_count ??
+                            activity.participants?.length ??
+                            0}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-green-600 dark:text-green-400">
-                          {activity.applications?.length || 0}
+                          {activity.applications_count ??
+                            activity.applications?.length ??
+                            0}
                         </span>
                       </TableCell>
                       <TableCell>

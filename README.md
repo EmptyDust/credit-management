@@ -30,22 +30,22 @@ graph TB
     subgraph "前端层"
         A[React Frontend<br/>TypeScript + Tailwind CSS]
     end
-    
+
     subgraph "网关层"
         B[API Gateway<br/>统一路由和认证]
     end
-    
+
     subgraph "服务层"
         C[Auth Service<br/>认证管理]
         D[User Service<br/>用户管理]
         E[Credit Activity Service<br/>活动与申请管理]
     end
-    
+
     subgraph "数据层"
         F[PostgreSQL<br/>主数据库]
         G[Redis<br/>缓存和会话]
     end
-    
+
     A --> B
     B --> C
     B --> D
@@ -58,15 +58,15 @@ graph TB
 
 ### 微服务组件
 
-| 服务 | 端口 | 技术栈 | 功能描述 |
-|------|------|--------|----------|
-| 🎨 **Frontend** | 3000 | React + TypeScript + Tailwind CSS | 现代化前端界面 |
-| 🌐 **API Gateway** | 8080 | Go + Gin | 统一 API 入口，路由转发 |
-| 🔐 **Auth Service** | 8081 | Go + Gin + JWT | 认证管理，JWT 验证 |
-| 👥 **User Service** | 8084 | Go + Gin + GORM | 统一用户管理（学生/教师） |
-| 📚 **Credit Activity Service** | 8083 | Go + Gin + GORM | 学分活动与申请管理 |
-| 🗄️ **PostgreSQL** | 5432 | PostgreSQL 15+ | 主数据库 |
-| 🔴 **Redis** | 6379 | Redis 7.2+ | 缓存和会话存储 |
+| 服务                           | 端口 | 技术栈                            | 功能描述                  |
+| ------------------------------ | ---- | --------------------------------- | ------------------------- |
+| 🎨 **Frontend**                | 3000 | React + TypeScript + Tailwind CSS | 现代化前端界面            |
+| 🌐 **API Gateway**             | 8080 | Go + Gin                          | 统一 API 入口，路由转发   |
+| 🔐 **Auth Service**            | 8081 | Go + Gin + JWT                    | 认证管理，JWT 验证        |
+| 👥 **User Service**            | 8084 | Go + Gin + GORM                   | 统一用户管理（学生/教师） |
+| 📚 **Credit Activity Service** | 8083 | Go + Gin + GORM                   | 学分活动与申请管理        |
+| 🗄️ **PostgreSQL**              | 5432 | PostgreSQL 15+                    | 主数据库                  |
+| 🔴 **Redis**                   | 6379 | Redis 7.2+                        | 缓存和会话存储            |
 
 ## 🚀 快速开始
 
@@ -79,7 +79,7 @@ graph TB
 
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/EmptyDust/credit-management
 cd credit-management
 
 # 启动所有服务
@@ -137,6 +137,7 @@ docker-compose logs -f
 ## 📋 核心功能
 
 ### 🎯 活动管理
+
 - **创建活动** - 学生和教师都可以创建学分活动
 - **状态管理** - 草稿 → 待审核 → 通过/拒绝的完整流程
 - **参与者管理** - 灵活的参与者添加和学分分配
@@ -144,24 +145,28 @@ docker-compose logs -f
 - **批量操作** - 支持批量导入导出活动数据
 
 ### 👥 用户管理
+
 - **统一用户系统** - 学生和教师信息统一管理
 - **角色权限** - 细粒度的权限控制（学生/教师/管理员）
 - **搜索功能** - 强大的用户搜索和筛选
 - **个人信息** - 完整的用户资料管理
 
 ### 📊 申请系统
+
 - **自动生成** - 活动通过后自动生成申请
 - **批量处理** - 支持批量学分设置
 - **数据导出** - 灵活的申请数据导出功能
 - **状态跟踪** - 完整的申请状态跟踪
 
 ### 📁 文件管理
+
 - **多格式支持** - 支持 PDF、Word、Excel、图片等多种格式
 - **文件预览** - 在线文件预览功能
 - **安全存储** - 文件安全存储和访问控制
 - **批量上传** - 支持批量文件上传
 
 ### 🔍 统计分析
+
 - **实时统计** - 活动、申请、用户数据统计
 - **可视化展示** - 直观的数据图表
 - **趋势分析** - 历史数据趋势分析
@@ -170,6 +175,7 @@ docker-compose logs -f
 ## 🔌 API 接口
 
 ### 认证相关
+
 ```http
 POST /api/auth/login          # 用户登录
 POST /api/auth/register       # 用户注册
@@ -179,6 +185,7 @@ POST /api/auth/logout         # 用户登出
 ```
 
 ### 用户管理
+
 ```http
 GET  /api/users               # 获取用户列表
 POST /api/users               # 创建用户
@@ -191,6 +198,7 @@ GET  /api/users/stats         # 获取用户统计
 ```
 
 ### 活动管理
+
 ```http
 POST /api/activities                    # 创建活动
 GET  /api/activities                    # 获取活动列表
@@ -205,6 +213,7 @@ GET  /api/activities/export             # 导出活动数据
 ```
 
 ### 申请管理
+
 ```http
 GET  /api/applications                  # 获取申请列表
 GET  /api/applications/{id}             # 获取申请详情
@@ -213,6 +222,7 @@ GET  /api/applications/export           # 导出申请数据
 ```
 
 ### 文件管理
+
 ```http
 POST /api/attachments                   # 上传文件
 GET  /api/attachments/{id}              # 获取文件信息
@@ -404,18 +414,18 @@ credit-management/
 
 ## 🔧 环境变量
 
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `DB_HOST` | 数据库主机 | `localhost` |
-| `DB_PORT` | 数据库端口 | `5432` |
-| `DB_USER` | 数据库用户名 | `postgres` |
-| `DB_PASSWORD` | 数据库密码 | `password` |
-| `DB_NAME` | 数据库名称 | `credit_management` |
-| `DB_SSLMODE` | 数据库SSL模式 | `disable` |
-| `JWT_SECRET` | JWT 密钥 | `your-secret-key` |
-| `REDIS_HOST` | Redis 主机 | `localhost` |
-| `REDIS_PORT` | Redis 端口 | `6379` |
-| `PORT` | 服务端口 | `8080-8084` |
+| 变量名        | 说明            | 默认值              |
+| ------------- | --------------- | ------------------- |
+| `DB_HOST`     | 数据库主机      | `localhost`         |
+| `DB_PORT`     | 数据库端口      | `5432`              |
+| `DB_USER`     | 数据库用户名    | `postgres`          |
+| `DB_PASSWORD` | 数据库密码      | `password`          |
+| `DB_NAME`     | 数据库名称      | `credit_management` |
+| `DB_SSLMODE`  | 数据库 SSL 模式 | `disable`           |
+| `JWT_SECRET`  | JWT 密钥        | `your-secret-key`   |
+| `REDIS_HOST`  | Redis 主机      | `localhost`         |
+| `REDIS_PORT`  | Redis 端口      | `6379`              |
+| `PORT`        | 服务端口        | `8080-8084`         |
 
 ## 🔒 权限控制
 
@@ -427,14 +437,14 @@ credit-management/
 
 ### 权限矩阵
 
-| 功能 | 学生 | 教师 | 管理员 |
-|------|------|------|--------|
-| 创建活动 | ✅ | ✅ | ✅ |
-| 编辑活动 | 自己的 | ✅ | ✅ |
-| 删除活动 | 自己的 | ✅ | ✅ |
-| 审核活动 | ❌ | ✅ | ✅ |
-| 用户管理 | ❌ | ❌ | ✅ |
-| 系统配置 | ❌ | ❌ | ✅ |
+| 功能     | 学生   | 教师 | 管理员 |
+| -------- | ------ | ---- | ------ |
+| 创建活动 | ✅     | ✅   | ✅     |
+| 编辑活动 | 自己的 | ✅   | ✅     |
+| 删除活动 | 自己的 | ✅   | ✅     |
+| 审核活动 | ❌     | ✅   | ✅     |
+| 用户管理 | ❌     | ❌   | ✅     |
+| 系统配置 | ❌     | ❌   | ✅     |
 
 ## 🤝 贡献指南
 

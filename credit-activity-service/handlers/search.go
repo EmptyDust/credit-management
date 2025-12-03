@@ -174,7 +174,6 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		return
 	}
 	userType := c.GetString("user_type")
-	authToken := c.GetHeader("Authorization")
 
 	var req models.ApplicationSearchRequest
 
@@ -227,8 +226,8 @@ func (h *SearchHandler) SearchApplications(c *gin.Context) {
 		return
 	}
 
-	// 转换为响应格式
-	responses := h.buildApplicationResponses(applications, authToken)
+	// 转换为响应格式（列表场景不附带 UserInfo，避免高频调用用户服务）
+	responses := h.buildApplicationResponses(applications)
 
 	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
@@ -290,16 +289,11 @@ func (h *SearchHandler) applyApplicationSearchConditions(query *gorm.DB, req mod
 	return query
 }
 
-// buildApplicationResponses 构建申请响应列表
-func (h *SearchHandler) buildApplicationResponses(applications []models.Application, authToken string) []models.ApplicationResponse {
+// buildApplicationResponses 构建申请响应列表（轻量版）
+func (h *SearchHandler) buildApplicationResponses(applications []models.Application) []models.ApplicationResponse {
 	responses := make([]models.ApplicationResponse, 0, len(applications))
 
 	for _, app := range applications {
-		userInfo, err := utils.GetUserInfo(app.UUID, authToken)
-		if err != nil {
-			continue
-		}
-
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
@@ -318,7 +312,7 @@ func (h *SearchHandler) buildApplicationResponses(applications []models.Applicat
 				StartDate:   app.Activity.StartDate,
 				EndDate:     app.Activity.EndDate,
 			},
-			UserInfo: userInfo,
+			// 列表搜索接口不返回 UserInfo，避免对用户服务的 N+1 调用
 		}
 
 		responses = append(responses, response)

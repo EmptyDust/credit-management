@@ -128,23 +128,25 @@ func (h *ApplicationHandler) getApplicationsWithPagination(query *gorm.DB, statu
 
 	var applications []models.Application
 	offset := (page - 1) * limit
-	err := query.Preload("Activity").Offset(offset).Limit(limit).Order("created_at DESC").Find(&applications).Error
+	err := query.
+		Preload("Activity").
+		Offset(offset).
+		Limit(limit).
+		Order("created_at DESC").
+		Find(&applications).Error
 
 	return applications, total, err
 }
 
 func (h *ApplicationHandler) buildApplicationResponses(applications []models.Application, authToken string) []models.ApplicationResponse {
-	var responses []models.ApplicationResponse
+	responses := make([]models.ApplicationResponse, 0, len(applications))
 	for _, app := range applications {
-		response := h.buildApplicationResponse(app, authToken)
-		responses = append(responses, response)
+		responses = append(responses, h.buildApplicationResponse(app, authToken))
 	}
 	return responses
 }
 
 func (h *ApplicationHandler) buildApplicationResponse(app models.Application, authToken string) models.ApplicationResponse {
-	userInfo, _ := utils.GetUserInfo(app.UUID, authToken)
-
 	return models.ApplicationResponse{
 		ID:         app.ID,
 		ActivityID: app.ActivityID,
@@ -163,7 +165,7 @@ func (h *ApplicationHandler) buildApplicationResponse(app models.Application, au
 			StartDate:   app.Activity.StartDate,
 			EndDate:     app.Activity.EndDate,
 		},
-		UserInfo: userInfo,
+		// 列表接口默认不附带 UserInfo，避免对用户服务的高频调用
 	}
 }
 

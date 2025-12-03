@@ -83,7 +83,80 @@ func (h *ActivityHandler) GetActivities(c *gin.Context) {
 		return
 	}
 
-	responses := h.buildActivityResponses(activities, c.GetHeader("Authorization"))
+	// 为列表构建轻量级响应，避免为每个活动加载全部参与者和申请详情
+	if len(activities) == 0 {
+		utils.SendPaginatedResponse(c, []models.ActivityResponse{}, total, page, limit)
+		return
+	}
+
+	// 收集本页活动ID
+	activityIDs := make([]string, 0, len(activities))
+	for _, a := range activities {
+		activityIDs = append(activityIDs, a.ID)
+	}
+
+	// 统计参与者数量
+	type countResult struct {
+		ActivityID string
+		Count      int64
+	}
+
+	participantCounts := make([]countResult, 0, len(activities))
+	if err := h.db.Table("activity_participants").
+		Select("activity_id, COUNT(*) AS count").
+		Where("activity_id IN ?", activityIDs).
+		Group("activity_id").
+		Scan(&participantCounts).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 统计申请数量
+	applicationCounts := make([]countResult, 0, len(activities))
+	if err := h.db.Table("applications").
+		Select("activity_id, COUNT(*) AS count").
+		Where("activity_id IN ?", activityIDs).
+		Group("activity_id").
+		Scan(&applicationCounts).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	// 构建 ID -> count 映射
+	participantMap := make(map[string]int64, len(participantCounts))
+	for _, item := range participantCounts {
+		participantMap[item.ActivityID] = item.Count
+	}
+
+	applicationMap := make(map[string]int64, len(applicationCounts))
+	for _, item := range applicationCounts {
+		applicationMap[item.ActivityID] = item.Count
+	}
+
+	// 组装响应，仅包含基础字段和聚合计数
+	responses := make([]models.ActivityResponse, 0, len(activities))
+	for _, a := range activities {
+		resp := models.ActivityResponse{
+			ID:                a.ID,
+			Title:             a.Title,
+			Description:       a.Description,
+			StartDate:         a.StartDate,
+			EndDate:           a.EndDate,
+			Status:            a.Status,
+			Category:          a.Category,
+			OwnerID:           a.OwnerID,
+			ReviewerID:        a.ReviewerID,
+			ReviewComments:    a.ReviewComments,
+			ReviewedAt:        a.ReviewedAt,
+			CreatedAt:         a.CreatedAt,
+			UpdatedAt:         a.UpdatedAt,
+			ParticipantsCount: participantMap[a.ID],
+			ApplicationsCount: applicationMap[a.ID],
+			// 列表页暂不返回 OwnerInfo / Participants / Applications / Details，减少数据量和外部调用
+		}
+		responses = append(responses, resp)
+	}
+
 	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
@@ -286,13 +359,4 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 	h.cleanupAttachmentFiles(attachments)
 
 	utils.SendSuccessResponse(c, gin.H{"message": "活动删除成功"})
-}
-
-func (h *ActivityHandler) buildActivityResponses(activities []models.CreditActivity, authToken string) []models.ActivityResponse {
-	var responses []models.ActivityResponse
-	for _, activity := range activities {
-		response := h.enrichActivityResponse(activity, authToken)
-		responses = append(responses, response)
-	}
-	return responses
 }
