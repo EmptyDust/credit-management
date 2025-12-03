@@ -437,8 +437,14 @@ func (h *ActivityHandler) GetCSVTemplate(c *gin.Context) {
 	headers := []string{"title", "description", "start_date", "end_date", "category"}
 	sampleData := []string{"示例活动", "这是一个示例活动", "2024-01-01", "2024-12-31", "创新创业实践活动"}
 
-	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=activity_template.csv")
+
+	// 写入 UTF-8 BOM，避免在 Excel 中出现中文乱码
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		utils.SendErrorResponse(c, 500, fmt.Sprintf("failed to write BOM: %v", err))
+		return
+	}
 
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()

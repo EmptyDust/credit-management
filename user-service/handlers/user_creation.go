@@ -879,7 +879,7 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 			Email:    userReq.Email,
 			RealName: userReq.RealName,
 			UserType: userReq.UserType,
-			Status:   "active",
+			Status:   userReq.Status,
 		}
 		if userReq.Phone != "" {
 			user.Phone = &userReq.Phone
@@ -965,8 +965,14 @@ func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 		}
 	}
 
-	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s_template.csv", userType))
+
+	// 写入 UTF-8 BOM，避免在 Excel 中出现中文乱码
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
 
 	writer := csv.NewWriter(c.Writer)
 	defer writer.Flush()
