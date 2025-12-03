@@ -79,7 +79,7 @@ func (h *ActivityHandler) enrichActivityResponse(activity models.CreditActivity,
 		response := models.ApplicationResponse{
 			ID:             application.ID,
 			ActivityID:     application.ActivityID,
-			UUID:           application.UUID,
+			UserID:         application.UUID,
 			Status:         application.Status,
 			AppliedCredits: application.AppliedCredits,
 			AwardedCredits: application.AwardedCredits,

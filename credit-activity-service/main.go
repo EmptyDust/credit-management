@@ -100,11 +100,8 @@ func main() {
 					teacherOrAdmin.GET("/report", activityHandler.GetActivityReport)
 				}
 
-				admin := auth.Group("")
-				admin.Use(permissionMiddleware.AdminOnly())
-				{
-					admin.DELETE("/:id", activityHandler.DeleteActivity)
-				}
+				// 活动删除：在 Handler 内部做精细权限控制（活动创建者 / 教师 / 管理员）
+				auth.DELETE("/:id", activityHandler.DeleteActivity)
 			}
 
 			participants := activities.Group(":id")

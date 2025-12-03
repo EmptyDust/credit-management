@@ -303,7 +303,7 @@ func (h *SearchHandler) buildApplicationResponses(applications []models.Applicat
 		response := models.ApplicationResponse{
 			ID:             app.ID,
 			ActivityID:     app.ActivityID,
-			UUID:           app.UUID,
+			UserID:         app.UUID,
 			Status:         app.Status,
 			AppliedCredits: app.AppliedCredits,
 			AwardedCredits: app.AwardedCredits,

@@ -74,7 +74,7 @@ type ActivityResponse struct {
 type ApplicationResponse struct {
 	ID             string       `json:"id"`
 	ActivityID     string       `json:"activity_id"`
-	UUID           string       `json:"uuid"`
+	UserID         string       `json:"user_id"`
 	Status         string       `json:"status"`
 	AppliedCredits float64      `json:"applied_credits"`
 	AwardedCredits float64      `json:"awarded_credits"`

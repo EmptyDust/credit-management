@@ -252,7 +252,8 @@ func (h *ActivityHandler) DeleteActivity(c *gin.Context) {
 		return
 	}
 
-	if userType != "admin" && activity.OwnerID != userID {
+	// 只有活动创建者、教师或管理员可以删除活动
+	if userType != "admin" && userType != "teacher" && activity.OwnerID != userID {
 		utils.SendForbidden(c, "无权限删除该活动")
 		return
 	}

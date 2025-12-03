@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"log"
+
 	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
 
@@ -27,19 +29,23 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		return
 	}
 
+	log.Printf("[GetUserApplications] userID=%v", userID)
+
 	status := c.Query("status")
 	page, limit, _ := h.validator.ValidatePagination(
 		c.DefaultQuery("page", "1"),
-		c.DefaultQuery("limit", "10"),
+		c.DefaultQuery("page_size", "10"),
 	)
 
+	// 必须显式指定 Model，否则 GORM 无法推断表名，会报 "Table not set" 错误
 	applications, total, err := h.getApplicationsWithPagination(
-		h.db.Where("user_id = ?", userID),
+		h.db.Model(&models.Application{}).Where("user_id = ?", userID),
 		status,
 		page,
 		limit,
 	)
 	if err != nil {
+		log.Printf("[GetUserApplications] query error: %+v", err)
 		utils.SendInternalServerError(c, err)
 		return
 	}
@@ -87,7 +93,7 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 	userID := c.Query("id")
 	page, limit, _ := h.validator.ValidatePagination(
 		c.DefaultQuery("page", "1"),
-		c.DefaultQuery("limit", "10"),
+		c.DefaultQuery("page_size", "10"),
 	)
 
 	query := h.db.Model(&models.Application{})
@@ -95,7 +101,8 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		query = query.Where("activity_id = ?", activityID)
 	}
 	if userID != "" {
-		query = query.Where("id = ?", userID)
+		// 根据用户过滤时应使用 user_id 字段
+		query = query.Where("user_id = ?", userID)
 	}
 
 	applications, total, err := h.getApplicationsWithPagination(query, "", page, limit)
@@ -109,6 +116,9 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 }
 
 func (h *ApplicationHandler) getApplicationsWithPagination(query *gorm.DB, status string, page, limit int) ([]models.Application, int64, error) {
+	// 确保始终设置了 Model，避免出现 "Table not set" 的 GORM 错误
+	query = query.Model(&models.Application{})
+
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -136,9 +146,9 @@ func (h *ApplicationHandler) buildApplicationResponse(app models.Application, au
 	userInfo, _ := utils.GetUserInfo(app.UUID, authToken)
 
 	return models.ApplicationResponse{
-		ID:             app.ID,
-		ActivityID:     app.ActivityID,
-		UUID:           app.UUID,
+		ID:         app.ID,
+		ActivityID: app.ActivityID,
+		UserID:     app.UUID,
 		Status:         app.Status,
 		AppliedCredits: app.AppliedCredits,
 		AwardedCredits: app.AwardedCredits,
@@ -172,11 +182,12 @@ func (h *ApplicationHandler) GetApplicationStats(c *gin.Context) {
 		TotalCredits      float64 `json:"total_credits"`
 	}
 
-	h.db.Model(&models.Application{}).Where("id = ?", userID).Count(&stats.TotalApplications)
-	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "pending").Count(&stats.PendingCount)
-	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "approved").Count(&stats.ApprovedCount)
-	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "rejected").Count(&stats.RejectedCount)
-	h.db.Model(&models.Application{}).Where("id = ? AND status = ?", userID, "approved").Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.TotalCredits)
+	// 注意：这里统计的是当前登录用户的申请，字段为 user_id 而不是 id
+	h.db.Model(&models.Application{}).Where("user_id = ?", userID).Count(&stats.TotalApplications)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "pending").Count(&stats.PendingCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Count(&stats.ApprovedCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "rejected").Count(&stats.RejectedCount)
+	h.db.Model(&models.Application{}).Where("user_id = ? AND status = ?", userID, "approved").Select("COALESCE(SUM(awarded_credits), 0)").Scan(&stats.TotalCredits)
 
 	utils.SendSuccessResponse(c, stats)
 }
@@ -191,7 +202,8 @@ func (h *ApplicationHandler) ExportApplications(c *gin.Context) {
 		query = query.Where("activity_id = ?", activityID)
 	}
 	if userID != "" {
-		query = query.Where("id = ?", userID)
+		// 按用户过滤时同样应该使用 user_id
+		query = query.Where("user_id = ?", userID)
 	}
 
 	var applications []models.Application
