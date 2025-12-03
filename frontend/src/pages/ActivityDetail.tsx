@@ -297,7 +297,7 @@ export default function ActivityDetailPage() {
       </div>
 
       {/* 活动详情容器（仅展示，不在此处编辑基础信息） */}
-      <ActivityDetailContainer activity={activity} />
+      <ActivityDetailContainer activity={activity} onRefresh={fetchActivity} />
 
       {/* 基础信息编辑弹窗（与列表页共用 ActivityEditDialog） */}
       <ActivityEditDialog

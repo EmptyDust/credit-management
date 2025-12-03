@@ -20,8 +20,8 @@ interface ActivityBasicInfoProps {
   isEditing?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
   onRefresh?: () => void;
-  basicInfo: any;
-  setBasicInfo: React.Dispatch<React.SetStateAction<any>>;
+  basicInfo?: any;
+  setBasicInfo?: React.Dispatch<React.SetStateAction<any>>;
 }
 
 export default function ActivityBasicInfo({
@@ -30,6 +30,12 @@ export default function ActivityBasicInfo({
   basicInfo,
   setBasicInfo,
 }: ActivityBasicInfoProps) {
+  // 在编辑模式下，basicInfo 和 setBasicInfo 是必需的
+  if (isEditing && (!basicInfo || !setBasicInfo)) {
+    console.error("ActivityBasicInfo: basicInfo and setBasicInfo are required when isEditing is true");
+    return null;
+  }
+
   // 计算总学分
   const participants = activity.participants || [];
   const totalCredits = participants.reduce((sum, p) => sum + p.credits, 0);
@@ -70,9 +76,9 @@ export default function ActivityBasicInfo({
                     </label>
                     <Input
                       className="text-2xl font-bold"
-                      value={basicInfo.title}
+                      value={basicInfo!.title}
                       onChange={(e) =>
-                        setBasicInfo({ ...basicInfo, title: e.target.value })
+                        setBasicInfo!({ ...basicInfo!, title: e.target.value })
                       }
                       placeholder="请输入活动标题"
                     />
@@ -82,9 +88,9 @@ export default function ActivityBasicInfo({
                       活动类别
                     </label>
                     <Select
-                      value={basicInfo.category}
+                      value={basicInfo!.category}
                       onValueChange={(val) =>
-                        setBasicInfo({ ...basicInfo, category: val })
+                        setBasicInfo!({ ...basicInfo!, category: val })
                       }
                     >
                       <SelectTrigger>
@@ -139,9 +145,9 @@ export default function ActivityBasicInfo({
               <Textarea
                 className="min-h-[120px] text-lg leading-relaxed"
                 placeholder="请详细描述活动内容..."
-                value={basicInfo.description}
+                value={basicInfo!.description}
                 onChange={(e) =>
-                  setBasicInfo({ ...basicInfo, description: e.target.value })
+                  setBasicInfo!({ ...basicInfo!, description: e.target.value })
                 }
               />
             </div>
@@ -152,9 +158,9 @@ export default function ActivityBasicInfo({
                 </label>
                 <Input
                   type="date"
-                  value={basicInfo.start_date}
+                  value={basicInfo!.start_date}
                   onChange={(e) =>
-                    setBasicInfo({ ...basicInfo, start_date: e.target.value })
+                    setBasicInfo!({ ...basicInfo!, start_date: e.target.value })
                   }
                 />
               </div>
@@ -164,9 +170,9 @@ export default function ActivityBasicInfo({
                 </label>
                 <Input
                   type="date"
-                  value={basicInfo.end_date}
+                  value={basicInfo!.end_date}
                   onChange={(e) =>
-                    setBasicInfo({ ...basicInfo, end_date: e.target.value })
+                    setBasicInfo!({ ...basicInfo!, end_date: e.target.value })
                   }
                 />
               </div>

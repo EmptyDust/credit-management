@@ -6,23 +6,47 @@ import (
 	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func (h *ActivityHandler) GetActivityStats(c *gin.Context) {
+	userID := c.GetString("id")
+	userType := c.GetString("user_type")
+
 	var stats models.ActivityStats
 
-	// 统计各种状态的活动数量
-	h.db.Model(&models.CreditActivity{}).Count(&stats.TotalActivities)
-	h.db.Model(&models.CreditActivity{}).Where("status = ?", models.StatusDraft).Count(&stats.DraftCount)
-	h.db.Model(&models.CreditActivity{}).Where("status = ?", models.StatusPendingReview).Count(&stats.PendingCount)
-	h.db.Model(&models.CreditActivity{}).Where("status = ?", models.StatusApproved).Count(&stats.ApprovedCount)
-	h.db.Model(&models.CreditActivity{}).Where("status = ?", models.StatusRejected).Count(&stats.RejectedCount)
+	// 构建基础查询构建函数，应用权限过滤
+	buildActivityQuery := func() *gorm.DB {
+		query := h.db.Model(&models.CreditActivity{})
+		// 权限过滤：学生只能看到自己拥有或参与的活动
+		if userType == "student" && userID != "" {
+			query = query.Where("owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ? AND deleted_at IS NULL)", userID, userID)
+		}
+		return query
+	}
 
-	// 统计参与者总数
-	h.db.Model(&models.ActivityParticipant{}).Count(&stats.TotalParticipants)
+	// 统计各种状态的活动数量（基于权限过滤后的结果）
+	buildActivityQuery().Count(&stats.TotalActivities)
+	buildActivityQuery().Where("status = ?", models.StatusDraft).Count(&stats.DraftCount)
+	buildActivityQuery().Where("status = ?", models.StatusPendingReview).Count(&stats.PendingCount)
+	buildActivityQuery().Where("status = ?", models.StatusApproved).Count(&stats.ApprovedCount)
+	buildActivityQuery().Where("status = ?", models.StatusRejected).Count(&stats.RejectedCount)
 
-	// 统计总学分
-	h.db.Model(&models.ActivityParticipant{}).Select("COALESCE(SUM(credits), 0)").Scan(&stats.TotalCredits)
+	// 构建参与者查询构建函数
+	buildParticipantQuery := func() *gorm.DB {
+		query := h.db.Model(&models.ActivityParticipant{})
+		if userType == "student" && userID != "" {
+			// 学生只能看到他们参与的活动中的参与者统计
+			query = query.Where("activity_id IN (SELECT id FROM credit_activities WHERE (owner_id = ? OR id IN (SELECT activity_id FROM activity_participants WHERE user_id = ? AND deleted_at IS NULL)) AND deleted_at IS NULL)", userID, userID)
+		}
+		return query
+	}
+
+	// 统计参与者总数（基于权限过滤后的活动）
+	buildParticipantQuery().Count(&stats.TotalParticipants)
+
+	// 统计总学分（基于权限过滤后的活动）
+	buildParticipantQuery().Select("COALESCE(SUM(credits), 0)").Scan(&stats.TotalCredits)
 
 	utils.SendSuccessResponse(c, stats)
 }

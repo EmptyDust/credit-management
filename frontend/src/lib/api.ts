@@ -89,6 +89,10 @@ apiClient.interceptors.response.use(
         case 404:
           toast.error('请求的资源不存在');
           break;
+        case 400:
+          // Bad Request - 业务逻辑错误，由组件自己处理，不在这里显示toast
+          // 这样可以避免重复显示错误提示
+          break;
         case 409:
           // Conflict error - usually username or email already exists
           const conflictMessage = data?.error || data?.message || '用户名或邮箱已存在';

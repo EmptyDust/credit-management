@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ interface Attachment {
 
 export default function ActivityAttachments({
   activity,
+  onRefresh,
 }: ActivityAttachmentsProps) {
   const { user } = useAuth();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -67,6 +68,7 @@ export default function ActivityAttachments({
   const [dragFiles, setDragFiles] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwner =
     user && (user.uuid === activity.owner_id || user.userType === "admin");
@@ -92,7 +94,8 @@ export default function ActivityAttachments({
 
   // 上传附件
   const uploadAttachment = async () => {
-    const fileToUpload = dragFiles.length > 0 ? dragFiles[0] : selectedFile;
+    // 优先使用 selectedFile，如果没有则使用 dragFiles 的第一个
+    const fileToUpload = selectedFile || (dragFiles.length > 0 ? dragFiles[0] : null);
     if (!fileToUpload) {
       toast.error("请选择要上传的文件");
       return;
@@ -116,9 +119,12 @@ export default function ActivityAttachments({
       setDragFiles([]);
       setUploadDescription("");
       fetchAttachments();
-    } catch (error) {
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
       console.error("Failed to upload attachment:", error);
-      toast.error("附件上传失败");
+      const errorMessage =
+        error.response?.data?.message || "附件上传失败";
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -136,6 +142,7 @@ export default function ActivityAttachments({
       );
       toast.success("附件删除成功");
       fetchAttachments();
+      if (onRefresh) onRefresh();
     } catch (error) {
       console.error("Failed to delete attachment:", error);
       toast.error("附件删除失败");
@@ -194,7 +201,13 @@ export default function ActivityAttachments({
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       setDragFiles(files);
-      setSelectedFile(files[0]);
+      // 如果只有一个文件，也设置到 selectedFile 以便单文件上传使用
+      if (files.length === 1) {
+        setSelectedFile(files[0]);
+      } else {
+        // 多个文件时，清空 selectedFile，使用批量上传
+        setSelectedFile(null);
+      }
     }
   };
 
@@ -207,27 +220,54 @@ export default function ActivityAttachments({
 
     setUploading(true);
     try {
-      for (const file of dragFiles) {
-        const formData = new FormData();
-        formData.append("file", file);
+      const formData = new FormData();
+      // 批量上传API需要 files 字段（复数）
+      dragFiles.forEach((file) => {
+        formData.append("files", file);
+      });
+      // 批量上传时，description 可以为空或作为通用描述
+      if (uploadDescription) {
         formData.append("description", uploadDescription);
+      }
 
-        await apiClient.post(`/activities/${activity.id}/attachments`, formData, {
+      const response = await apiClient.post(
+        `/activities/${activity.id}/attachments/batch`,
+        formData,
+        {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        });
+        }
+      );
+
+      // 处理批量上传结果
+      const results = response.data.data?.results || [];
+      const successCount = results.filter((r: any) => r.status === "success").length;
+      const failCount = results.filter((r: any) => r.status === "failed").length;
+
+      if (failCount === 0) {
+        toast.success(`成功上传 ${successCount} 个附件`);
+      } else {
+        toast.success(`成功上传 ${successCount} 个附件，${failCount} 个失败`);
+        // 显示失败的文件信息
+        const failedFiles = results
+          .filter((r: any) => r.status === "failed")
+          .map((r: any) => `${r.file_name}: ${r.message}`)
+          .join("\n");
+        console.error("上传失败的文件:", failedFiles);
       }
 
-      toast.success(`成功上传 ${dragFiles.length} 个附件`);
       setShowUploadDialog(false);
       setDragFiles([]);
       setSelectedFile(null);
       setUploadDescription("");
       fetchAttachments();
-    } catch (error) {
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
       console.error("Failed to upload multiple attachments:", error);
-      toast.error("批量上传失败");
+      const errorMessage =
+        error.response?.data?.message || "批量上传失败";
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -343,7 +383,19 @@ export default function ActivityAttachments({
       </CardContent>
 
       {/* 上传对话框 */}
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+      <Dialog
+        open={showUploadDialog}
+        onOpenChange={(open) => {
+          setShowUploadDialog(open);
+          if (!open) {
+            // 关闭对话框时清空所有状态
+            setSelectedFile(null);
+            setDragFiles([]);
+            setUploadDescription("");
+            setIsDragOver(false);
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>上传附件</DialogTitle>
@@ -352,42 +404,80 @@ export default function ActivityAttachments({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* 文件输入元素始终存在，但隐藏 */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) {
+                  if (files.length === 1) {
+                    setSelectedFile(files[0]);
+                    setDragFiles([]);
+                  } else {
+                    setDragFiles(files);
+                    setSelectedFile(null);
+                  }
+                }
+                // 重置 input 值，允许重复选择同一文件
+                e.target.value = "";
+              }}
+              className="hidden"
+              id="file-upload"
+            />
             <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                 isDragOver
                   ? "border-blue-500 bg-blue-50"
-                  : "border-gray-300 hover:border-gray-400"
+                  : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
               }`}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
+              onClick={(e) => {
+                // 阻止事件冒泡，确保点击区域时触发文件选择器
+                e.preventDefault();
+                e.stopPropagation();
+                if (fileInputRef.current) {
+                  fileInputRef.current.click();
+                } else {
+                  console.error("File input ref is not available");
+                }
+              }}
             >
-              {dragFiles.length > 0 ? (
-                <div>
-                  <p className="font-medium">已选择 {dragFiles.length} 个文件</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {dragFiles.map((file) => file.name).join(", ")}
-                  </p>
+              {dragFiles.length > 0 || selectedFile ? (
+                <div className="pointer-events-none">
+                  {dragFiles.length > 0 ? (
+                    <>
+                      <p className="font-medium">已选择 {dragFiles.length} 个文件</p>
+                      <p className="text-sm text-gray-500 mt-1 break-words">
+                        {dragFiles.map((file) => file.name).join(", ")}
+                      </p>
+                      <p className="text-xs text-blue-600 mt-2">
+                        点击此区域重新选择文件
+                      </p>
+                    </>
+                  ) : selectedFile ? (
+                    <>
+                      <p className="font-medium">已选择 1 个文件</p>
+                      <p className="text-sm text-gray-500 mt-1 break-words">
+                        {selectedFile.name}
+                      </p>
+                      <p className="text-xs text-blue-600 mt-2">
+                        点击此区域重新选择文件
+                      </p>
+                    </>
+                  ) : null}
                 </div>
               ) : (
-                <div>
+                <div className="pointer-events-none">
                   <FolderOpen className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                   <p>拖拽文件到此处或点击选择</p>
-                  <input
-                    type="file"
-                    onChange={(e) =>
-                      setSelectedFile(e.target.files?.[0] || null)
-                    }
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer text-blue-600 hover:text-blue-700"
-                  >
-                    选择文件
-                  </label>
+                  <p className="text-sm text-gray-600 mt-2">
+                    点击此区域选择文件
+                  </p>
                 </div>
               )}
             </div>
@@ -410,12 +500,19 @@ export default function ActivityAttachments({
               取消
             </Button>
             <Button
-              onClick={
-                dragFiles.length > 1
-                  ? uploadMultipleAttachments
-                  : uploadAttachment
+              onClick={() => {
+                // 如果有多个拖拽文件，使用批量上传
+                if (dragFiles.length > 1) {
+                  uploadMultipleAttachments();
+                } else {
+                  // 否则使用单文件上传（可能是 selectedFile 或 dragFiles[0]）
+                  uploadAttachment();
+                }
+              }}
+              disabled={
+                uploading ||
+                (dragFiles.length === 0 && !selectedFile)
               }
-              disabled={uploading || (!selectedFile && dragFiles.length === 0)}
             >
               {uploading ? "上传中..." : "上传"}
             </Button>
