@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
-import apiClient from "@/lib/api";
+import apiClient, { apiHelpers } from "@/lib/api";
 import {
   PlusCircle,
   Edit,
@@ -75,6 +75,7 @@ export default function ActivitiesPage() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -313,23 +314,55 @@ export default function ActivitiesPage() {
     }
 
     setImporting(true);
+    setImportErrors([]);
     try {
       const formData = new FormData();
       formData.append("file", importFile);
 
-      await apiClient.post("/activities/import", formData, {
+      const response = await apiClient.post("/activities/import", formData, {
         headers: {
-          "Content-Type": "multipart/form-data",
+          // 让浏览器自动设置 multipart boundary
         },
       });
 
-      toast.success("活动导入成功");
-      setIsImportDialogOpen(false);
-      setImportFile(null);
-      fetchActivities();
-    } catch (error) {
+      if (response.data.code === 0) {
+        toast.success("活动导入成功");
+        setIsImportDialogOpen(false);
+        setImportFile(null);
+        setImportErrors([]);
+        fetchActivities();
+      } else {
+        const errors =
+          response.data.data?.errors || response.data.errors || [];
+        if (Array.isArray(errors) && errors.length > 0) {
+          setImportErrors(
+            errors.map((e: any) =>
+              typeof e === "string" ? e : JSON.stringify(e)
+            )
+          );
+        } else {
+          toast.error(response.data.message || "活动导入失败");
+        }
+      }
+    } catch (error: any) {
       console.error("Failed to import activities:", error);
-      toast.error("活动导入失败");
+      const apiErrors =
+        error?.response?.data?.data?.errors ||
+        error?.response?.data?.errors ||
+        [];
+      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
+        setImportErrors(
+          apiErrors.map((e: any) =>
+            typeof e === "string" ? e : JSON.stringify(e)
+          )
+        );
+      } else {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            "活动导入失败"
+        );
+      }
     } finally {
       setImporting(false);
     }
@@ -677,7 +710,7 @@ export default function ActivitiesPage() {
 
       {/* Import Dialog */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5" />
@@ -693,12 +726,10 @@ export default function ActivitiesPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = "/api/activities/csv-template";
-                  link.download = "activity_template.csv";
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
+                  apiHelpers.downloadFile(
+                    "/activities/csv-template",
+                    "activity_template.csv"
+                  );
                 }}
               >
                 <Download className="mr-2 h-4 w-4" />
@@ -708,12 +739,10 @@ export default function ActivitiesPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const link = document.createElement("a");
-                  link.href = "/api/activities/excel-template";
-                  link.download = "activity_template.xlsx";
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
+                  apiHelpers.downloadFile(
+                    "/activities/excel-template",
+                    "activity_template.xlsx"
+                  );
                 }}
               >
                 <Download className="mr-2 h-4 w-4" />
@@ -733,7 +762,7 @@ export default function ActivitiesPage() {
               </p>
             </div>
             {importFile && (
-              <div className="p-3 bg-muted rounded-lg">
+              <div className="p-3 bg-muted rounded-lg space-y-1">
                 <p className="text-sm font-medium">已选择文件：</p>
                 <p className="text-sm text-muted-foreground">
                   {importFile.name}
@@ -743,6 +772,20 @@ export default function ActivitiesPage() {
                 </p>
               </div>
             )}
+            {importErrors.length > 0 && (
+              <div className="p-3 border rounded-lg bg-muted/60 max-h-60 overflow-y-auto">
+                <p className="text-sm font-medium mb-2">
+                  导入失败，共 {importErrors.length} 条错误：
+                </p>
+                <ul className="space-y-1 text-xs text-red-600">
+                  {importErrors.map((msg, idx) => (
+                    <li key={idx} className="whitespace-pre-wrap">
+                      {msg}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -750,6 +793,7 @@ export default function ActivitiesPage() {
               onClick={() => {
                 setIsImportDialogOpen(false);
                 setImportFile(null);
+                  setImportErrors([]);
               }}
             >
               取消

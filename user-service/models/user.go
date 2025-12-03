@@ -51,6 +51,7 @@ type UserRequest struct {
 	Phone        string `json:"phone" binding:"omitempty,len=11,startswith=1"`
 	RealName     string `json:"real_name" binding:"required,min=2,max=50"`
 	UserType     string `json:"user_type" binding:"required,oneof=student teacher"`
+	Status       string `json:"status" binding:"omitempty,oneof=active inactive suspended graduated"`
 	DepartmentID string `json:"department_id" binding:"omitempty,uuid"` // 部门ID
 
 	// 前端为了展示方便，会传递学部/专业/班级名称（字符串），后端据此反查 department_id

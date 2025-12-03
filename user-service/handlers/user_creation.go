@@ -483,12 +483,6 @@ func (h *UserHandler) checkTeacherIDUniqueness(teacherID string) error {
 }
 
 func (h *UserHandler) ImportUsers(c *gin.Context) {
-	_, exists := c.Get("id")
-	if !exists {
-		utils.SendUnauthorized(c)
-		return
-	}
-
 	userType := c.PostForm("user_type")
 	if userType == "" {
 		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")
@@ -623,38 +617,40 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 		return
 	}
 
+	validator := utils.NewValidator()
+
 	headers := records[0]
 	headerMap := make(map[string]int)
 	for i, header := range headers {
-		headerMap[strings.ToLower(strings.TrimSpace(header))] = i
-	}
-
-	// 验证必需的列
-	requiredColumns := []string{"username", "password", "email", "real_name"}
-	for _, col := range requiredColumns {
-		if _, exists := headerMap[col]; !exists {
-			utils.SendBadRequest(c, fmt.Sprintf("缺少必需的列: %s", col))
-			return
+		key := strings.TrimSpace(header)
+		if key != "" {
+			headerMap[key] = i
 		}
 	}
 
-	// 根据用户类型验证特定列
+	// 以当前导出的表头为准：
+	// 学生：学号, 姓名, 邮箱, 手机号, 学部, 专业, 班级, 年级, 状态
+	// 教师：工号, 姓名, 邮箱, 手机号, 学部, 专业, 班级, 职称, 状态
+	var requiredColumns []string
 	switch userType {
 	case "student":
-		studentColumns := []string{"student_id", "department_id", "grade"}
-		for _, col := range studentColumns {
-			if _, exists := headerMap[col]; !exists {
-				utils.SendBadRequest(c, fmt.Sprintf("学生导入缺少必需的列: %s", col))
-				return
-			}
-		}
+		requiredColumns = []string{"学号", "姓名", "邮箱", "学部", "专业", "班级", "年级"}
 	case "teacher":
-		teacherColumns := []string{"teacher_id", "department_id", "title"}
-		for _, col := range teacherColumns {
-			if _, exists := headerMap[col]; !exists {
-				utils.SendBadRequest(c, fmt.Sprintf("教师导入缺少必需的列: %s", col))
-				return
-			}
+		requiredColumns = []string{"工号", "姓名", "邮箱", "学部", "专业", "班级", "职称"}
+	default:
+		utils.SendBadRequestWithData(c, "仅支持导入学生或教师数据", gin.H{
+			"errors": []string{"仅支持导入学生或教师数据"},
+		})
+		return
+	}
+
+	for _, col := range requiredColumns {
+		if _, exists := headerMap[col]; !exists {
+			msg := fmt.Sprintf("缺少必需的列: %s", col)
+			utils.SendBadRequestWithData(c, "数据验证失败", gin.H{
+				"errors": []string{msg},
+			})
+			return
 		}
 	}
 
@@ -670,41 +666,181 @@ func (h *UserHandler) processImportData(c *gin.Context, records [][]string, user
 			continue
 		}
 
-		// 构建用户请求
-		user := models.UserRequest{
-			Username: strings.TrimSpace(record[headerMap["username"]]),
-			Password: strings.TrimSpace(record[headerMap["password"]]),
-			Email:    strings.TrimSpace(record[headerMap["email"]]),
-			Phone:    strings.TrimSpace(record[headerMap["phone"]]),
-			RealName: strings.TrimSpace(record[headerMap["real_name"]]),
-			UserType: userType,
+		getVal := func(col string) string {
+			idx, ok := headerMap[col]
+			if !ok || idx >= len(record) {
+				return ""
+			}
+			return strings.TrimSpace(record[idx])
 		}
+
+		var user models.UserRequest
+		user.UserType = userType
+		user.Email = getVal("邮箱")
+		user.Phone = getVal("手机号")
+		user.RealName = getVal("姓名")
 
 		if userType == "student" {
-			user.StudentID = strings.TrimSpace(record[headerMap["student_id"]])
-			user.DepartmentID = strings.TrimSpace(record[headerMap["department_id"]])
-			user.Grade = strings.TrimSpace(record[headerMap["grade"]])
-		} else {
-			user.TeacherID = strings.TrimSpace(record[headerMap["teacher_id"]])
-			user.DepartmentID = strings.TrimSpace(record[headerMap["department_id"]])
-			user.Title = strings.TrimSpace(record[headerMap["title"]])
+			studentID := getVal("学号")
+			collegeName := getVal("学部")
+			majorName := getVal("专业")
+			className := getVal("班级")
+			grade := getVal("年级")
+
+			if studentID == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 学生必须提供学号", rowNum))
+				continue
+			}
+			if majorName == "" || className == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 学生必须提供专业和班级名称", rowNum))
+				continue
+			}
+			_ = collegeName // 目前通过 专业 + 班级 唯一定位班级
+
+			// 使用学号作为用户名，密码使用默认密码
+			defaultPassword := utils.GenerateDefaultPassword()
+			user.StudentID = studentID
+			user.Username = studentID
+			user.Password = defaultPassword
+			user.Grade = grade
+
+			type deptRow struct {
+				ID string
+			}
+			var classDept deptRow
+			if err := h.db.Raw(`
+				SELECT c.id
+				FROM departments c
+				JOIN departments m ON c.parent_id = m.id
+				WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
+				LIMIT 1
+			`, majorName, className).Scan(&classDept).Error; err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: 查询班级失败: %v", rowNum, err))
+				continue
+			}
+			if classDept.ID == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 未找到对应的班级（专业=%s, 班级=%s）", rowNum, majorName, className))
+				continue
+			}
+			user.DepartmentID = classDept.ID
+		} else if userType == "teacher" {
+			teacherID := getVal("工号")
+			collegeName := getVal("学部")
+			majorName := getVal("专业") // 当前未用于反查，仅保留
+			className := getVal("班级") // 当前未用于反查
+			title := getVal("职称")
+
+			if teacherID == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 教师必须提供工号", rowNum))
+				continue
+			}
+			if collegeName == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 教师必须提供学部名称", rowNum))
+				continue
+			}
+
+			user.TeacherID = teacherID
+			user.Username = teacherID
+			user.Password = utils.GenerateDefaultPassword()
+			user.Title = title
+
+			type deptRow struct {
+				ID string
+			}
+			var collegeDept deptRow
+			if err := h.db.Raw(`
+				SELECT id
+				FROM departments
+				WHERE dept_type = 'college' AND name = ?
+				LIMIT 1
+			`, collegeName).Scan(&collegeDept).Error; err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: 查询学部失败: %v", rowNum, err))
+				continue
+			}
+			if collegeDept.ID == "" {
+				errors = append(errors, fmt.Sprintf("第%d行: 未找到对应的学部（学部=%s）", rowNum, collegeName))
+				continue
+			}
+			user.DepartmentID = collegeDept.ID
+			_ = majorName
+			_ = className
 		}
 
-		if user.UserType != "student" && user.UserType != "teacher" {
-			errors = append(errors, fmt.Sprintf("第%d行: 用户类型必须是student或teacher", rowNum))
+		// 处理状态列：允许为空（默认 active），否则按导出的英文枚举校验
+		statusVal := getVal("状态")
+		if statusVal == "" {
+			statusVal = "active"
+		} else {
+			if err := validator.ValidateStatus(statusVal); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		}
+		user.Status = statusVal
+
+		// 与注册/更新保持一致的格式校验
+		if err := validator.ValidateEmail(user.Email); err != nil {
+			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
 			continue
 		}
-		if user.UserType == "student" && strings.TrimSpace(user.StudentID) == "" {
-			errors = append(errors, fmt.Sprintf("第%d行: 学生必须提供学号", rowNum))
+		if user.Phone != "" {
+			if err := validator.ValidatePhone(user.Phone); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		}
+		if err := validator.ValidateUsername(user.Username); err != nil {
+			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
 			continue
 		}
-		if user.UserType == "teacher" && strings.TrimSpace(user.TeacherID) == "" {
-			errors = append(errors, fmt.Sprintf("第%d行: 教师必须提供工号", rowNum))
+		if err := validator.ValidatePassword(user.Password); err != nil {
+			// 密码格式错误也视为普通业务错误：记录但不中断后续行检查
+			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
 			continue
 		}
-		if user.UserType == "student" && strings.TrimSpace(user.DepartmentID) == "" {
-			errors = append(errors, fmt.Sprintf("第%d行: 学生必须指定部门/班级", rowNum))
+
+		// 学生/教师特定字段校验
+		if userType == "student" {
+			if err := validator.ValidateStudentID(user.StudentID); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+			if err := validator.ValidateGrade(user.Grade); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		} else if userType == "teacher" {
+			if err := validator.ValidateTeacherID(user.TeacherID); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		}
+
+		// 与注册/更新保持一致的唯一性检查
+		if err := h.checkUsernameUniqueness(user.Username); err != nil {
+			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
 			continue
+		}
+		if err := h.checkEmailUniqueness(user.Email); err != nil {
+			errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+			continue
+		}
+		if user.Phone != "" {
+			if err := h.checkPhoneUniqueness(user.Phone); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		}
+		if userType == "student" {
+			if err := h.checkStudentIDUniqueness(user.StudentID); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
+		} else if userType == "teacher" {
+			if err := h.checkTeacherIDUniqueness(user.TeacherID); err != nil {
+				errors = append(errors, fmt.Sprintf("第%d行: %s", rowNum, err.Error()))
+				continue
+			}
 		}
 
 		users = append(users, user)
@@ -817,16 +953,15 @@ func (h *UserHandler) GetUserCSVTemplate(c *gin.Context) {
 
 	var template [][]string
 	if userType == "student" {
+		// 与导出/导入表头保持一致
 		template = [][]string{
-			{"student_id", "username", "password", "email", "phone", "real_name", "department_id", "grade"},
-			{"20240001", "student001", "Password123", "student001@example.com", "13800138001", "张三", "dept-uuid-1", "2024"},
-			{"20240002", "student002", "Password123", "student002@example.com", "13800138002", "李四", "dept-uuid-1", "2024"},
+			{"学号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "年级", "状态"},
+			{"20240001", "张三", "student001@example.com", "13800138001", "计算机科学与技术学部", "计算机科学与技术", "202405C1", "2024", "active"},
 		}
 	} else {
 		template = [][]string{
-			{"teacher_id", "username", "password", "email", "phone", "real_name", "department_id", "title"},
-			{"T001", "teacher001", "Password123", "teacher001@example.com", "13800138003", "王老师", "dept-uuid-1", "副教授"},
-			{"T002", "teacher002", "Password123", "teacher002@example.com", "13800138004", "赵老师", "dept-uuid-1", "讲师"},
+			{"工号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "职称", "状态"},
+			{"T001", "王老师", "teacher001@example.com", "13800138003", "计算机科学与技术学部", "", "", "副教授", "active"},
 		}
 	}
 
@@ -867,16 +1002,14 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 	var examples [][]string
 
 	if userType == "student" {
-		headers = []string{"student_id", "username", "password", "email", "phone", "real_name", "department_id", "grade"}
+		headers = []string{"学号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "年级", "状态"}
 		examples = [][]string{
-			{"20240001", "student001", "Password123", "student001@example.com", "13800138001", "张三", "dept-uuid-1", "2024"},
-			{"20240002", "student002", "Password123", "student002@example.com", "13800138002", "李四", "dept-uuid-1", "2024"},
+			{"20240001", "张三", "student001@example.com", "13800138001", "计算机科学与技术学部", "计算机科学与技术", "202405C1", "2024", "active"},
 		}
 	} else {
-		headers = []string{"teacher_id", "username", "password", "email", "phone", "real_name", "department_id", "title"}
+		headers = []string{"工号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "职称", "状态"}
 		examples = [][]string{
-			{"T001", "teacher001", "Password123", "teacher001@example.com", "13800138003", "王老师", "dept-uuid-1", "副教授"},
-			{"T002", "teacher002", "Password123", "teacher002@example.com", "13800138004", "赵老师", "dept-uuid-1", "讲师"},
+			{"T001", "王老师", "teacher001@example.com", "13800138003", "计算机科学与技术学部", "", "", "副教授", "active"},
 		}
 	}
 
@@ -902,12 +1035,6 @@ func (h *UserHandler) GetUserExcelTemplate(c *gin.Context) {
 }
 
 func (h *UserHandler) ImportUsersFromCSV(c *gin.Context) {
-	_, exists := c.Get("id")
-	if !exists {
-		utils.SendUnauthorized(c)
-		return
-	}
-
 	userType := c.PostForm("user_type")
 	if userType == "" {
 		utils.SendBadRequest(c, "请指定用户类型 (student/teacher)")

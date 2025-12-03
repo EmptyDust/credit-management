@@ -295,10 +295,34 @@ export default function Dashboard() {
         }
       }
 
-      // Fetch activities to calculate all stats
+      // Fetch activity stats overview（与活动列表使用同一统计接口，保证“待审核”等数据一致）
       try {
+        // 1) 先获取全局活动统计数据
+        try {
+          const statsResponse = await apiClient.get("/activities/stats");
+          if (statsResponse.data.code === 0 && statsResponse.data.data) {
+            const stats = statsResponse.data.data;
+            setActivityStats((prev) => ({
+              ...prev,
+              total_activities: stats.total_activities ?? prev.total_activities,
+              draft_activities: stats.draft_count ?? prev.draft_activities,
+              pending_activities: stats.pending_count ?? prev.pending_activities,
+              approved_activities: stats.approved_count ?? prev.approved_activities,
+              rejected_activities: stats.rejected_count ?? prev.rejected_activities,
+              total_participants:
+                stats.total_participants ?? prev.total_participants,
+              total_credits_awarded:
+                stats.total_credits ?? prev.total_credits_awarded,
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch activity stats overview:", error);
+        }
+
+        // 2) 再拉取活动列表，用于最近活动、热门活动和按分类统计等
         const activitiesResponse = await apiClient.get("/activities", {
-          params: { page: 1, page_size: 5, status: "approved" },
+          // 不再按 status 过滤，避免导致待审核数量统计不准确
+          params: { page: 1, page_size: 20 },
         });
 
         let activitiesData: any[] = [];
@@ -306,24 +330,6 @@ export default function Dashboard() {
           activitiesData = activitiesResponse.data.data.data || activitiesResponse.data.data.activities || [];
           setRecentActivities(activitiesData);
         }
-
-        // Calculate comprehensive activity stats
-        const totalActivities = activitiesData.length;
-        const activeActivities = activitiesData.filter(
-          (activity: any) => activity.status === "approved"
-        ).length;
-        const draftActivities = activitiesData.filter(
-          (activity: any) => activity.status === "draft"
-        ).length;
-        const pendingActivities = activitiesData.filter(
-          (activity: any) => activity.status === "pending_review"
-        ).length;
-        const approvedActivities = activitiesData.filter(
-          (activity: any) => activity.status === "approved"
-        ).length;
-        const rejectedActivities = activitiesData.filter(
-          (activity: any) => activity.status === "rejected"
-        ).length;
 
         // Calculate category stats - 动态分类统计
         const categoryStats: Record<string, number> = {};
@@ -338,11 +344,6 @@ export default function Dashboard() {
         });
 
         // Calculate total participants and applications
-        const totalParticipants = activitiesData.reduce(
-          (sum: number, activity: any) =>
-            sum + (activity.participants?.length || 0),
-          0
-        );
         const totalApplications = activitiesData.reduce(
           (sum: number, activity: any) =>
             sum + (activity.applications?.length || 0),
@@ -350,27 +351,29 @@ export default function Dashboard() {
         );
 
         // Calculate total credits awarded
-        const totalCreditsAwarded = activitiesData.reduce(
-          (sum: number, activity: any) => {
-            const approvedApps =
-              activity.applications?.filter(
-                (app: any) => app.status === "approved"
-              ) || [];
-            return (
-              sum +
-              approvedApps.reduce(
-                (appSum: number, app: any) =>
-                  appSum + (app.awarded_credits || 0),
-                0
-              )
-            );
-          },
-          0
-        );
-
         const averageCreditsPerActivity =
-          totalActivities > 0
-            ? Math.round((totalCreditsAwarded / totalActivities) * 10) / 10
+          activitiesData.length > 0
+            ? Math.round(
+                (activitiesData.reduce(
+                  (sum: number, activity: any) => {
+                    const approvedApps =
+                      activity.applications?.filter(
+                        (app: any) => app.status === "approved"
+                      ) || [];
+                    return (
+                      sum +
+                      approvedApps.reduce(
+                        (appSum: number, app: any) =>
+                          appSum + (app.awarded_credits || 0),
+                        0
+                      )
+                    );
+                  },
+                  0
+                ) /
+                  activitiesData.length) *
+                  10
+              ) / 10
             : 0;
 
         // Prepare recent activities for the card
@@ -412,21 +415,16 @@ export default function Dashboard() {
             participant_count: activity.participants?.length || 0,
           }));
 
-        setActivityStats({
-          total_activities: totalActivities,
-          active_activities: activeActivities,
-          draft_activities: draftActivities,
-          pending_activities: pendingActivities,
-          approved_activities: approvedActivities,
-          rejected_activities: rejectedActivities,
+        // 这里不再覆盖从 /activities/stats 获取到的汇总统计，
+        // 只更新需要列表数据支撑的字段，保证仪表盘与活动列表统计统一
+        setActivityStats((prev) => ({
+          ...prev,
           recent_activities: recentActivitiesData,
           popular_activities: popularActivities,
           category_stats: categoryStats,
-          total_participants: totalParticipants,
           total_applications: totalApplications,
-          total_credits_awarded: totalCreditsAwarded,
           average_credits_per_activity: averageCreditsPerActivity,
-        });
+        }));
 
         // Set recent activities for the card
         setRecentActivities(recentActivitiesData);

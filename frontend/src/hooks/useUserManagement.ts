@@ -108,13 +108,14 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
 
   const handleImport = useCallback(async (file: File) => {
     setImporting(true);
-    await handleImportUtil(
+    const errors = await handleImportUtil(
       file,
-      (formData) => apiClient.post("/users/import", formData, {
-        headers: {
-          // Remove Content-Type header to let browser set it with boundary
-        },
-      }),
+      (formData) =>
+        apiClient.post("/users/import", formData, {
+          headers: {
+            // Remove Content-Type header to let browser set it with boundary
+          },
+        }),
       userType,
       () => {
         setIsImportDialogOpen(false);
@@ -123,6 +124,7 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
       }
     );
     setImporting(false);
+    return errors;
   }, [userType, fetchFunction, onSuccess]);
 
   const handleExport = useCallback(async () => {

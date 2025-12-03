@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
 
 	"credit-management/user-service/models"
 	"credit-management/user-service/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -444,7 +446,7 @@ func (h *UserHandler) GetUserActivity(c *gin.Context) {
 }
 
 func (h *UserHandler) ExportUsers(c *gin.Context) {
-	format := c.DefaultQuery("format", "json")
+	format := c.DefaultQuery("format", "xlsx")
 	userType := c.Query("user_type")
 	status := c.Query("status")
 
@@ -466,6 +468,163 @@ func (h *UserHandler) ExportUsers(c *gin.Context) {
 	switch format {
 	case "json":
 		utils.SendSuccessResponse(c, users)
+	case "xlsx":
+		// 创建 Excel 文件
+		f := excelize.NewFile()
+		defer f.Close()
+
+		sheetName := "用户列表"
+		f.SetSheetName("Sheet1", sheetName)
+
+		// 根据用户类型设置表头
+		var headers []string
+		switch userType {
+		case "teacher":
+			// 教师：部门一般是到“学部”一级
+			headers = []string{"工号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "职称", "状态"}
+		case "student":
+			// 学生：部门为班级，向上关联专业和学部
+			headers = []string{"学号", "姓名", "邮箱", "手机号", "学部", "专业", "班级", "年级", "状态"}
+		default:
+			// 其他用户：仅展示部门名称
+			headers = []string{"UUID", "用户名", "姓名", "邮箱", "手机号", "用户类型", "学部", "专业", "班级", "状态"}
+		}
+
+		// 写入表头
+		for i, header := range headers {
+			cell := fmt.Sprintf("%c1", 'A'+i)
+			f.SetCellValue(sheetName, cell, header)
+		}
+
+		// 写入数据
+		for rowIndex, user := range users {
+			// Excel 行号从 2 开始（1 是表头）
+			rowNumber := rowIndex + 2
+
+			var rowValues []interface{}
+
+			// 拆分部门为学部 / 专业 / 班级
+			var collegeName, majorName, className string
+			if user.DepartmentID != nil && *user.DepartmentID != "" {
+				// 查询部门层级：可能是 class / major / college / 其他
+				type deptRow struct {
+					Name     string
+					DeptType string
+					ParentID *string
+				}
+
+				var dept deptRow
+				if err := h.db.Raw(`
+					SELECT name, dept_type::text AS dept_type, parent_id::text AS parent_id
+					FROM departments
+					WHERE id = ?
+					LIMIT 1
+				`, *user.DepartmentID).Scan(&dept).Error; err == nil && dept.Name != "" {
+					switch dept.DeptType {
+					case "class":
+						className = dept.Name
+						// 找到专业
+						var major deptRow
+						if err := h.db.Raw(`
+							SELECT name, dept_type::text AS dept_type, parent_id::text AS parent_id
+							FROM departments
+							WHERE id = ?
+							LIMIT 1
+						`, dept.ParentID).Scan(&major).Error; err == nil && major.Name != "" {
+							majorName = major.Name
+							// 找到学部
+							var college deptRow
+							if err := h.db.Raw(`
+								SELECT name, dept_type::text AS dept_type, parent_id::text AS parent_id
+								FROM departments
+								WHERE id = ?
+								LIMIT 1
+							`, major.ParentID).Scan(&college).Error; err == nil && college.Name != "" {
+								collegeName = college.Name
+							}
+						}
+					case "major":
+						majorName = dept.Name
+						// 找到学部
+						var college deptRow
+						if err := h.db.Raw(`
+							SELECT name, dept_type::text AS dept_type, parent_id::text AS parent_id
+							FROM departments
+							WHERE id = ?
+							LIMIT 1
+						`, dept.ParentID).Scan(&college).Error; err == nil && college.Name != "" {
+							collegeName = college.Name
+						}
+					case "college":
+						collegeName = dept.Name
+					default:
+						// 其他类型部门先简单放在“学部”列
+						collegeName = dept.Name
+					}
+				}
+			}
+
+			switch userType {
+			case "teacher":
+				rowValues = []interface{}{
+					utils.DerefString(user.TeacherID),
+					user.RealName,
+					user.Email,
+					utils.DerefString(user.Phone),
+					collegeName,
+					majorName,
+					className,
+					utils.DerefString(user.Title),
+					user.Status,
+				}
+			case "student":
+				rowValues = []interface{}{
+					utils.DerefString(user.StudentID),
+					user.RealName,
+					user.Email,
+					utils.DerefString(user.Phone),
+					collegeName,
+					majorName,
+					className,
+					utils.DerefString(user.Grade),
+					user.Status,
+				}
+			default:
+				rowValues = []interface{}{
+					user.UUID,
+					user.Username,
+					user.RealName,
+					user.Email,
+					utils.DerefString(user.Phone),
+					user.UserType,
+					collegeName,
+					majorName,
+					className,
+					user.Status,
+				}
+			}
+
+			for colIndex, value := range rowValues {
+				cell := fmt.Sprintf("%c%d", 'A'+colIndex, rowNumber)
+				f.SetCellValue(sheetName, cell, value)
+			}
+		}
+
+		// 设置响应头并输出文件
+		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+		filename := "users.xlsx"
+		if userType == "teacher" {
+			filename = "teachers.xlsx"
+		} else if userType == "student" {
+			filename = "students.xlsx"
+		}
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+
+		if err := f.Write(c.Writer); err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
 	case "csv":
 		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(users)})
 	default:

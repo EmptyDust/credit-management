@@ -66,14 +66,14 @@ export const handleDeleteConfirm = async (
   }
 };
 
-// 通用导入处理
+// 通用导入处理，返回错误列表（如果有）
 export const handleImport = async (
   importFile: File | null,
   importApiCall: (formData: FormData) => Promise<any>,
   userType: string,
   onSuccess?: () => void
-) => {
-  if (!importFile) return;
+): Promise<string[] | null> => {
+  if (!importFile) return null;
 
   try {
     const formData = new FormData();
@@ -83,14 +83,44 @@ export const handleImport = async (
     const response = await importApiCall(formData);
 
     if (response.data.code === 0) {
+      // 成功：仅在右上角给一个成功提示
       toast.success("批量导入成功");
       onSuccess?.();
-    } else {
-      toast.error(response.data.message || "导入失败");
+      return null;
     }
+
+    // 失败：如果有详细错误列表，则交给弹窗展示，不再弹右上角错误 toast
+    const errors = response.data.data?.errors || response.data.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return errors.map((e: any) =>
+        typeof e === "string" ? e : JSON.stringify(e)
+      );
+    }
+
+    // 没有 errors 时才用 toast 提示一条简短错误
+    toast.error(response.data.message || "导入失败");
+    return null;
   } catch (err: any) {
-    const errorMessage = err.response?.data?.message || "导入失败";
+    const apiErrors =
+      err.response?.data?.data?.errors ||
+      err.response?.data?.errors ||
+      err.response?.data?.error_details;
+
+    if (Array.isArray(apiErrors) && apiErrors.length > 0) {
+      // 有详细错误列表：直接交给中心弹窗展示
+      const normalized = apiErrors.map((e: any) =>
+        typeof e === "string" ? e : JSON.stringify(e)
+      );
+      return normalized;
+    }
+
+    // 没有详细错误时才使用 toast 作为兜底提示
+    const errorMessage =
+      err.response?.data?.message ||
+      err.response?.data?.error ||
+      "导入失败";
     toast.error(errorMessage);
+    return null;
   }
 };
 
