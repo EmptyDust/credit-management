@@ -290,7 +290,7 @@ export default function ActivityApplications({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索申请人姓名、学号、学院、专业、班级..."
+              placeholder="搜索申请人姓名、学号、学部、专业、班级..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -527,7 +527,7 @@ export default function ActivityApplications({
               {selectedApplication.user_info?.college && (
                 <div>
                   <label className="text-sm font-medium text-gray-500">
-                    学院专业
+                    学部专业
                   </label>
                   <p className="text-sm">
                     {selectedApplication.user_info.college} -{" "}

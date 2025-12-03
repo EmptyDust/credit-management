@@ -27,12 +27,12 @@ import {
 import apiClient from "@/lib/api";
 import { getOptions } from "@/lib/options";
 import { useNavigate, Link } from "react-router-dom";
-import { 
-  UserPlus, 
-  User, 
-  Mail, 
-  Phone, 
-  FileSignature, 
+import {
+  UserPlus,
+  User,
+  Mail,
+  Phone,
+  FileSignature,
   GraduationCap,
 } from "lucide-react";
 import * as z from "zod";
@@ -56,10 +56,11 @@ const studentRegisterSchema = z.object({
     .length(11, "手机号必须是11位数字")
     .regex(/^1[3-9]\d{9}$/, "请输入有效的手机号"),
   real_name: z.string().min(2, "真实姓名至少2个字符").max(50, "真实姓名最多50个字符"),
-  id: z.string()
+  // 使用更直观的 student_id 表示学号，而不是模糊的 id
+  student_id: z.string()
     .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字"),
-  college: z.string().min(1, "请选择学院").max(100, "学院名称最多100个字符"),
+  college: z.string().min(1, "请选择学部").max(100, "学部名称最多100个字符"),
   major: z.string().min(1, "请选择专业").max(100, "专业名称最多100个字符"),
   class: z.string().min(1, "请选择班级").max(50, "班级名称最多50个字符"),
   grade: z.string().length(4, "年级必须是4位数字").regex(/^\d{4}$/, "年级必须是4位数字"),
@@ -70,7 +71,7 @@ const studentRegisterSchema = z.object({
 
 type StudentRegisterForm = z.infer<typeof studentRegisterSchema>;
 
-// 学院和专业数据（学院从后端获取）
+// 学部和专业数据（学部从后端获取）
 
 // 专业、班级、年级将从后端获取
 
@@ -91,7 +92,7 @@ export default function Register() {
       email: "",
       phone: "",
       real_name: "",
-      id: "",
+      student_id: "",
       college: "",
       major: "",
       class: "",
@@ -123,12 +124,21 @@ export default function Register() {
     try {
       // 构造符合后端API的请求数据
       const registerData = {
-        ...values,
-        user_type: "student", // 固定为学生类型
+        // 学生注册请求体字段映射到后端 models.StudentRegisterRequest
+        student_id: values.student_id,
+        username: values.username,
+        password: values.password,
+        email: values.email,
+        phone: values.phone,
+        real_name: values.real_name,
+        // 班级在后端用 department_id 表示（班级/部门 UUID）
+        department_id: values.class,
+        grade: values.grade,
       };
 
-      const response = await apiClient.post("/users/register", registerData);
-      
+      // 使用更直观的学生注册接口：POST /api/students/register
+      const response = await apiClient.post("/students/register", registerData);
+
       if (response.data.code === 0) {
         toast.success("注册成功！正在跳转到登录页面...");
         setTimeout(() => {
@@ -285,7 +295,7 @@ export default function Register() {
               {/* 学号 */}
               <FormField
                 control={form.control}
-                name="id"
+                name="student_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>学号</FormLabel>
@@ -305,18 +315,18 @@ export default function Register() {
                 )}
               />
 
-              {/* 学院和专业 */}
+              {/* 学部和专业 */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="college"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>学院</FormLabel>
+                      <FormLabel>学部</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger disabled={loading}>
-                            <SelectValue placeholder="请选择学院" />
+                            <SelectValue placeholder="请选择学部" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -337,14 +347,14 @@ export default function Register() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>专业</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
+                      <Select
+                        onValueChange={field.onChange}
                         defaultValue={field.value}
                         disabled={!selectedCollege || loading}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder={selectedCollege ? "请选择专业" : "请先选择学院"} />
+                            <SelectValue placeholder={selectedCollege ? "请选择专业" : "请先选择学部"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -370,9 +380,9 @@ export default function Register() {
                     <FormItem>
                       <FormLabel>班级</FormLabel>
                       <FormControl>
-                        <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value} 
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
                           disabled={loading || !selectedMajor}
                         >
                           <SelectTrigger>

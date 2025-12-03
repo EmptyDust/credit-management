@@ -65,6 +65,11 @@ func main() {
 		log.Fatal("数据库连接失败:", err)
 	}
 
+	// 根据配置初始化 departments（学部 / 专业 / 班级）数据
+	if err := handlers.InitDepartments(db); err != nil {
+		log.Printf("初始化部门数据失败: %v", err)
+	}
+
 	userHandler := handlers.NewUserHandler(db)
 
 	r := routers.RegisterRouters(userHandler)

@@ -23,24 +23,24 @@ INSERT INTO users (id, username, password, email, phone, real_name, user_type, s
 
 -- 教师用户
 INSERT INTO users (id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
-('22222222-2222-2222-2222-222222222222', 'teacher1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher1@university.edu.cn', '13800138001', '张教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '计算机学院', '教授'),
-('22222222-2222-2222-2222-222222222223', 'teacher2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher2@university.edu.cn', '13800138002', '李副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '机械工程学院', '副教授'),
-('22222222-2222-2222-2222-222222222224', 'teacher3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher3@university.edu.cn', '13800138003', '王讲师', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '经济管理学院', '讲师'),
-('22222222-2222-2222-2222-222222222225', 'teacher4', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher4@university.edu.cn', '13800138004', '陈教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '化学学院', '教授'),
-('22222222-2222-2222-2222-222222222226', 'teacher5', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher5@university.edu.cn', '13800138005', '刘副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '物理学院', '副教授');
+('22222222-2222-2222-2222-222222222222', 'teacher1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher1@university.edu.cn', '13800138001', '张教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '计算机学部', '教授'),
+('22222222-2222-2222-2222-222222222223', 'teacher2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher2@university.edu.cn', '13800138002', '李副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '机械工程学部', '副教授'),
+('22222222-2222-2222-2222-222222222224', 'teacher3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher3@university.edu.cn', '13800138003', '王讲师', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '经济管理学部', '讲师'),
+('22222222-2222-2222-2222-222222222225', 'teacher4', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher4@university.edu.cn', '13800138004', '陈教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '化学学部', '教授'),
+('22222222-2222-2222-2222-222222222226', 'teacher5', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'teacher5@university.edu.cn', '13800138005', '刘副教授', 'teacher', 'active', NULL, NULL, NULL, NULL, NULL, '物理学部', '副教授');
 
 -- 学生用户
 INSERT INTO users (id, username, password, email, phone, real_name, user_type, status, student_id, college, major, class, grade, department, title) VALUES
-('33333333-3333-3333-3333-333333333333', 'student1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student1@university.edu.cn', '13800138006', '张三', 'student', 'active', '20210001', '计算机学院', '计算机科学与技术', '计科2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333334', 'student2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student2@university.edu.cn', '13800138007', '李四', 'student', 'active', '20210002', '计算机学院', '软件工程', '软工2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333335', 'student3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student3@university.edu.cn', '13800138008', '王五', 'student', 'active', '20210003', '机械工程学院', '机械设计制造及其自动化', '机械2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333336', 'student4', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student4@university.edu.cn', '13800138009', '赵六', 'student', 'active', '20210004', '经济管理学院', '工商管理', '工商2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333337', 'student5', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student5@university.edu.cn', '13800138010', '钱七', 'student', 'active', '20210005', '化学学院', '应用化学', '应化2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333338', 'student6', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student6@university.edu.cn', '13800138011', '孙八', 'student', 'active', '20210006', '物理学院', '物理学', '物理2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333339', 'student7', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student7@university.edu.cn', '13800138012', '周九', 'student', 'active', '20210007', '计算机学院', '人工智能', '智能2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333340', 'student8', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student8@university.edu.cn', '13800138013', '吴十', 'student', 'active', '20210008', '机械工程学院', '工业设计', '工设2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333341', 'student9', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student9@university.edu.cn', '13800138014', '郑十一', 'student', 'active', '20210009', '经济管理学院', '市场营销', '营销2101', '2021', NULL, NULL),
-('33333333-3333-3333-3333-333333333342', 'student10', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student10@university.edu.cn', '13800138015', '王十二', 'student', 'active', '20210010', '化学学院', '化学工程与工艺', '化工2101', '2021', NULL, NULL);
+('33333333-3333-3333-3333-333333333333', 'student1', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student1@university.edu.cn', '13800138006', '张三', 'student', 'active', '20210001', '计算机学部', '计算机科学与技术', '计科2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333334', 'student2', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student2@university.edu.cn', '13800138007', '李四', 'student', 'active', '20210002', '计算机学部', '软件工程', '软工2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333335', 'student3', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student3@university.edu.cn', '13800138008', '王五', 'student', 'active', '20210003', '机械工程学部', '机械设计制造及其自动化', '机械2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333336', 'student4', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student4@university.edu.cn', '13800138009', '赵六', 'student', 'active', '20210004', '经济管理学部', '工商管理', '工商2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333337', 'student5', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student5@university.edu.cn', '13800138010', '钱七', 'student', 'active', '20210005', '化学学部', '应用化学', '应化2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333338', 'student6', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student6@university.edu.cn', '13800138011', '孙八', 'student', 'active', '20210006', '物理学部', '物理学', '物理2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333339', 'student7', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student7@university.edu.cn', '13800138012', '周九', 'student', 'active', '20210007', '计算机学部', '人工智能', '智能2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333340', 'student8', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student8@university.edu.cn', '13800138013', '吴十', 'student', 'active', '20210008', '机械工程学部', '工业设计', '工设2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333341', 'student9', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student9@university.edu.cn', '13800138014', '郑十一', 'student', 'active', '20210009', '经济管理学部', '市场营销', '营销2101', '2021', NULL, NULL),
+('33333333-3333-3333-3333-333333333342', 'student10', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student10@university.edu.cn', '13800138015', '王十二', 'student', 'active', '20210010', '化学学部', '化学工程与工艺', '化工2101', '2021', NULL, NULL);
 
 -- ========================================
 -- 2. 插入学分活动数据
@@ -80,7 +80,7 @@ INSERT INTO credit_activities (id, title, description, start_date, end_date, sta
 -- 创新创业实践活动详情
 INSERT INTO innovation_activity_details (activity_id, item, company, project_no, issuer, date, total_hours) VALUES
 ('44444444-4444-4444-4444-444444444444', '互联网+创新创业大赛', '教育部', 'INT2024001', '教育部高等教育司', '2024-06-30', 120.00),
-('44444444-4444-4444-4444-444444444445', '大学生创新创业训练计划', '学校教务处', 'INN2024002', '学校创新创业学院', '2024-08-15', 200.00),
+('44444444-4444-4444-4444-444444444445', '大学生创新创业训练计划', '学校教务处', 'INN2024002', '学校创新创业学部', '2024-08-15', 200.00),
 ('44444444-4444-4444-4444-444444444446', '科技创新实验室项目', '学校科技处', 'TEC2024003', '学校科技处', '2024-12-31', 300.00);
 
 -- 学科竞赛详情

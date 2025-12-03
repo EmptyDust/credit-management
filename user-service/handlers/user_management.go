@@ -137,9 +137,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	if req.Status != "" {
 		user.Status = req.Status
 	}
-	if req.DepartmentID != "" {
-		user.DepartmentID = &req.DepartmentID
-	}
 	if req.Grade != nil {
 		// Only update grade if it's a valid 4-digit string or null
 		if *req.Grade == "" || (len(*req.Grade) == 4 && isNumeric(*req.Grade)) {
@@ -148,6 +145,61 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 	if req.Title != nil {
 		user.Title = req.Title
+	}
+
+	// 处理部门 / 班级变更：
+	// 1. 优先使用显式传入的 department_id
+	// 2. 教师：根据传入的学部名称（department/college）反查学部 department_id
+	// 3. 学生：根据传入的专业 + 班级名称反查班级 department_id
+	if req.DepartmentID != "" {
+		// 直接使用前端提供的部门ID
+		user.DepartmentID = &req.DepartmentID
+	} else if user.UserType == "teacher" && (req.Department != "" || req.College != "") {
+		// 教师：根据学部名称反查学部 department_id
+		type deptRow struct {
+			ID string
+		}
+		var collegeDept deptRow
+		name := req.Department
+		if name == "" {
+			name = req.College
+		}
+		if err := h.db.Raw(`
+			SELECT id
+			FROM departments
+			WHERE dept_type = 'college' AND name = ?
+			LIMIT 1
+		`, name).Scan(&collegeDept).Error; err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		if collegeDept.ID == "" {
+			utils.SendBadRequest(c, "未找到对应的学部，请检查学部名称是否匹配")
+			return
+		}
+		user.DepartmentID = &collegeDept.ID
+	} else if req.Major != "" && req.Class != "" {
+		// 学生：根据“专业名称 + 班级代码”反查班级对应的 department_id
+		type deptRow struct {
+			ID string
+		}
+		var classDept deptRow
+		// 班级节点的 name 是班级代码（例如 202405C1），父节点是专业名称（例如 计算机科学与技术）
+		if err := h.db.Raw(`
+			SELECT c.id
+			FROM departments c
+			JOIN departments m ON c.parent_id = m.id
+			WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
+			LIMIT 1
+		`, req.Major, req.Class).Scan(&classDept).Error; err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		if classDept.ID == "" {
+			utils.SendBadRequest(c, "未找到对应的班级，请检查学部/专业/班级是否匹配")
+			return
+		}
+		user.DepartmentID = &classDept.ID
 	}
 
 	if req.StudentID != nil {

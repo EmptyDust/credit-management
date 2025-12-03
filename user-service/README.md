@@ -158,7 +158,7 @@ MIT
 - phone: 手机号（必需，11 位）
 - real_name: 真实姓名（必需）
 - student_id: 学号（必需，8 位数字）
-- college: 学院（必需）
+- college: 学部（必需）
 - major: 专业（必需）
 - class: 班级（必需）
 - grade: 年级（必需，4 位数字）

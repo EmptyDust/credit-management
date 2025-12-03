@@ -741,7 +741,7 @@ export default function ActivityParticipants({
                           </TableHead>
                           <TableHead>姓名</TableHead>
                           <TableHead>用户名</TableHead>
-                          <TableHead>学院</TableHead>
+                          <TableHead>学部</TableHead>
                           <TableHead>专业</TableHead>
                           <TableHead>班级</TableHead>
                         </TableRow>

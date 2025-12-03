@@ -179,6 +179,10 @@ func main() {
 		log.Printf("No .env file found or failed to load: %v", err)
 	}
 
+	// 测试数据模式：enabled 时开放，无需任何鉴权；其他值或未设置时完全禁用
+	testDataMode := getEnv("TEST_DATA_MODE", "disabled")
+	testDataEnabled := strings.EqualFold(testDataMode, "enabled")
+
 	// 获取服务URL配置
 	config := ProxyConfig{
 		UserServiceURL:           getEnv("USER_SERVICE_URL", "http://user-service:8084"),
@@ -230,10 +234,25 @@ func main() {
 		// 配置选项（透传到 user-service）
 		api.GET("/config/options", createProxyHandler(config.UserServiceURL))
 
-		// 权限管理服务路由（需要管理员权限）
+		// 测试数据相关接口
+		// 是否可用由 API Gateway 基于 TEST_DATA_MODE 环境变量控制：
+		// - TEST_DATA_MODE=enabled: 完全开放，无需任何鉴权
+		// - 其它或未设置: 完全禁用，返回 403
+		api.POST("/test-data/departments-from-options", func(c *gin.Context) {
+			if !testDataEnabled {
+				c.JSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": "测试数据功能未启用，请在 API Gateway 中设置 TEST_DATA_MODE=enabled 后再试",
+					"data":    nil,
+				})
+				return
+			}
+			createProxyHandler(config.UserServiceURL)(c)
+		})
+
+		// 权限管理服务路由
 		permissions := api.Group("/permissions")
 		permissions.Use(authMiddleware.AuthRequired())
-		permissions.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			permissions.POST("/init", createProxyHandler(config.AuthServiceURL))
 			permissions.POST("/roles", createProxyHandler(config.AuthServiceURL))
@@ -255,16 +274,19 @@ func main() {
 			permissions.GET("/users/:userID/permissions", createProxyHandler(config.AuthServiceURL))
 		}
 
-		// 统一用户服务路由（需要认证）
+		// 学生注册路由（无需认证）
+		publicStudents := api.Group("/students")
+		{
+			publicStudents.POST("/register", createProxyHandler(config.UserServiceURL))
+		}
+
+		// 统一用户服务路由
 		users := api.Group("/users")
 		users.Use(authMiddleware.AuthRequired())
 		{
-			// 注册路由（无需权限）
-			users.POST("/register", createProxyHandler(config.UserServiceURL))
 
 			// 管理员路由
 			admin := users.Group("")
-			admin.Use(permissionMiddleware.RequireRoles("admin"))
 			{
 				admin.POST("/teachers", createProxyHandler(config.UserServiceURL))
 				admin.POST("/students", createProxyHandler(config.UserServiceURL))
@@ -282,7 +304,6 @@ func main() {
 
 			// 教师或管理员路由
 			teacherOrAdmin := users.Group("")
-			teacherOrAdmin.Use(permissionMiddleware.RequireRoles("teacher", "admin"))
 			{
 				teacherOrAdmin.GET("/stats/students", createProxyHandler(config.UserServiceURL))
 				teacherOrAdmin.GET("/stats/teachers", createProxyHandler(config.UserServiceURL))
@@ -298,20 +319,18 @@ func main() {
 			users.GET("/:id/activity", createProxyHandler(config.UserServiceURL))
 		}
 
-		// 学生相关路由（需要管理员权限）
+		// 学生相关路由（需要认证，管理员权限由 user-service 自己校验）
 		students := api.Group("/students")
 		students.Use(authMiddleware.AuthRequired())
-		students.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			students.POST("", createProxyHandler(config.UserServiceURL))
 			students.PUT("/:id", createProxyHandler(config.UserServiceURL))
 			students.DELETE("/:id", createProxyHandler(config.UserServiceURL))
 		}
 
-		// 教师相关路由（需要管理员权限）
+		// 教师相关路由（需要认证，管理员权限由 user-service 自己校验）
 		teachers := api.Group("/teachers")
 		teachers.Use(authMiddleware.AuthRequired())
-		teachers.Use(permissionMiddleware.RequireRoles("admin"))
 		{
 			teachers.POST("", createProxyHandler(config.UserServiceURL))
 			teachers.PUT("/:id", createProxyHandler(config.UserServiceURL))
@@ -325,7 +344,7 @@ func main() {
 			search.GET("/users", createProxyHandler(config.UserServiceURL))
 		}
 
-		// 学分活动服务路由（需要认证）
+		// 学分活动服务路由（需要认证，角色/权限检查下沉到 credit-activity-service）
 		activities := api.Group("/activities")
 		activities.Use(authMiddleware.AuthRequired())
 		{
@@ -344,9 +363,8 @@ func main() {
 			activities.POST("", createProxyHandler(config.CreditActivityServiceURL))
 			activities.PUT("/:id", createProxyHandler(config.CreditActivityServiceURL))
 
-			// 教师或管理员路由
+			// 教师或管理员路由（仅在 credit-activity-service 内部做角色检查）
 			teacherOrAdmin := activities.Group("")
-			teacherOrAdmin.Use(permissionMiddleware.RequireRoles("teacher", "admin"))
 			{
 				teacherOrAdmin.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))
 				teacherOrAdmin.PUT("/batch", createProxyHandler(config.CreditActivityServiceURL))
@@ -362,9 +380,8 @@ func main() {
 				teacherOrAdmin.GET("/report", createProxyHandler(config.CreditActivityServiceURL))
 			}
 
-			// 管理员路由
+			// 管理员路由（仅在 credit-activity-service 内部做角色检查）
 			admin := activities.Group("")
-			admin.Use(permissionMiddleware.RequireRoles("admin"))
 			{
 				admin.DELETE("/:id", createProxyHandler(config.CreditActivityServiceURL))
 			}
@@ -379,7 +396,6 @@ func main() {
 
 				// 活动所有者或教师或管理员路由
 				ownerOrTeacherOrAdminParticipants := participants.Group("")
-				ownerOrTeacherOrAdminParticipants.Use(permissionMiddleware.RequireRoles("teacher", "admin", "student"))
 				{
 					ownerOrTeacherOrAdminParticipants.POST("", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminParticipants.PUT("/batch-credits", createProxyHandler(config.CreditActivityServiceURL))
@@ -390,7 +406,6 @@ func main() {
 
 				// 学生路由
 				studentOnly := participants.Group("")
-				studentOnly.Use(permissionMiddleware.RequireRoles("student"))
 				{
 					studentOnly.POST("/leave", createProxyHandler(config.CreditActivityServiceURL))
 				}
@@ -406,7 +421,6 @@ func main() {
 
 				// 活动所有者或教师或管理员路由
 				ownerOrTeacherOrAdminAttachments := attachments.Group("")
-				ownerOrTeacherOrAdminAttachments.Use(permissionMiddleware.RequireRoles("teacher", "admin", "student"))
 				{
 					ownerOrTeacherOrAdminAttachments.POST("", createProxyHandler(config.CreditActivityServiceURL))
 					ownerOrTeacherOrAdminAttachments.POST("/batch", createProxyHandler(config.CreditActivityServiceURL))

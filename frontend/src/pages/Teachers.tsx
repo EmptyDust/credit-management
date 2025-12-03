@@ -97,7 +97,7 @@ const formSchema = z.object({
     .regex(/^1[3-9]\d{9}$/, "请输入有效的11位手机号")
     .optional()
     .or(z.literal("")),
-  department: z.string().min(1, "学院不能为空"),
+  department: z.string().min(1, "学部不能为空"),
   title: z.string().optional().or(z.literal("")),
   status: z.enum(["active", "inactive", "suspended"]),
   user_type: z.literal("teacher"),
@@ -240,11 +240,11 @@ export default function TeachersPage() {
             subtitle: `活跃教师: ${teacherStats.active}`,
           },
           {
-            title: "学院数量",
+            title: "学部数量",
             value: teacherStats.departmentCount,
             icon: Building,
             color: "purple",
-            subtitle: "不同学院",
+            subtitle: "不同学部",
           },
           {
             title: "活跃教师数",
@@ -266,8 +266,8 @@ export default function TeachersPage() {
           filterOptions={collegeOptions}
           filterValue={listPage.filterValue}
           onFilterChange={listPage.setFilterValue}
-          filterPlaceholder="选择学院"
-          searchPlaceholder="搜索教师姓名、学院..."
+          filterPlaceholder="选择学部"
+          searchPlaceholder="搜索教师姓名、学部..."
           className="flex-col md:flex-row items-stretch md:items-center"
         />
         <div className="flex flex-wrap gap-4">
@@ -298,7 +298,7 @@ export default function TeachersPage() {
                   <TableHead>用户名</TableHead>
                   <TableHead>工号</TableHead>
                   <TableHead>姓名</TableHead>
-                  <TableHead>学院</TableHead>
+                  <TableHead>学部</TableHead>
                   <TableHead>职称</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -441,7 +441,7 @@ export default function TeachersPage() {
                   <FormItem>
                     <FormLabel>工号</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={!!userManagement.editingItem} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -478,14 +478,14 @@ export default function TeachersPage() {
                  name="department"
                  render={({ field }) => (
                    <FormItem>
-                     <FormLabel>学院</FormLabel>
+                     <FormLabel>学部</FormLabel>
                      <Select
                        onValueChange={field.onChange}
                        defaultValue={field.value}
                      >
                        <FormControl>
                          <SelectTrigger>
-                           <SelectValue placeholder="选择学院" />
+                           <SelectValue placeholder="选择学部" />
                          </SelectTrigger>
                        </FormControl>
                        <SelectContent>

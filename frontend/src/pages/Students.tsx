@@ -89,7 +89,7 @@ const formSchema = z.object({
     .length(8, "学号必须是8位数字")
     .regex(/^\d{8}$/, "学号必须是8位数字"),
   real_name: z.string().min(2, "姓名至少2个字符").max(50, "姓名最多50个字符"),
-  college: z.string().min(1, "学院不能为空").max(100, "学院名称最多100个字符"),
+  college: z.string().min(1, "学部不能为空").max(100, "学部名称最多100个字符"),
   major: z.string().min(1, "专业不能为空").max(100, "专业名称最多100个字符"),
   class: z.string().min(1, "班级不能为空").max(50, "班级名称最多50个字符"),
   phone: z
@@ -259,11 +259,11 @@ export default function StudentsPage() {
             subtitle: `活跃学生: ${studentStats.active}`,
           },
           {
-            title: "学院数量",
+            title: "学部数量",
             value: studentStats.collegeCount,
             icon: School,
             color: "purple",
-            subtitle: "不同学院",
+            subtitle: "不同学部",
           },
           {
             title: "专业数量",
@@ -292,7 +292,7 @@ export default function StudentsPage() {
           filterOptions={collegeOptions}
           filterValue={listPage.filterValue}
           onFilterChange={listPage.setFilterValue}
-          filterPlaceholder="选择学院"
+          filterPlaceholder="选择学部"
           searchPlaceholder="搜索学生姓名、学号..."
           className="flex-col md:flex-row items-stretch md:items-center"
         />
@@ -349,7 +349,7 @@ export default function StudentsPage() {
                 },
                 {
                   key: "college",
-                  header: "学院",
+                  header: "学部",
                   render: (student: Student) => student.college || "-",
                 },
                 {
@@ -481,7 +481,7 @@ export default function StudentsPage() {
                   <FormItem>
                     <FormLabel>学号</FormLabel>
                     <FormControl>
-                      <Input {...field} disabled={!!userManagement.editingItem} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -518,14 +518,14 @@ export default function StudentsPage() {
                 name="college"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>学院</FormLabel>
+                    <FormLabel>学部</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="选择学院" />
+                          <SelectValue placeholder="选择学部" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -558,7 +558,7 @@ export default function StudentsPage() {
                           disabled={!selectedCollege}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder={selectedCollege ? "请选择专业" : "请先选择学院"} />
+                            <SelectValue placeholder={selectedCollege ? "请选择专业" : "请先选择学部"} />
                           </SelectTrigger>
                           <SelectContent>
                             {availableMajors.map((m) => (

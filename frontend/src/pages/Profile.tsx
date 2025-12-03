@@ -629,7 +629,7 @@ export default function ProfilePage() {
                         <div className="flex items-center gap-4">
                           <MapPin className="h-5 w-5 text-muted-foreground" />
                           <div className="flex-1">
-                            <FormLabel>学院</FormLabel>
+                            <FormLabel>学部</FormLabel>
                             <FormControl>
                               <Select
                                 disabled={!isEditing}
@@ -637,7 +637,7 @@ export default function ProfilePage() {
                                 onValueChange={field.onChange}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="请选择学院" />
+                                  <SelectValue placeholder="请选择学部" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {collegeOptions.map((c) => (

@@ -182,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_users_status_type_username ON users (status, user
 CREATE INDEX IF NOT EXISTS idx_users_student_id ON users (student_id); -- 学号精确查找
 CREATE INDEX IF NOT EXISTS idx_users_teacher_id ON users (teacher_id); -- 工号精确查找
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone); -- 手机号登录
-CREATE INDEX IF NOT EXISTS idx_users_department_id ON users (department_id); -- 按学院/专业/班级查人
+CREATE INDEX IF NOT EXISTS idx_users_department_id ON users (department_id); -- 按学部/专业/班级查人
 CREATE INDEX IF NOT EXISTS idx_users_grade ON users (grade) WHERE grade IS NOT NULL;-- 按年级查学生
 CREATE INDEX IF NOT EXISTS idx_users_last_login_at ON users (last_login_at DESC); -- 最近登录排序
 CREATE INDEX IF NOT EXISTS idx_users_active ON users (deleted_at) WHERE deleted_at IS NULL;
@@ -191,9 +191,9 @@ CREATE INDEX IF NOT EXISTS idx_users_active ON users (deleted_at) WHERE deleted_
 -- 部门表索引
 -- 按 parent_id 找子部门（树形）：
 CREATE INDEX IF NOT EXISTS idx_departments_parent_id ON departments (parent_id);
--- 按 code 精确查（如学院代码）：
+-- 按 code 精确查（如学部代码）：
 CREATE INDEX IF NOT EXISTS idx_departments_code ON departments (code);
--- 按 dept_type 过滤（查所有学院/所有班级）：
+-- 按 dept_type 过滤（查所有学部/所有班级）：
 CREATE INDEX IF NOT EXISTS idx_departments_type ON departments (dept_type);
 -- 按层级排序：
 CREATE INDEX IF NOT EXISTS idx_departments_level ON departments (level);
@@ -239,7 +239,7 @@ SELECT u.uuid,
        u.username,
        u.real_name,
        u.student_id     AS student_id,
-       college.name      AS college, -- 学院
+       college.name      AS college, -- 学部
        major.name        AS major,   -- 专业
        class.name        AS class,   -- 班级
        u.grade,
@@ -253,7 +253,7 @@ FROM users u
          JOIN departments major
               ON major.id = class.parent_id
                   AND major.dept_type = 'major'
--- 3. 最后拿学院
+-- 3. 最后拿学部
          JOIN departments college
               ON college.id = major.parent_id
                   AND college.dept_type = 'college'
@@ -268,7 +268,7 @@ SELECT u.uuid,
        u.email,
        u.phone,
        u.student_id     AS student_id, -- 学号
-       college.name      AS college,    -- 学院
+       college.name      AS college,    -- 学部
        major.name        AS major,      -- 专业
        class.name        AS class,      -- 班级
        u.grade,
@@ -284,7 +284,7 @@ FROM users AS u
          JOIN departments AS major
               ON major.id = class.parent_id
                   AND major.dept_type = 'major'
--- 3. 学院
+-- 3. 学部
          JOIN departments AS college
               ON college.id = major.parent_id
                   AND college.dept_type = 'college'
@@ -305,7 +305,7 @@ SELECT u.uuid,
        u.created_at,
        u.updated_at,
        u.student_id     AS student_id, -- 学号
-       college.name      AS college,    -- 学院
+       college.name      AS college,    -- 学部
        major.name        AS major,      -- 专业
        class.name        AS class,      -- 班级
        u.grade
@@ -318,7 +318,7 @@ FROM users AS u
          JOIN departments AS major
               ON major.id = class.parent_id
                   AND major.dept_type = 'major'
--- 3. 学院
+-- 3. 学部
          JOIN departments AS college
               ON college.id = major.parent_id
                   AND college.dept_type = 'college'
@@ -423,7 +423,7 @@ SELECT
     u.real_name       AS applicant_name,
     u.username        AS applicant_username,
     u.student_id AS student_id,        -- 学号
-    coll.name         AS applicant_college, -- 学院
+    coll.name         AS applicant_college, -- 学部
     maj.name          AS applicant_major,   -- 专业
 
     -- 活动
@@ -433,7 +433,7 @@ SELECT
 FROM applications app
          JOIN users u ON u.uuid = app.user_id-- 注意：一般是 app.user_id
          JOIN credit_activities act ON act.id = app.activity_id
-         LEFT JOIN departments coll ON coll.id = u.department_id -- 学院
+         LEFT JOIN departments coll ON coll.id = u.department_id -- 学部
          LEFT JOIN departments maj ON maj.id = coll.parent_id -- 如果专业存的是 parent_id，可再关联
 WHERE app.deleted_at IS NULL
   AND u.deleted_at IS NULL
@@ -447,21 +447,21 @@ INSERT INTO departments (id, name, code, dept_type, parent_id)
 VALUES (gen_random_uuid(), '上海电力大学', 'SUEP', 'school', NULL)
 ON CONFLICT DO NOTHING;
 
--- 计算机科学与技术学院（挂在 上海电力大学 下）
+-- 计算机科学与技术学部（挂在 上海电力大学 下）
 WITH parent AS (SELECT id
                 FROM departments
                 WHERE name = '上海电力大学'
                   AND dept_type = 'school')
 INSERT
 INTO departments (id, name, code, dept_type, parent_id)
-SELECT gen_random_uuid(), '计算机科学与技术学院', 'CS', 'college', parent.id
+SELECT gen_random_uuid(), '计算机科学与技术学部', 'CS', 'college', parent.id
 FROM parent
 ON CONFLICT DO NOTHING;
 
--- 软件工程专业（挂在 计算机科学与技术学院 下）
+-- 软件工程专业（挂在 计算机科学与技术学部 下）
 WITH parent AS (SELECT id
                 FROM departments
-                WHERE name = '计算机科学与技术学院'
+                WHERE name = '计算机科学与技术学部'
                   AND dept_type = 'college')
 INSERT
 INTO departments (id, name, code, dept_type, parent_id)

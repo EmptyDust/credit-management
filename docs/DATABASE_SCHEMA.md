@@ -178,7 +178,7 @@ attachments (
 
 ## 活动详情存储策略
 
-为了简化schema并降低迁移成本，历史上的五类详情表（创新创业、学科竞赛、大学生创业、创业实践、论文专利）已经移除。现在所有扩展字段统一写入 `credit_activities.details` JSONB 字段或 `description` 中，由后端根据 `category` 决定序列化结构并在应用层做校验。
+为了简化 schema 并降低迁移成本，历史上的五类详情表（创新创业、学科竞赛、大学生创业、创业实践、论文专利）已经移除。现在所有扩展字段统一写入 `credit_activities.details` JSONB 字段或 `description` 中，由后端根据 `category` 决定序列化结构并在应用层做校验。
 
 ## 关系图
 
@@ -205,7 +205,7 @@ credit_activities (1) ←→ (N) attachments
 - `idx_users_teacher_id`: 工号索引
 - `idx_users_deleted_at`: 删除时间索引
 - `idx_users_type_status`: 用户类型+状态复合索引
-- `idx_users_college_major`: 学院+专业复合索引
+- `idx_users_college_major`: 学部+专业复合索引
 - `idx_users_department_title`: 部门+职称复合索引
 
 ### 活动表索引

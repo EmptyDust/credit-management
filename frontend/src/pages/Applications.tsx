@@ -293,7 +293,7 @@ export default function ApplicationsPage() {
     if (app.user_info?.username?.toLowerCase().includes(searchLower))
       return true;
 
-    // 搜索学院
+    // 搜索学部
     if (app.user_info?.college?.toLowerCase().includes(searchLower))
       return true;
 
@@ -375,7 +375,7 @@ export default function ApplicationsPage() {
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索申请人姓名、学号、学院、专业、班级或事务名称..."
+              placeholder="搜索申请人姓名、学号、学部、专业、班级或事务名称..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => {
@@ -606,7 +606,7 @@ export default function ApplicationsPage() {
                 </div>
                 {selectedApp.user_info?.college && (
                   <div>
-                    <label className="text-sm font-medium">学院</label>
+                    <label className="text-sm font-medium">学部</label>
                     <p className="text-sm text-muted-foreground">
                       {selectedApp.user_info.college}
                     </p>

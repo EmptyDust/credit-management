@@ -60,7 +60,7 @@ type UserRequest struct {
 	Title string `json:"title" binding:"omitempty,max=50"`
 }
 
-// StudentRegisterRequest 学生注册请求（更严格的验证）
+// StudentRegisterRequest 学生注册请求
 type StudentRegisterRequest struct {
 	StudentID    string `json:"student_id" binding:"required,len=8,numeric"`
 	Username     string `json:"username" binding:"required,min=3,max=20,alphanum"`
@@ -95,6 +95,13 @@ type UserUpdateRequest struct {
 	DepartmentID string  `json:"department_id" binding:"omitempty,uuid"`
 	StudentID    *string `json:"student_id" binding:"omitempty,len=8,numeric"`
 	TeacherID    *string `json:"teacher_id" binding:"omitempty,min=1,max=18"`
+
+	// 前端为了展示方便，会传递学部/专业/班级名称（字符串），后端据此反查 department_id
+	// 教师更新时主要使用 Department/College 表示学部
+	Department string `json:"department" binding:"omitempty,max=100"`
+	College string `json:"college" binding:"omitempty,max=100"`
+	Major   string `json:"major" binding:"omitempty,max=100"`
+	Class   string `json:"class" binding:"omitempty,max=50"`
 
 	// 学生特有字段
 	Grade *string `json:"grade" binding:"omitempty,len=4,numeric"`
