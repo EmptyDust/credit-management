@@ -6,12 +6,14 @@
 
 ### 🎯 核心功能
 
-- **用户认证**: 登录、注册、权限管理
-- **仪表板**: 系统概览、统计数据、最近活动
-- **申请管理**: 学生提交申请、教师审核、文件上传
-- **事务管理**: 学分事务类型管理、分类统计
-- **学生管理**: 学生信息 CRUD、搜索筛选
-- **教师管理**: 教师信息 CRUD、部门管理
+- **用户认证**: 登录、注册、JWT token 管理、权限控制
+- **仪表板**: 系统概览、统计数据、最近活动、快速操作
+- **活动管理**: 创建活动、编辑活动、提交审核、审核活动、批量操作、导入导出
+- **参与者管理**: 添加参与者、设置学分、批量操作、退出活动
+- **申请管理**: 查看申请列表、申请详情、申请统计、导出申请数据
+- **附件管理**: 上传附件、批量上传、预览下载、管理附件
+- **用户管理**: 学生信息 CRUD、教师信息管理、搜索筛选、批量操作
+- **搜索功能**: 高级搜索活动、申请、参与者、附件
 - **个人资料**: 用户信息管理、密码修改
 
 ### 🎨 用户体验
@@ -111,7 +113,7 @@ src/
 - 用户名/密码登录
 - 表单验证
 - 错误提示
-- 记住登录状态
+- JWT token 管理
 
 ### 注册页面 (`/register`)
 
@@ -124,40 +126,59 @@ src/
 
 - 系统统计概览
 - 用户统计卡片
+- 活动统计
 - 申请统计
 - 最近活动
 - 快速操作
 
+### 活动管理 (`/activities`)
+
+- 活动列表展示（支持分页）
+- 状态筛选（draft/pending_review/approved/rejected）
+- 类别筛选
+- 搜索功能
+- 创建活动（支持模板）
+- 编辑活动（仅草稿状态）
+- 提交审核
+- 撤回活动
+- 审核活动（教师/管理员）
+- 批量操作（批量创建、更新、删除）
+- 导入导出（CSV/Excel）
+- 活动详情查看
+
+### 活动详情 (`/activities/:id`)
+
+- 活动基本信息展示
+- 参与者管理
+- 附件管理
+- 审核操作（教师/管理员）
+- 活动统计
+
 ### 申请管理 (`/applications`)
 
-- 申请列表展示
-- 状态筛选（pending/approved/rejected）
+- 申请列表展示（学生只看自己的，教师/管理员看全部）
+- 状态筛选
 - 搜索功能
 - 申请详情查看
-- 文件上传下载
-- 审核功能（教师/管理员）
-
-### 事务管理 (`/affairs`)
-
-- 事务类型列表
-- 分类筛选
-- 状态管理
-- 统计信息
-- CRUD 操作
+- 申请统计
+- 导出申请数据
 
 ### 学生管理 (`/students`)
 
-- 学生信息列表
-- 搜索和筛选
+- 学生信息列表（支持分页）
+- 搜索和筛选（按姓名、用户名、学号、学部、专业等）
 - 信息编辑
-- 批量操作
+- 批量操作（批量删除、批量更新状态）
+- 学生统计
 
 ### 教师管理 (`/teachers`)
 
-- 教师信息列表
+- 教师信息列表（支持分页）
+- 搜索和筛选
 - 部门管理
 - 职称管理
 - 状态管理
+- 教师统计
 
 ## API 集成
 
@@ -167,42 +188,81 @@ src/
 - `POST /api/auth/logout` - 用户登出
 - `POST /api/users/register` - 用户注册
 
+### 活动管理
+
+- `GET /api/activities` - 获取活动列表（支持分页、搜索、筛选）
+- `POST /api/activities` - 创建活动
+- `GET /api/activities/:id` - 获取活动详情
+- `PUT /api/activities/:id` - 更新活动
+- `DELETE /api/activities/:id` - 删除活动
+- `POST /api/activities/:id/submit` - 提交活动审核
+- `POST /api/activities/:id/withdraw` - 撤回活动
+- `POST /api/activities/:id/review` - 审核活动
+- `POST /api/activities/:id/copy` - 复制活动
+- `GET /api/activities/categories` - 获取活动类别
+- `GET /api/activities/templates` - 获取活动模板
+
+### 参与者管理
+
+- `GET /api/activities/:id/participants` - 获取参与者列表
+- `POST /api/activities/:id/participants` - 添加参与者
+- `PUT /api/activities/:id/participants/:uuid/credits` - 设置单个学分
+- `PUT /api/activities/:id/participants/batch-credits` - 批量设置学分
+- `DELETE /api/activities/:id/participants/:uuid` - 删除参与者
+- `POST /api/activities/:id/participants/batch-remove` - 批量删除参与者
+- `POST /api/activities/:id/leave` - 退出活动（仅学生）
+- `GET /api/activities/:id/participants/stats` - 获取参与者统计
+- `GET /api/activities/:id/participants/export` - 导出参与者列表
+
 ### 申请管理
 
-- `GET /api/applications` - 获取申请列表
-- `POST /api/applications` - 创建申请
-- `PUT /api/applications/:id/status` - 更新申请状态
-- `POST /api/applications/:id/files` - 上传文件
+- `GET /api/applications` - 获取用户申请列表
+- `GET /api/applications/:id` - 获取申请详情
+- `GET /api/applications/all` - 获取所有申请（教师/管理员）
+- `GET /api/applications/stats` - 获取申请统计
+- `GET /api/applications/export` - 导出申请数据
 
-### 事务管理
+### 附件管理
 
-- `GET /api/affairs` - 获取事务列表
-- `POST /api/affairs` - 创建事务
-- `PUT /api/affairs/:id` - 更新事务
-- `DELETE /api/affairs/:id` - 删除事务
+- `GET /api/activities/:id/attachments` - 获取附件列表
+- `POST /api/activities/:id/attachments` - 上传附件
+- `POST /api/activities/:id/attachments/batch` - 批量上传附件
+- `GET /api/activities/:id/attachments/:attachment_id/download` - 下载附件
+- `GET /api/activities/:id/attachments/:attachment_id/preview` - 预览附件
+- `PUT /api/activities/:id/attachments/:attachment_id` - 更新附件信息
+- `DELETE /api/activities/:id/attachments/:attachment_id` - 删除附件
 
 ## 权限系统
 
 ### 学生权限
 
+- 创建和编辑自己的活动
+- 提交和撤回活动审核
 - 查看自己的申请
-- 提交新申请
-- 上传文件
+- 导出自己的申请数据
+- 参与活动（通过被添加）
+- 退出活动
+- 上传附件（仅在自己创建的活动）
 - 查看个人资料
 
 ### 教师权限
 
+- 学生所有权限
+- 审核所有活动
 - 查看所有申请
-- 审核申请
-- 查看学生信息
-- 管理事务
+- 导出所有申请数据
+- 管理学生信息
+- 批量操作活动
+- 导入导出活动
 
 ### 管理员权限
 
-- 所有权限
+- 教师所有权限
+- 删除活动
+- 管理教师信息
 - 用户管理
 - 系统配置
-- 数据统计
+- 完整的数据统计
 
 ## 开发指南
 
@@ -314,7 +374,3 @@ DEBUG=* pnpm dev
 2. 创建功能分支
 3. 提交更改
 4. 创建 Pull Request
-
-## 许可证
-
-MIT License

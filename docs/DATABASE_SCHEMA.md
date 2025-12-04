@@ -70,10 +70,11 @@ credit_activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(200) NOT NULL,
     description TEXT,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
     status VARCHAR(20) NOT NULL DEFAULT 'draft',
     category VARCHAR(100) NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 扩展字段，存储活动类型特定信息
     owner_id UUID NOT NULL,
     reviewer_id UUID,
     review_comments TEXT,
@@ -87,9 +88,11 @@ credit_activities (
 **约束条件**:
 
 - `title`: 不能为空字符串
-- `end_date`: 必须大于等于 `start_date`
+- `end_date`: 必须大于等于 `start_date`（由应用层验证）
 - `status`: 只能是 'draft', 'pending_review', 'approved', 'rejected'
-- `category`: 不能为空字符串
+- `category`: 不能为空字符串，必须在预定义的类别列表中
+- `details`: JSONB 字段，存储不同活动类型的扩展信息，由应用层根据 category 决定结构
+- 外键约束: `owner_id` 和 `reviewer_id` 引用 `users(id)`
 
 ### 3. 活动参与者表 (activity_participants)
 
@@ -101,7 +104,7 @@ credit_activities (
 activity_participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    id UUID NOT NULL,
+    user_id UUID NOT NULL,  -- 注意：字段名是user_id，存储用户UUID
     credits DECIMAL(5,2) NOT NULL DEFAULT 0,
     joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -112,12 +115,14 @@ activity_participants (
 
 **约束条件**:
 
-- `credits`: 必须大于等于 0
-- 唯一约束: `(activity_id, id)` 在未删除状态下唯一
+- `credits`: 必须大于等于 0 且小于等于 10
+- 外键约束: `activity_id` 引用 `credit_activities(id)`，级联删除
+- 唯一约束: `(activity_id, user_id)` 在未删除状态下唯一
+- 参与者限制: 只有学生用户可以作为参与者（由应用层验证）
 
 ### 4. 申请表 (applications)
 
-**表描述**: 记录学生申请学分的情况
+**表描述**: 记录学生申请学分的情况（自动生成，无需手动创建）
 
 **字段定义**:
 
@@ -125,7 +130,7 @@ activity_participants (
 applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL,
-    id UUID NOT NULL,
+    user_id UUID NOT NULL,  -- 注意：字段名是user_id，存储用户UUID
     status VARCHAR(20) NOT NULL DEFAULT 'approved',
     applied_credits DECIMAL(5,2) NOT NULL,
     awarded_credits DECIMAL(5,2) NOT NULL,
@@ -138,9 +143,11 @@ applications (
 
 **约束条件**:
 
-- `status`: 只能是 'approved'
-- `applied_credits`, `awarded_credits`: 必须大于等于 0
-- 唯一约束: `(activity_id, id)`
+- `status`: 固定为 'approved'（自动生成时设置）
+- `applied_credits`, `awarded_credits`: 必须大于等于 0，通常相等
+- 外键约束: `activity_id` 引用 `credit_activities(id)`，级联删除
+- 唯一约束: `(activity_id, user_id)` 在未删除状态下唯一
+- **自动生成**: 申请记录由系统在活动审核通过时自动创建，无需手动提交
 
 ### 5. 附件表 (attachments)
 
@@ -239,9 +246,34 @@ credit_activities (1) ←→ (N) attachments
 - `idx_attachments_md5_hash`: MD5 哈希索引
 - `idx_attachments_deleted_at`: 删除时间索引
 
-## 触发器与存储过程
+## 应用层自动化逻辑
 
-历史版本依赖的触发器（时间戳更新、用户格式校验、活动审批联动申请、附件清理等）以及存储过程（包括 `delete_activity_with_permission_check`、`batch_delete_activities`、`restore_deleted_activity` 等）已全部下移到微服务层实现。数据库现在只保留必要的约束、索引和视图，所有业务规则、数据校验以及文件清理均由后端代码负责，便于统一控制和扩展。
+**重要说明**：系统已移除数据库触发器和存储过程，所有业务逻辑在应用层实现。
+
+### 申请自动生成
+
+- **实现位置**: `credit-activity-service/handlers/activity_side_effects.go`
+- **触发时机**: 活动状态从非 `approved` 变为 `approved` 时
+- **逻辑说明**: 自动为活动的所有参与者创建申请记录，申请的学分继承参与者的学分设置
+
+### 申请自动删除
+
+- **实现位置**: `credit-activity-service/handlers/activity_side_effects.go`
+- **触发时机**: 活动从 `approved` 状态变为其他状态时
+- **逻辑说明**: 自动软删除该活动的所有相关申请，保持数据一致性
+
+### 文件清理
+
+- **实现位置**: `credit-activity-service/handlers/activity_side_effects.go`
+- **触发时机**: 活动删除时
+- **逻辑说明**: 检测并清理孤立的附件文件（基于 MD5 哈希），如果文件未被其他附件引用则删除物理文件
+
+### 时间戳自动更新
+
+- **实现方式**: 使用 GORM 的 `autoCreateTime` 和 `autoUpdateTime` 标签
+- **说明**: 自动维护 `created_at` 和 `updated_at` 字段
+
+数据库现在只保留必要的约束、索引和视图，所有业务规则、数据校验以及文件清理均由后端代码负责，便于统一控制、调试和扩展。
 
 ## 视图设计
 

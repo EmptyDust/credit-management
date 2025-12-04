@@ -54,7 +54,78 @@ docker run -d \
 
 ## API 文档
 
-详细的 API 文档请参考：[API_DOCS/user-service-API.md](../API_DOCS/user-service-API.md)
+### 用户管理 API
+
+#### 基础操作（所有认证用户）
+
+```http
+GET    /api/users/profile          # 获取当前用户信息
+PUT    /api/users/profile          # 更新当前用户信息
+GET    /api/users/{id}             # 获取指定用户详情
+GET    /api/users/stats            # 获取用户统计信息
+POST   /api/users/change_password  # 用户自助修改密码
+GET    /api/users/activity         # 获取当前用户活动记录（预留）
+GET    /api/users/{id}/activity    # 获取指定用户活动记录（预留）
+```
+
+#### 管理员专用操作
+
+```http
+POST   /api/users/teachers                    # 创建教师账户
+POST   /api/users/students                    # 创建学生账户
+PUT    /api/users/{id}                        # 更新用户信息
+DELETE /api/users/{id}                        # 删除用户（软删除）
+POST   /api/users/batch_delete                # 批量删除用户
+POST   /api/users/batch_status                # 批量更新用户状态
+POST   /api/users/reset_password              # 重置用户密码
+GET    /api/users/export                      # 导出用户数据（支持JSON/CSV）
+POST   /api/users/import-csv                  # CSV批量导入用户
+GET    /api/users/csv-template                # 下载CSV导入模板
+POST   /api/users/import                      # Excel批量导入用户（预留）
+GET    /api/users/excel-template              # 下载Excel导入模板（预留）
+```
+
+#### 教师/管理员专用
+
+```http
+GET    /api/users/stats/students              # 获取学生统计信息
+GET    /api/users/stats/teachers              # 获取教师统计信息
+```
+
+### 学生管理 API
+
+```http
+POST   /api/students/register                 # 学生自助注册（无需认证）
+POST   /api/students                          # 管理员创建学生账户
+PUT    /api/students/{id}                     # 更新学生信息
+DELETE /api/students/{id}                     # 删除学生账户
+GET    /api/students                          # 获取学生列表（教师/管理员）
+GET    /api/students/{id}                     # 获取学生详情
+GET    /api/students/stats                    # 获取学生统计
+```
+
+### 教师管理 API
+
+```http
+POST   /api/teachers                          # 创建教师账户（仅管理员）
+PUT    /api/teachers/{id}                     # 更新教师信息（仅管理员）
+DELETE /api/teachers/{id}                     # 删除教师账户（仅管理员）
+GET    /api/teachers                          # 获取教师列表（仅管理员）
+GET    /api/teachers/{id}                     # 获取教师详情
+GET    /api/teachers/stats                    # 获取教师统计
+```
+
+### 搜索功能
+
+```http
+GET    /api/search/users                      # 搜索用户（支持姓名、用户名、学号等）
+```
+
+### 配置选项
+
+```http
+GET    /api/config/options                    # 获取系统配置选项（无需认证）
+```
 
 ## 环境变量
 
@@ -74,10 +145,6 @@ docker run -d \
 ```
 GET /health
 ```
-
-## 许可证
-
-MIT
 
 ## 新增用户管理 API（后端已实现，前端尚未实现）
 

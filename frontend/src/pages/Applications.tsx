@@ -63,7 +63,8 @@ interface Application {
   user_id?: string; // 用户ID，用于查询用户信息
   user_info?: {
     username: string;
-    name: string;
+    name?: string;
+    real_name?: string;
     student_id?: string;
     college?: string;
     major?: string;
@@ -213,7 +214,7 @@ export default function ApplicationsPage() {
           affair_id: app.activity_id,
           affair_name: app.activity?.title || app.affair_name,
           student_number: app.user_info?.student_id || app.student_number || "",
-          student_name: app.user_info?.name || app.student_name || "",
+          student_name: app.user_info?.real_name || app.user_info?.name || app.student_name || "",
           submission_time: app.submitted_at || app.submission_time,
           status: app.status,
           reviewer_id: app.reviewer_id,
@@ -310,6 +311,7 @@ export default function ApplicationsPage() {
     const searchLower = searchTerm.toLowerCase();
 
     // 搜索申请人姓名
+    if (app.user_info?.real_name?.toLowerCase().includes(searchLower)) return true;
     if (app.user_info?.name?.toLowerCase().includes(searchLower)) return true;
     if (app.student_name?.toLowerCase().includes(searchLower)) return true;
 
@@ -509,9 +511,10 @@ export default function ApplicationsPage() {
                           </div>
                           <div>
                             <div className="font-medium">
-                              {app.user_info?.name ||
+                              {app.user_info?.real_name ||
+                                app.user_info?.name ||
                                 app.student_name ||
-                                (app.user_info?.username ? `用户 ${app.user_info.username}` : "未知用户")}
+                                "未知用户"}
                             </div>
                             {(app.user_info?.student_id || app.student_number || app.user_info?.username) ? (
                               <div className="text-sm text-muted-foreground">
@@ -623,9 +626,11 @@ export default function ApplicationsPage() {
                 <div>
                   <label className="text-sm font-medium">申请人</label>
                   <p className="text-sm text-muted-foreground">
-                    {selectedApp.user_info?.name ||
+                    {selectedApp.user_info?.real_name ||
+                      selectedApp.user_info?.name ||
                       selectedApp.student_name ||
-                      selectedApp.student_number}
+                      selectedApp.student_number ||
+                      "未知用户"}
                   </p>
                 </div>
                 <div>

@@ -746,9 +746,10 @@ export default function ActivityParticipants({
                       }}
                       onKeyDown={(e) => {
                         // 按 Enter 键立即搜索
-                        if (e.key === "Enter" && userSearchQuery.trim()) {
+                        const currentValue = e.currentTarget.value;
+                        if (e.key === "Enter" && currentValue.trim()) {
                           e.preventDefault();
-                          searchUsers(userSearchQuery);
+                          searchUsers(currentValue);
                         }
                       }}
                       className="w-64"

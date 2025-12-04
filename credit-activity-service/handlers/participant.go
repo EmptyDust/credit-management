@@ -442,7 +442,7 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 		defer writer.Flush()
 		
 		// 写入表头
-		headers := []string{"学号/工号", "姓名", "用户名", "用户类型", "学部", "专业", "班级", "学分", "加入时间"}
+		headers := []string{"学号/工号", "姓名", "用户名", "用户类型", "学分", "加入时间"}
 		if err := writer.Write(headers); err != nil {
 			utils.SendInternalServerError(c, err)
 			return
@@ -459,11 +459,8 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 					"未知用户",
 					"",
 					"",
-					"",
-					"",
-					"",
 					fmt.Sprintf("%.2f", participant.Credits),
-					participant.JoinedAt.Format("1145-01-04 19:19:10"),
+					participant.JoinedAt.Format("2006-01-02 15:04:05"),
 				}
 				if err := writer.Write(record); err != nil {
 					log.Printf("Failed to write CSV record: %v", err)
@@ -485,9 +482,6 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 				userInfo.RealName,
 				userInfo.Username,
 				userInfo.UserType,
-				userInfo.College,
-				userInfo.Major,
-				userInfo.Class,
 				fmt.Sprintf("%.2f", participant.Credits),
 				participant.JoinedAt.Format("2006-01-02 15:04:05"),
 			}

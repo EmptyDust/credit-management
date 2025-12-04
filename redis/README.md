@@ -2,14 +2,17 @@
 
 ## 概述
 
-本项目使用Redis作为缓存和会话存储，主要用于：
-- JWT Token黑名单管理
-- 用户会话缓存
-- 系统数据缓存
+本项目使用 Redis 作为缓存和会话存储，主要用于：
+
+- **JWT Token 黑名单管理** - 存储已撤销的 JWT token，实现登出功能
+- **用户会话缓存** - 存储用户会话信息（可选）
+- **系统数据缓存** - 缓存常用数据（预留功能）
+
+**实际使用情况**：目前 Redis 主要由 `auth-service` 使用，用于 JWT token 黑名单管理。
 
 ## 快速开始
 
-### 1. 启动Redis服务
+### 1. 启动 Redis 服务
 
 ```bash
 # 使用Docker Compose启动
@@ -19,7 +22,7 @@ docker-compose up -d redis
 ./redis/start-redis.sh
 ```
 
-### 2. 连接Redis
+### 2. 连接 Redis
 
 ```bash
 # 使用Docker命令
@@ -53,7 +56,7 @@ FLUSHALL
 
 ## 配置说明
 
-### Redis配置文件 (redis.conf)
+### Redis 配置文件 (redis.conf)
 
 - **端口**: 6379
 - **内存限制**: 256MB
@@ -70,9 +73,9 @@ REDIS_PASSWORD=          # Redis密码（可选）
 
 ## 功能模块
 
-### 1. JWT Token黑名单
+### 1. JWT Token 黑名单
 
-用于管理已撤销的JWT token：
+用于管理已撤销的 JWT token：
 
 ```bash
 # 查看黑名单中的token
@@ -108,7 +111,7 @@ GET cache:key-name
 
 ## 监控和维护
 
-### 1. 查看Redis状态
+### 1. 查看 Redis 状态
 
 ```bash
 # 查看Redis信息
@@ -184,37 +187,64 @@ MONITOR
 
 ## 安全建议
 
-1. **设置强密码**: 在生产环境中设置Redis密码
-2. **网络隔离**: 限制Redis只接受内部网络连接
-3. **定期备份**: 定期备份Redis数据
+1. **设置强密码**: 在生产环境中设置 Redis 密码
+2. **网络隔离**: 限制 Redis 只接受内部网络连接
+3. **定期备份**: 定期备份 Redis 数据
 4. **监控告警**: 设置内存使用和连接数监控
-5. **访问控制**: 限制Redis访问权限
+5. **访问控制**: 限制 Redis 访问权限
 
 ## 开发集成
 
-### Go代码中使用Redis
+### Go 代码中使用 Redis
+
+在 `auth-service` 中使用 Redis 客户端：
 
 ```go
-// 创建Redis客户端
-redisClient := utils.NewRedisClient("localhost:6379", "", 0)
+import "credit-management/auth-service/utils"
 
-// 添加到黑名单
+// 创建 Redis 客户端
+redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+redisClient := utils.NewRedisClient(redisAddr, redisPassword, 0)
+if redisClient == nil {
+    log.Fatal("Failed to connect to Redis")
+}
+defer redisClient.Close()
+
+// 添加到黑名单（登出时）
+ctx := context.Background()
+expiration := 24 * time.Hour // token 过期时间
 err := redisClient.AddToBlacklist(ctx, token, expiration)
 
-// 检查黑名单
+// 检查黑名单（验证 token 时）
 blacklisted, err := redisClient.IsBlacklisted(ctx, token)
+if blacklisted {
+    // token 已被撤销
+}
 
-// 设置缓存
-err := redisClient.SetCache(ctx, "key", "value", time.Hour)
+// 设置用户会话（可选）
+sessionData := map[string]interface{}{
+    "user_id": userID,
+    "username": username,
+}
+err := redisClient.SetUserSession(ctx, userID, sessionData, time.Hour)
 
-// 获取缓存
-value, err := redisClient.GetCache(ctx, "key")
+// 获取用户会话（可选）
+session, err := redisClient.GetUserSession(ctx, userID)
+
+// 删除用户会话（登出时）
+err := redisClient.DeleteUserSession(ctx, userID)
+
+// 设置缓存（预留功能）
+err := redisClient.SetCache(ctx, "cache:key", "value", time.Hour)
+
+// 获取缓存（预留功能）
+value, err := redisClient.GetCache(ctx, "cache:key")
 ```
 
 ## 生产环境部署
 
-1. **高可用**: 使用Redis Sentinel或Redis Cluster
-2. **持久化**: 确保RDB和AOF配置正确
-3. **监控**: 集成监控系统（如Prometheus + Grafana）
+1. **高可用**: 使用 Redis Sentinel 或 Redis Cluster
+2. **持久化**: 确保 RDB 和 AOF 配置正确
+3. **监控**: 集成监控系统（如 Prometheus + Grafana）
 4. **备份**: 设置自动备份策略
-5. **安全**: 启用密码认证和网络隔离 
+5. **安全**: 启用密码认证和网络隔离

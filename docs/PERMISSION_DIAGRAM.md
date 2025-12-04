@@ -50,13 +50,15 @@ graph TD
     subgraph "教师权限"
         TeacherPerms --> ManageStudents[管理学生]
         TeacherPerms --> CreateActivities[创建活动]
-        TeacherPerms --> ReviewApplications[审核申请]
+        TeacherPerms --> ReviewActivities[审核活动]
         TeacherPerms --> ManageParticipants[管理参与者]
+        TeacherPerms --> ViewAllApplications[查看所有申请]
     end
 
     subgraph "学生权限"
         StudentPerms --> ViewProfile[查看个人信息]
-        StudentPerms --> SubmitApplications[提交申请]
+        StudentPerms --> CreateActivities[创建活动]
+        StudentPerms --> ViewOwnApplications[查看自己的申请]
         StudentPerms --> LeaveActivity[离开活动]
         StudentPerms --> ViewActivities[查看活动]
     end

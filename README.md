@@ -6,7 +6,6 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7.2+-red.svg)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 > 一个现代化的学分活动管理平台，采用微服务架构设计，支持学生和教师创建、管理学分活动，实现自动化的申请生成和学分分配。系统包含完整的权限控制、文件管理、数据统计等功能。
 
@@ -138,11 +137,13 @@ docker-compose logs -f
 
 ### 🎯 活动管理
 
-- **创建活动** - 学生和教师都可以创建学分活动
+- **创建活动** - 学生和教师都可以创建学分活动（草稿状态）
 - **状态管理** - 草稿 → 待审核 → 通过/拒绝的完整流程
-- **参与者管理** - 灵活的参与者添加和学分分配
-- **撤回机制** - 支持活动撤回和重新提交
-- **批量操作** - 支持批量导入导出活动数据
+- **参与者管理** - 灵活的参与者添加和学分分配（仅限学生用户）
+- **撤回机制** - 支持从待审核状态撤回活动到草稿状态
+- **批量操作** - 支持批量创建、更新、删除、导入导出活动数据
+- **活动复制** - 支持复制现有活动创建新活动
+- **模板功能** - 支持保存活动为模板，快速创建相似活动
 
 ### 👥 用户管理
 
@@ -153,10 +154,10 @@ docker-compose logs -f
 
 ### 📊 申请系统
 
-- **自动生成** - 活动通过后自动生成申请
-- **批量处理** - 支持批量学分设置
-- **数据导出** - 灵活的申请数据导出功能
-- **状态跟踪** - 完整的申请状态跟踪
+- **自动生成** - 活动审核通过后，自动为所有参与者生成申请记录（状态为 approved）
+- **批量处理** - 支持批量学分设置和批量删除参与者
+- **数据导出** - 灵活的申请数据导出功能（学生仅导出自己的，教师/管理员可导出全部）
+- **状态跟踪** - 申请状态固定为 approved（自动生成），支持查看申请详情和统计信息
 
 ### 📁 文件管理
 
@@ -200,34 +201,90 @@ GET  /api/users/stats         # 获取用户统计
 ### 活动管理
 
 ```http
-POST /api/activities                    # 创建活动
-GET  /api/activities                    # 获取活动列表
-GET  /api/activities/{id}               # 获取活动详情
-PUT  /api/activities/{id}               # 更新活动
+# 基础操作（所有认证用户）
+POST   /api/activities                  # 创建活动
+GET    /api/activities                  # 获取活动列表（支持分页、搜索、筛选）
+GET    /api/activities/{id}             # 获取活动详情
+PUT    /api/activities/{id}             # 更新活动（仅草稿状态）
+POST   /api/activities/{id}/submit      # 提交活动审核（仅草稿状态）
+POST   /api/activities/{id}/withdraw    # 撤回活动（仅待审核状态）
+POST   /api/activities/{id}/copy        # 复制活动
+GET    /api/activities/categories       # 获取活动类别列表
+GET    /api/activities/templates        # 获取活动模板列表
+GET    /api/activities/stats            # 获取活动统计信息
+
+# 教师/管理员专用
+POST   /api/activities/{id}/review      # 审核活动（通过/拒绝）
+GET    /api/activities/pending          # 获取待审核活动列表
+POST   /api/activities/batch            # 批量创建活动
+PUT    /api/activities/batch            # 批量更新活动
+POST   /api/activities/batch-delete     # 批量删除活动
+POST   /api/activities/import           # 批量导入活动（CSV/Excel）
+GET    /api/activities/csv-template     # 下载CSV导入模板
+GET    /api/activities/excel-template   # 下载Excel导入模板
+GET    /api/activities/export           # 导出活动数据
+GET    /api/activities/report           # 获取活动报告
+
+# 删除活动（精细权限控制：创建者/教师/管理员）
 DELETE /api/activities/{id}             # 删除活动
-POST /api/activities/{id}/submit        # 提交活动审核
-POST /api/activities/{id}/withdraw      # 撤回活动
-POST /api/activities/{id}/review        # 审核活动
-POST /api/activities/import             # 批量导入活动
-GET  /api/activities/export             # 导出活动数据
+```
+
+### 参与者管理
+
+```http
+# 基础查询（所有认证用户）
+GET    /api/activities/{id}/participants              # 获取参与者列表（支持分页）
+GET    /api/activities/{id}/participants/stats        # 获取参与者统计
+GET    /api/activities/{id}/participants/export       # 导出参与者列表
+GET    /api/activities/{id}/my-activities             # 获取用户参与的活动
+
+# 参与者管理（活动创建者/教师/管理员）
+POST   /api/activities/{id}/participants              # 添加参与者（仅限学生）
+PUT    /api/activities/{id}/participants/batch-credits # 批量设置学分
+PUT    /api/activities/{id}/participants/{uuid}/credits # 设置单个学分
+DELETE /api/activities/{id}/participants/{uuid}       # 删除参与者
+POST   /api/activities/{id}/participants/batch-remove # 批量删除参与者
+
+# 学生专用
+POST   /api/activities/{id}/leave                     # 退出活动（仅学生）
 ```
 
 ### 申请管理
 
 ```http
-GET  /api/applications                  # 获取申请列表
-GET  /api/applications/{id}             # 获取申请详情
-GET  /api/applications/stats            # 获取申请统计
-GET  /api/applications/export           # 导出申请数据
+# 基础操作（所有认证用户）
+GET    /api/applications                # 获取用户申请列表（学生只看自己的）
+GET    /api/applications/{id}           # 获取申请详情
+GET    /api/applications/stats          # 获取申请统计
+GET    /api/applications/export         # 导出申请数据（学生仅导出自己的）
+
+# 教师/管理员专用
+GET    /api/applications/all            # 获取所有申请列表
 ```
 
-### 文件管理
+### 附件管理
 
 ```http
-POST /api/attachments                   # 上传文件
-GET  /api/attachments/{id}              # 获取文件信息
-GET  /api/attachments/{id}/download     # 下载文件
-DELETE /api/attachments/{id}            # 删除文件
+# 基础操作（所有认证用户）
+GET    /api/activities/{id}/attachments                    # 获取附件列表
+GET    /api/activities/{id}/attachments/{attachment_id}/download # 下载附件
+GET    /api/activities/{id}/attachments/{attachment_id}/preview  # 预览附件
+
+# 附件管理（活动创建者/教师/管理员）
+POST   /api/activities/{id}/attachments                    # 上传附件
+POST   /api/activities/{id}/attachments/batch              # 批量上传附件
+PUT    /api/activities/{id}/attachments/{attachment_id}    # 更新附件信息
+DELETE /api/activities/{id}/attachments/{attachment_id}    # 删除附件
+```
+
+### 搜索功能
+
+```http
+# 高级搜索（所有认证用户）
+GET    /api/search/activities           # 搜索活动
+GET    /api/search/applications         # 搜索申请
+GET    /api/search/participants         # 搜索参与者
+GET    /api/search/attachments          # 搜索附件
 ```
 
 ## 🗄️ 数据库设计
@@ -260,34 +317,44 @@ credit_activities (
     id UUID PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     description TEXT,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
     status VARCHAR(20) NOT NULL DEFAULT 'draft',
     category VARCHAR(100) NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 扩展字段，存储活动类型特定信息
     owner_id UUID NOT NULL,
     reviewer_id UUID,
     review_comments TEXT,
-    reviewed_at TIMESTAMPTZ
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
 )
 
 -- 活动参与者表
 activity_participants (
     id UUID PRIMARY KEY,
     activity_id UUID NOT NULL,
-    id UUID NOT NULL,
+    user_id UUID NOT NULL,  -- 注意：字段名是user_id，存储的是用户UUID
     credits DECIMAL(5,2) NOT NULL DEFAULT 0,
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
 )
 
 -- 申请表（自动生成）
 applications (
     id UUID PRIMARY KEY,
     activity_id UUID NOT NULL,
-    id UUID NOT NULL,
+    user_id UUID NOT NULL,  -- 注意：字段名是user_id，存储的是用户UUID
     status VARCHAR(20) NOT NULL DEFAULT 'approved',
     applied_credits DECIMAL(5,2) NOT NULL,
     awarded_credits DECIMAL(5,2) NOT NULL,
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
 )
 
 -- 附件表
@@ -304,11 +371,14 @@ attachments (
 )
 ```
 
-### 自动化触发器
+### 自动化流程
 
-- **申请自动生成** - 活动审核通过后自动为参与者生成申请
-- **申请自动删除** - 活动撤回时自动删除相关申请
-- **数据完整性** - 级联删除和约束检查
+系统通过应用层逻辑（而非数据库触发器）实现自动化：
+
+- **申请自动生成** - 活动审核通过后，在 `activity_side_effects.go` 中自动为所有参与者生成申请记录
+- **申请自动删除** - 活动从已通过状态变为其他状态时，自动软删除相关申请
+- **文件清理** - 活动删除时自动检测并清理孤立的附件文件（基于 MD5 哈希）
+- **数据完整性** - 级联删除和约束检查由数据库外键和 GORM 软删除机制保证
 
 ## 🧪 测试
 
@@ -367,25 +437,29 @@ docker-compose exec postgres pg_dump -U postgres credit_management > backup.sql
 credit-management/
 ├── 📁 api-gateway/              # API 网关服务
 │   ├── main.go
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── README.md
 ├── 📁 auth-service/             # 认证服务
 │   ├── handlers/
 │   ├── models/
 │   ├── utils/
 │   ├── main.go
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── README.md
 ├── 📁 user-service/             # 统一用户服务
 │   ├── handlers/
 │   ├── models/
 │   ├── utils/
 │   ├── main.go
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── README.md
 ├── 📁 credit-activity-service/  # 学分活动服务
 │   ├── handlers/
 │   ├── models/
 │   ├── utils/
 │   ├── main.go
-│   └── Dockerfile
+│   ├── Dockerfile
+│   └── README.md
 ├── 📁 frontend/                 # React 前端应用
 │   ├── src/
 │   │   ├── components/
@@ -403,7 +477,8 @@ credit-management/
 ├── 📁 docs/                     # 项目文档
 │   ├── DATABASE_SCHEMA.md
 │   ├── PERMISSION_CONTROL_DIAGRAM.md
-│   └── STORED_PROCEDURE_USAGE_GUIDE.md
+│   ├── PERMISSION_DIAGRAM.md
+│   └── credit-activity-service-design.md
 ├── 📁 redis/                    # Redis 配置
 │   ├── redis.conf
 │   └── start-redis.sh
@@ -431,20 +506,27 @@ credit-management/
 
 ### 用户角色
 
-- **学生 (student)** - 可以创建活动、参与活动、查看自己的申请
-- **教师 (teacher)** - 可以创建活动、审核活动、管理参与者
-- **管理员 (admin)** - 拥有所有权限，包括用户管理、系统配置
+- **学生 (student)** - 可以创建活动、参与活动、查看自己的申请、退出活动
+- **教师 (teacher)** - 可以创建活动、审核活动、管理参与者、查看所有申请
+- **管理员 (admin)** - 拥有所有权限，包括用户管理、活动管理、系统配置
 
 ### 权限矩阵
 
-| 功能     | 学生   | 教师 | 管理员 |
-| -------- | ------ | ---- | ------ |
-| 创建活动 | ✅     | ✅   | ✅     |
-| 编辑活动 | 自己的 | ✅   | ✅     |
-| 删除活动 | 自己的 | ✅   | ✅     |
-| 审核活动 | ❌     | ✅   | ✅     |
-| 用户管理 | ❌     | ❌   | ✅     |
-| 系统配置 | ❌     | ❌   | ✅     |
+| 功能         | 学生   | 教师 | 管理员 | 说明                           |
+| ------------ | ------ | ---- | ------ | ------------------------------ |
+| 创建活动     | ✅     | ✅   | ✅     | 所有人可创建                   |
+| 编辑活动     | 自己的 | ✅   | ✅     | 仅草稿状态可编辑               |
+| 删除活动     | 自己的 | ✅   | ✅     | 精细权限控制                   |
+| 提交审核     | 自己的 | ✅   | ✅     | 仅草稿状态可提交               |
+| 撤回活动     | 自己的 | ✅   | ✅     | 仅待审核状态可撤回             |
+| 审核活动     | ❌     | ✅   | ✅     | 仅教师和管理员                 |
+| 添加参与者   | 自己的 | ✅   | ✅     | 仅限添加学生用户               |
+| 设置学分     | 自己的 | ✅   | ✅     | 支持单个和批量设置             |
+| 退出活动     | ✅     | ❌   | ❌     | 仅学生可退出                   |
+| 查看所有申请 | ❌     | ✅   | ✅     | 学生仅查看自己的               |
+| 批量操作     | ❌     | ✅   | ✅     | 批量创建、更新、删除、导入导出 |
+| 用户管理     | ❌     | ❌   | ✅     | 仅管理员                       |
+| 系统配置     | ❌     | ❌   | ✅     | 仅管理员                       |
 
 ## 🤝 贡献指南
 
@@ -464,15 +546,11 @@ credit-management/
 - 编写完整的测试用例
 - 更新相关文档
 
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
 ## 📞 联系我们
 
 - 🐛 **问题反馈**: [GitHub Issues](https://github.com/EmptyDust/credit-management/issues)
 - 💬 **讨论交流**: [GitHub Discussions](https://github.com/EmptyDust/credit-management/discussions)
-- 📧 **邮件联系**: baiyuxiu@emptydust.com
+- 📧 **邮件联系**: fenglingyexing@gmail.com
 
 ## 🙏 致谢
 
