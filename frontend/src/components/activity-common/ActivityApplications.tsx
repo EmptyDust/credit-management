@@ -66,6 +66,7 @@ export default function ActivityApplications({
   const [applications, setApplications] = useState<Application[]>([]);
   const [, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedApplication, setSelectedApplication] =
@@ -171,28 +172,39 @@ export default function ActivityApplications({
     }
   };
 
+  // 防抖搜索：只在用户停止输入后更新搜索状态
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
+
   // 过滤申请
   const filteredApplications = applications.filter((application) => {
     const matchesSearch =
-      !searchQuery ||
+      !debouncedSearchQuery ||
       application.user_info?.name
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
+        .includes(debouncedSearchQuery.toLowerCase()) ||
       application.user_info?.student_id
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
+        .includes(debouncedSearchQuery.toLowerCase()) ||
       application.user_info?.username
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
+        .includes(debouncedSearchQuery.toLowerCase()) ||
       application.user_info?.college
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
+        .includes(debouncedSearchQuery.toLowerCase()) ||
       application.user_info?.major
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
+        .includes(debouncedSearchQuery.toLowerCase()) ||
       application.user_info?.class
         ?.toLowerCase()
-        .includes(searchQuery.toLowerCase());
+        .includes(debouncedSearchQuery.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || application.status === statusFilter;

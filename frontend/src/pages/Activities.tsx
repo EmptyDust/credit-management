@@ -611,7 +611,9 @@ export default function ActivitiesPage() {
                     >
                       <TableCell>
                         <div>
-                          <div className="font-medium">{activity.title}</div>
+                          <div className="font-medium max-w-md truncate" title={activity.title}>
+                            {activity.title}
+                          </div>
                           <div className="text-sm text-muted-foreground max-w-xs truncate">
                             {activity.description || "暂无描述"}
                           </div>

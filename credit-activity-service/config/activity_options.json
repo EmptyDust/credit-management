@@ -23,8 +23,7 @@
       { "name": "role", "label": "角色", "type": "select", "required": true, "options": [
         { "value": "负责人", "label": "负责人" }, { "value": "核心成员", "label": "核心成员" }, { "value": "成员", "label": "成员" }
       ], "filterable": true },
-      { "name": "outcome", "label": "成果描述", "type": "text", "required": false, "maxLength": 200 },
-      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+      { "name": "outcome", "label": "成果描述", "type": "text", "required": false, "maxLength": 200 }
     ],
     "学科竞赛": [
       { "name": "competition", "label": "竞赛名称", "type": "text", "required": true, "maxLength": 100 },
@@ -44,8 +43,7 @@
       { "name": "role", "label": "角色", "type": "select", "required": true, "options": [
         { "value": "负责人", "label": "负责人" }, { "value": "核心成员", "label": "核心成员" }, { "value": "成员", "label": "成员" }
       ], "filterable": true },
-      { "name": "funding", "label": "经费(元)", "type": "number", "required": false, "min": 0 },
-      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+      { "name": "funding", "label": "经费(元)", "type": "number", "required": false, "min": 0 }
     ],
     "创业实践项目": [
       { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
@@ -55,8 +53,7 @@
       { "name": "duration", "label": "时长(小时)", "type": "number", "required": false, "min": 0 },
       { "name": "role", "label": "角色", "type": "select", "required": false, "options": [
         { "value": "负责人", "label": "负责人" }, { "value": "成员", "label": "成员" }
-      ], "filterable": true },
-      { "name": "credits", "label": "拟认定学分", "type": "number", "required": false, "min": 0 }
+      ], "filterable": true }
     ],
     "论文专利": [
       { "name": "name", "label": "名称", "type": "text", "required": true },

@@ -185,10 +185,26 @@ export default function TeachersPage() {
     })();
   }, []);
 
-  // 处理搜索和筛选变化
+  // 防抖搜索：只在用户停止输入后触发搜索
+  useEffect(() => {
+    // 如果搜索框为空，不触发搜索（避免初始化时重复刷新）
+    if (!listPage.searchQuery.trim()) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      listPage.handleSearchAndFilter();
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [listPage.searchQuery]);
+
+  // 筛选条件变化时立即触发（用户主动选择）
   useEffect(() => {
     listPage.handleSearchAndFilter();
-  }, [listPage.searchQuery, listPage.filterValue, listPage.statusFilter]);
+  }, [listPage.filterValue, listPage.statusFilter]);
 
   // 使用hook提供的handleDialogOpen
   const handleDialogOpen = userManagement.handleDialogOpen;

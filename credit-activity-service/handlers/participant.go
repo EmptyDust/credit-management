@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/csv"
+	"fmt"
 	"time"
 
 	"credit-management/credit-activity-service/models"
@@ -376,6 +378,7 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 		TotalParticipants int64   `json:"total_participants"`
 		TotalCredits      float64 `json:"total_credits"`
 		AverageCredits    float64 `json:"average_credits"`
+		RecentParticipants int64  `json:"recent_participants"`
 	}
 
 	h.db.Model(&models.ActivityParticipant{}).Where("activity_id = ?", activityID).Count(&stats.TotalParticipants)
@@ -384,6 +387,12 @@ func (h *ParticipantHandler) GetParticipantStats(c *gin.Context) {
 	if stats.TotalParticipants > 0 {
 		stats.AverageCredits = stats.TotalCredits / float64(stats.TotalParticipants)
 	}
+
+	// 计算最近7天加入的参与者数量
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	h.db.Model(&models.ActivityParticipant{}).
+		Where("activity_id = ? AND created_at >= ?", activityID, sevenDaysAgo).
+		Count(&stats.RecentParticipants)
 
 	utils.SendSuccessResponse(c, stats)
 }
@@ -419,9 +428,75 @@ func (h *ParticipantHandler) ExportParticipants(c *gin.Context) {
 		}
 		utils.SendSuccessResponse(c, responses)
 	case "csv":
-		c.Header("Content-Type", "text/csv")
+		// 设置响应头
+		c.Header("Content-Type", "text/csv; charset=utf-8")
 		c.Header("Content-Disposition", "attachment; filename=participants.csv")
-		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(participants)})
+		
+		// 写入 UTF-8 BOM，避免在 Excel 中出现中文乱码
+		if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		
+		writer := csv.NewWriter(c.Writer)
+		defer writer.Flush()
+		
+		// 写入表头
+		headers := []string{"学号/工号", "姓名", "用户名", "用户类型", "学部", "专业", "班级", "学分", "加入时间"}
+		if err := writer.Write(headers); err != nil {
+			utils.SendInternalServerError(c, err)
+			return
+		}
+		
+		// 获取用户信息并写入数据
+		authToken := c.GetHeader("Authorization")
+		for _, participant := range participants {
+			userInfo, err := h.getUserInfo(participant.UUID, authToken)
+			if err != nil {
+				// 如果无法获取用户信息，使用基本信息
+				record := []string{
+					participant.UUID,
+					"未知用户",
+					"",
+					"",
+					"",
+					"",
+					"",
+					fmt.Sprintf("%.2f", participant.Credits),
+					participant.JoinedAt.Format("1145-01-04 19:19:10"),
+				}
+				if err := writer.Write(record); err != nil {
+					log.Printf("Failed to write CSV record: %v", err)
+					continue
+				}
+				continue
+			}
+			
+			// 确定显示ID（学号或工号）
+			// 优先使用学号/工号，如果都没有才使用UUID
+			displayID := userInfo.StudentID
+			if displayID == "" {
+				// 如果没有学号/工号，使用UUID作为最后的回退
+				displayID = participant.UUID
+			}
+			
+			record := []string{
+				displayID,
+				userInfo.RealName,
+				userInfo.Username,
+				userInfo.UserType,
+				userInfo.College,
+				userInfo.Major,
+				userInfo.Class,
+				fmt.Sprintf("%.2f", participant.Credits),
+				participant.JoinedAt.Format("2006-01-02 15:04:05"),
+			}
+			
+			if err := writer.Write(record); err != nil {
+				log.Printf("Failed to write CSV record: %v", err)
+				continue
+			}
+		}
 	case "excel":
 		c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 		c.Header("Content-Disposition", "attachment; filename=participants.xlsx")

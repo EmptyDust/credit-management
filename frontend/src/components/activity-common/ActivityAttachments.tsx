@@ -57,6 +57,7 @@ export default function ActivityAttachments({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -336,10 +337,21 @@ export default function ActivityAttachments({
     fetchAttachments();
   }, [activity.id]);
 
+  // 防抖搜索：只在用户停止输入后更新搜索状态
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
+
   // 过滤附件
   const filteredAttachments = attachments.filter((attachment) =>
-    attachment.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    attachment.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    attachment.original_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+    attachment.description?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
   );
 
   return (

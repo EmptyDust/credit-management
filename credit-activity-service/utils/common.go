@@ -129,7 +129,6 @@ func searchUserByType(client *http.Client, apiURL string, useInternal bool, inte
 	realName, _ := user["real_name"].(string)
 	userType, _ := user["user_type"].(string)
 	status, _ := user["status"].(string)
-	studentID, _ := user["id"].(string)
 	college, _ := user["college"].(string)
 	major, _ := user["major"].(string)
 	class, _ := user["class"].(string)
@@ -142,6 +141,22 @@ func searchUserByType(client *http.Client, apiURL string, useInternal bool, inte
 			userType = "teacher"
 		} else {
 			userType = "student"
+		}
+	}
+
+	// 根据用户类型获取学号或工号
+	var studentID string
+	if userType == "student" {
+		if sid, ok := user["student_id"].(string); ok && sid != "" {
+			studentID = sid
+		} else if sidPtr, ok := user["student_id"].(*string); ok && sidPtr != nil {
+			studentID = *sidPtr
+		}
+	} else if userType == "teacher" {
+		if tid, ok := user["teacher_id"].(string); ok && tid != "" {
+			studentID = tid // 对于教师，工号也存储在StudentID字段中以便统一处理
+		} else if tidPtr, ok := user["teacher_id"].(*string); ok && tidPtr != nil {
+			studentID = *tidPtr
 		}
 	}
 

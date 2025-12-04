@@ -49,6 +49,23 @@ apiClient.interceptors.response.use(
     if (response) {
       const { status, data } = response;
       
+      // 处理 blob 类型的错误响应（如导出请求返回 401/403 时可能是 JSON 错误）
+      let parsedData = data;
+      if (config.responseType === 'blob' && data instanceof Blob) {
+        try {
+          const text = await data.text();
+          // 尝试解析为 JSON
+          try {
+            parsedData = JSON.parse(text);
+          } catch {
+            // 如果不是 JSON，保持为文本
+            parsedData = { message: text || '请求失败' };
+          }
+        } catch (e) {
+          parsedData = { message: '请求失败' };
+        }
+      }
+      
       switch (status) {
         case 401:
           // Try to refresh token first
@@ -63,6 +80,7 @@ apiClient.interceptors.response.use(
               if (refreshResponse.data.token) {
                 localStorage.setItem('token', refreshResponse.data.token);
                 config.headers.Authorization = `Bearer ${refreshResponse.data.token}`;
+                // 确保重试时保持原有的 responseType
                 return apiClient(config);
               }
             } catch (refreshError) {
@@ -95,16 +113,16 @@ apiClient.interceptors.response.use(
           break;
         case 409:
           // Conflict error - usually username or email already exists
-          const conflictMessage = data?.error || data?.message || '用户名或邮箱已存在';
+          const conflictMessage = parsedData?.error || parsedData?.message || '用户名或邮箱已存在';
           toast.error(conflictMessage);
           break;
         case 422:
           // Validation error
-          if (data.errors && Array.isArray(data.errors)) {
-            const errorMessages = data.errors.map((err: any) => err.message || err.field).join(', ');
+          if (parsedData.errors && Array.isArray(parsedData.errors)) {
+            const errorMessages = parsedData.errors.map((err: any) => err.message || err.field).join(', ');
             toast.error(`数据验证失败: ${errorMessages}`);
           } else {
-            const message = data.message || data.error || '数据验证失败';
+            const message = parsedData.message || parsedData.error || '数据验证失败';
             toast.error(message);
           }
           break;
@@ -115,7 +133,7 @@ apiClient.interceptors.response.use(
           toast.error('服务器内部错误，请稍后再试');
           break;
         default:
-          const message = data?.message || data?.error || '请求失败';
+          const message = parsedData?.message || parsedData?.error || '请求失败';
           toast.error(message);
       }
     } else if (error.request) {

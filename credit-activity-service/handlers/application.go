@@ -50,7 +50,8 @@ func (h *ApplicationHandler) GetUserApplications(c *gin.Context) {
 		return
 	}
 
-	responses := h.buildApplicationResponses(applications, c.GetHeader("Authorization"))
+	// 获取用户信息（学生查看自己的申请，用户信息应该相同）
+	responses := h.buildApplicationResponsesWithUserInfo(applications, c.GetHeader("Authorization"))
 	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
@@ -85,6 +86,12 @@ func (h *ApplicationHandler) GetApplication(c *gin.Context) {
 	}
 
 	response := h.buildApplicationResponse(application, c.GetHeader("Authorization"))
+	// 获取用户信息
+	if userInfo, err := utils.GetUserInfo(application.UUID, c.GetHeader("Authorization")); err == nil {
+		response.UserInfo = userInfo
+	} else {
+		log.Printf("[GetApplication] failed to get user info for user_id=%s: %v", application.UUID, err)
+	}
 	utils.SendSuccessResponse(c, response)
 }
 
@@ -111,7 +118,8 @@ func (h *ApplicationHandler) GetAllApplications(c *gin.Context) {
 		return
 	}
 
-	responses := h.buildApplicationResponses(applications, c.GetHeader("Authorization"))
+	// 获取所有申请的用户信息
+	responses := h.buildApplicationResponsesWithUserInfo(applications, c.GetHeader("Authorization"))
 	utils.SendPaginatedResponse(c, responses, total, page, limit)
 }
 
@@ -142,6 +150,21 @@ func (h *ApplicationHandler) buildApplicationResponses(applications []models.App
 	responses := make([]models.ApplicationResponse, 0, len(applications))
 	for _, app := range applications {
 		responses = append(responses, h.buildApplicationResponse(app, authToken))
+	}
+	return responses
+}
+
+func (h *ApplicationHandler) buildApplicationResponsesWithUserInfo(applications []models.Application, authToken string) []models.ApplicationResponse {
+	responses := make([]models.ApplicationResponse, 0, len(applications))
+	for _, app := range applications {
+		response := h.buildApplicationResponse(app, authToken)
+		// 获取用户信息
+		if userInfo, err := utils.GetUserInfo(app.UUID, authToken); err == nil {
+			response.UserInfo = userInfo
+		} else {
+			log.Printf("[buildApplicationResponsesWithUserInfo] failed to get user info for user_id=%s: %v", app.UUID, err)
+		}
+		responses = append(responses, response)
 	}
 	return responses
 }

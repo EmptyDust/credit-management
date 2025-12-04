@@ -511,14 +511,15 @@ export default function ApplicationsPage() {
                             <div className="font-medium">
                               {app.user_info?.name ||
                                 app.student_name ||
-                                (app.user_id ? `用户 ${app.user_id}` : `申请 ${app.id}`)}
+                                (app.user_info?.username ? `用户 ${app.user_info.username}` : "未知用户")}
                             </div>
-                            <div className="text-sm text-muted-foreground">
-                              {app.user_info?.student_id ||
-                                app.student_number ||
-                                app.user_info?.username ||
-                                app.id}
-                            </div>
+                            {(app.user_info?.student_id || app.student_number || app.user_info?.username) ? (
+                              <div className="text-sm text-muted-foreground">
+                                {app.user_info?.student_id ||
+                                  app.student_number ||
+                                  app.user_info?.username}
+                              </div>
+                            ) : null}
                             {app.user_info?.college && (
                               <div className="text-xs text-muted-foreground">
                                 {app.user_info.college} - {app.user_info.major}

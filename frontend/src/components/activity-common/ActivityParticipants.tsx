@@ -71,6 +71,7 @@ export default function ActivityParticipants({
   );
   const [, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
@@ -323,6 +324,7 @@ export default function ActivityParticipants({
       const response = await apiClient.get(
         `/activities/${activity.id}/participants/export`,
         {
+          params: { format: "csv" },
           responseType: "blob",
         }
       );
@@ -334,6 +336,8 @@ export default function ActivityParticipants({
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("导出成功");
     } catch (error) {
       console.error("Failed to export participants:", error);
       toast.error("导出失败");
@@ -351,13 +355,25 @@ export default function ActivityParticipants({
     }
   };
 
-  // 过滤参与者（根据搜索）
+  // 防抖搜索：只在用户停止输入后更新搜索状态
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
+
+  // 过滤参与者（根据搜索）- 支持用户名和姓名搜索
   const filteredParticipants = participants.filter((p) => {
-    if (!searchQuery) return true;
+    if (!debouncedSearchQuery) return true;
     const info = p.user_info;
+    const query = debouncedSearchQuery.toLowerCase();
     return (
-      info?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      info?.real_name?.includes(searchQuery)
+      info?.username?.toLowerCase().includes(query) ||
+      info?.real_name?.toLowerCase().includes(query)
     );
   });
 
@@ -377,6 +393,32 @@ export default function ActivityParticipants({
       setBatchDialogCredits(1.0);
     }
   }, [showBatchDialog]);
+
+  // 防抖搜索：只在用户停止输入后触发搜索
+  useEffect(() => {
+    if (!showAddDialog) {
+      // 对话框关闭时清空搜索结果
+      setUserSearchResults([]);
+      setUserSearchQuery("");
+      return;
+    }
+
+    // 如果搜索框为空，清空结果
+    if (!userSearchQuery.trim()) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    // 设置防抖定时器：500ms 后执行搜索
+    const timeoutId = setTimeout(() => {
+      searchUsers(userSearchQuery);
+    }, 500);
+
+    // 清理函数：如果用户继续输入，取消之前的搜索
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [userSearchQuery, showAddDialog]);
 
   // 全局键盘快捷键
   useEffect(() => {
@@ -500,7 +542,7 @@ export default function ActivityParticipants({
             )}
           </CardTitle>
           <div className="flex items-center gap-2">
-            {canEditParticipants && (
+            {isOwner && (
               <>
                 <Button
                   variant="outline"
@@ -518,15 +560,17 @@ export default function ActivityParticipants({
                   <Download className="h-4 w-4 mr-1" />
                   导出
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddDialog(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  添加
-                </Button>
               </>
+            )}
+            {canEditParticipants && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                添加
+              </Button>
             )}
             {!isOwner &&
               user &&
@@ -698,7 +742,14 @@ export default function ActivityParticipants({
                       value={userSearchQuery}
                       onChange={(e) => {
                         setUserSearchQuery(e.target.value);
-                        searchUsers(e.target.value);
+                        // 移除立即搜索，改为通过 useEffect 防抖触发
+                      }}
+                      onKeyDown={(e) => {
+                        // 按 Enter 键立即搜索
+                        if (e.key === "Enter" && userSearchQuery.trim()) {
+                          e.preventDefault();
+                          searchUsers(userSearchQuery);
+                        }
                       }}
                       className="w-64"
                     />
@@ -872,13 +923,13 @@ export default function ActivityParticipants({
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
                   <div className="text-2xl font-bold text-primary">
-                    {stats.avg_credits?.toFixed(1) || "0"}
+                    {stats.average_credits?.toFixed(1) || stats.avg_credits?.toFixed(1) || "0"}
                   </div>
                   <div className="text-sm text-muted-foreground">平均学分</div>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
                   <div className="text-2xl font-bold text-primary">
-                    {stats.recent_participants}
+                    {stats.recent_participants ?? "-"}
                   </div>
                   <div className="text-sm text-muted-foreground">最近加入</div>
                 </div>

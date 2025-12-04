@@ -392,8 +392,8 @@ export default function Dashboard() {
             description: activity.description || "暂无描述",
             category: activity.category || "未分类",
             status: activity.status || "draft",
-            participant_count: activity.participants?.length || 0,
-            application_count: activity.applications?.length || 0,
+            participant_count: activity.participants_count || 0,
+            application_count: activity.applications_count || 0,
             created_at: activity.created_at || "",
             updated_at: activity.updated_at || "",
             start_date: activity.start_date || "",
@@ -406,14 +406,14 @@ export default function Dashboard() {
           .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
           .sort(
             (a: any, b: any) =>
-              (b.participants?.length || 0) - (a.participants?.length || 0)
+              (b.participants_count || 0) - (a.participants_count || 0)
           )
           .slice(0, 5)
           .map((activity: any) => ({
             id: activity.id || "",
             title: activity.title || "无标题",
-            application_count: activity.applications?.length || 0,
-            participant_count: activity.participants?.length || 0,
+            application_count: activity.applications_count || 0,
+            participant_count: activity.participants_count || 0,
           }));
 
         // 这里不再覆盖从 /activities/stats 获取到的汇总统计，
