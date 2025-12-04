@@ -41,6 +41,7 @@ import { getFileIcon, formatFileSize } from "@/lib/utils";
 import React from "react";
 import { getStatusBadge } from "@/lib/status-utils";
 import { getActivityOptions } from "@/lib/options";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import { FilterCard } from "@/components/ui/filter-card";
 
 // Types
@@ -98,6 +99,7 @@ export default function ApplicationsPage() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isDetailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -124,9 +126,20 @@ export default function ApplicationsPage() {
     }
   };
 
-  const fetchApplications = useCallback(async (page = currentPage, size = pageSize) => {
-    try {
-      setLoading(true);
+  const fetchApplications = useCallback(
+    async (
+      page = currentPage,
+      size = pageSize,
+      options?: { isInitial?: boolean }
+    ) => {
+      // 显式由调用方控制是否为首次加载，避免依赖 loading 造成循环
+      const isInitial = options?.isInitial ?? false;
+      try {
+        if (isInitial) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
 
       // 构建查询参数
       const params: any = {
@@ -147,7 +160,7 @@ export default function ApplicationsPage() {
           ? "/applications" // 学生只能看到自己的申请
           : "/applications/all"; // 教师和管理员可以看到所有申请
 
-      const response = await apiClient.get(endpoint, { params });
+        const response = await apiClient.get(endpoint, { params });
 
       // 调试：打印响应数据
       console.log("Applications API Response:", response.data);
@@ -219,46 +232,62 @@ export default function ApplicationsPage() {
       console.log("Processed Applications:", processedApplications);
       console.log("Is Array:", Array.isArray(processedApplications));
       
-      setApplications(processedApplications);
+        setApplications(processedApplications);
 
       // 更新分页信息
       const safeTotal = Array.isArray(applicationsArray)
         ? applicationsArray.length
         : Number(paginationData.total) || 0;
-      setTotalItems(safeTotal);
-      setTotalPages(Number(paginationData.total_pages) || 1);
-      setCurrentPage(Number(paginationData.page) || 1);
-    } catch (err) {
-      console.error("Failed to fetch applications:", err);
-      toast.error("获取申请列表失败");
-      setApplications([]);
-      setTotalItems(0);
-      setTotalPages(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, pageSize, searchTerm, statusFilter, user]);
+        setTotalItems(safeTotal);
+        setTotalPages(Number(paginationData.total_pages) || 1);
+        setCurrentPage(Number(paginationData.page) || 1);
+      } catch (err) {
+        console.error("Failed to fetch applications:", err);
+        toast.error("获取申请列表失败");
+        setApplications([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (isInitial) {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
+      }
+    },
+    [currentPage, pageSize, searchTerm, statusFilter, user]
+  );
 
   // 分页处理函数
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-    fetchApplications(page, pageSize);
-  }, [fetchApplications, pageSize]);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+      fetchApplications(page, pageSize, { isInitial: false });
+    },
+    [fetchApplications, pageSize]
+  );
 
-  const handlePageSizeChange = useCallback((size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
-    fetchApplications(1, size);
-  }, [fetchApplications]);
+  const handlePageSizeChange = useCallback(
+    (size: number) => {
+      setPageSize(size);
+      setCurrentPage(1);
+      fetchApplications(1, size, { isInitial: false });
+    },
+    [fetchApplications]
+  );
 
   // 搜索和筛选处理
-  const handleSearchAndFilter = useCallback(() => {
-    setCurrentPage(1);
-    fetchApplications(1, pageSize);
-  }, [fetchApplications, pageSize]);
+  const handleSearchAndFilter = useCallback(
+    (options?: { isInitial?: boolean }) => {
+      setCurrentPage(1);
+      fetchApplications(1, pageSize, options);
+    },
+    [fetchApplications, pageSize]
+  );
 
   useEffect(() => {
-    handleSearchAndFilter();
+    // 首次进入申请记录页使用 loading，其余筛选/分页使用 refreshing 细进度条
+    handleSearchAndFilter({ isInitial: true });
   }, [handleSearchAndFilter]);
 
   useEffect(() => {
@@ -362,6 +391,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="space-y-8 p-4 md:p-8">
+      <TopProgressBar active={refreshing} />
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">申请管理</h1>

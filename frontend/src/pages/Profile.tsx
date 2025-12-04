@@ -58,6 +58,7 @@ import {
 import { getStatusBadge } from "@/lib/status-utils";
 import { PasswordInput } from "@/components/ui/password-input";
 import { getOptions } from "@/lib/options";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 
 
 const profileSchema = z.object({
@@ -115,6 +116,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -149,37 +151,49 @@ export default function ProfilePage() {
     },
   });
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) return;
-      try {
+  const fetchProfile = async (options?: { isInitial?: boolean }) => {
+    if (!user) return;
+    const isInitial = options?.isInitial ?? loading;
+    try {
+      if (isInitial) {
         setLoading(true);
-        const response = await apiClient.get(`/users/profile`);
-        const profileData = response.data.data || response.data;
-        setProfile(profileData);
-        form.reset({
-          username: profileData.username || "",
-          email: profileData.email || "",
-          phone: profileData.phone || "",
-          real_name: profileData.real_name || "",
-          college: profileData.college || "",
-          major: profileData.major || "",
-          class: profileData.class || "",
-          grade: profileData.grade || "",
-          department: profileData.department || "",
-          title: profileData.title || "",
-          student_id: profileData.student_id || "",
-          teacher_id: profileData.teacher_id || "",
-        });
-      } catch (err) {
-        setError("获取个人资料失败");
-        console.error(err);
-        toast.error("获取个人资料失败");
-      } finally {
-        setLoading(false);
+      } else {
+        setRefreshing(true);
       }
-    };
-    fetchProfile();
+      setError("");
+      const response = await apiClient.get(`/users/profile`);
+      const profileData = response.data.data || response.data;
+      setProfile(profileData);
+      form.reset({
+        username: profileData.username || "",
+        email: profileData.email || "",
+        phone: profileData.phone || "",
+        real_name: profileData.real_name || "",
+        college: profileData.college || "",
+        major: profileData.major || "",
+        class: profileData.class || "",
+        grade: profileData.grade || "",
+        department: profileData.department || "",
+        title: profileData.title || "",
+        student_id: profileData.student_id || "",
+        teacher_id: profileData.teacher_id || "",
+      });
+    } catch (err) {
+      setError("获取个人资料失败");
+      console.error(err);
+      toast.error("获取个人资料失败");
+    } finally {
+      if (isInitial) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    // 首次进入个人资料页使用 loading，其余刷新使用顶部进度条
+    fetchProfile({ isInitial: true });
     (async () => {
       try {
         const opts = await getOptions();
@@ -317,7 +331,13 @@ export default function ProfilePage() {
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
           <div className="text-red-500 mb-2">{error}</div>
-          <Button onClick={() => window.location.reload()}>重试</Button>
+          <Button
+            onClick={() => {
+              fetchProfile({ isInitial: false });
+            }}
+          >
+            重试
+          </Button>
         </div>
       </div>
     );
@@ -325,6 +345,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-8 p-4 md:p-8">
+      <TopProgressBar active={refreshing} />
       <div>
         <h1 className="text-3xl font-bold">个人资料</h1>
         <p className="text-muted-foreground">查看和管理您的个人信息</p>

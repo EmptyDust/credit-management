@@ -68,6 +68,7 @@ export default function ActivityAttachments({
   const [dragFiles, setDragFiles] = useState<File[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewType, setPreviewType] = useState<"image" | "pdf" | "text" | "other">("other");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isOwner =
@@ -119,7 +120,6 @@ export default function ActivityAttachments({
       setDragFiles([]);
       setUploadDescription("");
       fetchAttachments();
-      if (onRefresh) onRefresh();
     } catch (error: any) {
       console.error("Failed to upload attachment:", error);
       const errorMessage =
@@ -142,7 +142,6 @@ export default function ActivityAttachments({
       );
       toast.success("附件删除成功");
       fetchAttachments();
-      if (onRefresh) onRefresh();
     } catch (error) {
       console.error("Failed to delete attachment:", error);
       toast.error("附件删除失败");
@@ -177,7 +176,67 @@ export default function ActivityAttachments({
     }
   };
 
-  // 获取预览URL
+  // 预览附件（统一入口）
+  const previewAttachment = async (attachment: Attachment) => {
+    setSelectedAttachment(attachment);
+    setShowPreviewDialog(true);
+    setPreviewLoading(true);
+    // 释放旧的 URL，避免内存泄漏
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+
+    try {
+      const response = await apiClient.get(
+        `/activities/${activity.id}/attachments/${attachment.id}/preview`,
+        {
+          responseType: "blob",
+        }
+      );
+
+      // 使用后端返回的 Content-Type 构造 Blob
+      const contentTypeHeader =
+        (response.headers &&
+          (response.headers["content-type"] || response.headers["Content-Type"])) ||
+        "application/octet-stream";
+
+      // 按 Content-Type / 后缀判断预览策略，类似 Google Drive
+      let type: "image" | "pdf" | "text" | "other" = "other";
+      const lowerContentType = contentTypeHeader.toLowerCase();
+      const lowerExt = (attachment.file_type || "").toLowerCase(); // 例如 ".jpg"
+
+      if (
+        lowerContentType.startsWith("image/") ||
+        [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"].includes(lowerExt)
+      ) {
+        type = "image";
+      } else if (
+        lowerContentType === "application/pdf" ||
+        lowerExt === ".pdf"
+      ) {
+        type = "pdf";
+      } else if (
+        lowerContentType.startsWith("text/") ||
+        lowerExt === ".txt"
+      ) {
+        type = "text";
+      } else {
+        type = "other";
+      }
+      setPreviewType(type);
+
+      const blob = new Blob([response.data], { type: contentTypeHeader });
+      const url = window.URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (error: any) {
+      console.error("Failed to preview attachment:", error);
+      setPreviewUrl(null);
+      setPreviewType("other");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   // 拖拽处理
   const handleDragEnter = (e: React.DragEvent) => {
@@ -334,7 +393,8 @@ export default function ActivityAttachments({
               return (
                 <div
                   key={attachment.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                  onClick={() => previewAttachment(attachment)}
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <FileIcon className="h-5 w-5 text-blue-500" />
@@ -360,7 +420,10 @@ export default function ActivityAttachments({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => downloadAttachment(attachment)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadAttachment(attachment);
+                      }}
                     >
                       <Download className="h-4 w-4" />
                     </Button>
@@ -368,7 +431,10 @@ export default function ActivityAttachments({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteAttachment(attachment.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteAttachment(attachment.id);
+                        }}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -521,30 +587,104 @@ export default function ActivityAttachments({
       </Dialog>
 
       {/* 预览对话框 */}
-      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent className="max-w-4xl">
+      <Dialog
+        open={showPreviewDialog}
+        onOpenChange={(open) => {
+          setShowPreviewDialog(open);
+          if (!open) {
+            // 关闭预览时释放资源
+            if (previewUrl) {
+              window.URL.revokeObjectURL(previewUrl);
+            }
+            setPreviewUrl(null);
+            setSelectedAttachment(null);
+            setPreviewLoading(false);
+            setPreviewType("other");
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>
               预览: {selectedAttachment?.original_name}
             </DialogTitle>
           </DialogHeader>
-          <div className="min-h-[400px] flex items-center justify-center">
+
+          {/* 中间预览区域：统一 Viewer */}
+          <div className="min-h-[400px] flex items-center justify-center bg-gray-50">
             {previewLoading ? (
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2 text-gray-500">加载预览中...</p>
               </div>
             ) : previewUrl ? (
-              <iframe
-                src={previewUrl}
-                className="w-full h-[600px] border rounded"
-                title="文件预览"
-              />
+              previewType === "image" ? (
+                // 图片预览：类似 Google Drive，居中、按比例缩放、不超出视口
+                <div className="max-h-[70vh] max-w-[80vw] overflow-auto flex items-center justify-center">
+                  <img
+                    src={previewUrl}
+                    alt={selectedAttachment?.original_name}
+                    className="max-h-[70vh] max-w-[80vw] object-contain rounded bg-white shadow"
+                  />
+                </div>
+              ) : previewType === "pdf" ? (
+                // PDF 预览：使用 iframe
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-[70vh] border rounded bg-white"
+                  title="PDF 预览"
+                />
+              ) : previewType === "text" ? (
+                // 文本预览：使用 iframe 让浏览器按文本渲染
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-[70vh] border rounded bg-white"
+                  title="文本预览"
+                />
+              ) : (
+                // 其他不支持在线预览的类型
+                <div className="text-center text-gray-500 space-y-2">
+                  <p>当前类型暂不支持在线预览。</p>
+                  <p>可以通过下方按钮下载或在新标签页中打开查看。</p>
+                </div>
+              )
             ) : (
               <div className="text-center text-gray-500">
                 <p>无法预览此文件</p>
               </div>
             )}
+          </div>
+
+          {/* 底部工具栏：统一操作区 */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-gray-500 truncate">
+              {selectedAttachment?.original_name}{" "}
+              {selectedAttachment &&
+                `(${formatFileSize(selectedAttachment.file_size)})`}
+            </div>
+            <div className="flex gap-2">
+              {previewUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // 在新标签中打开原生预览 / 下载
+                    window.open(previewUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  在新标签页打开
+                </Button>
+              )}
+              {selectedAttachment && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadAttachment(selectedAttachment)}
+                >
+                  下载
+                </Button>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

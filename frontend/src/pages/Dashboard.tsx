@@ -34,6 +34,7 @@ import { getActivityCategories } from "@/types/activity";
 import { StatCard } from "@/components/ui/stat-card";
 import { getStatusBadge } from "@/lib/status-utils";
 import type { SelectOption } from "@/lib/options";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 
 interface UserStats {
   total_users: number;
@@ -473,10 +474,13 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="flex items-center gap-2">
-          <Hourglass className="h-8 w-8 animate-spin" />
-          <span>加载中...</span>
+      <div className="flex-1 space-y-4 p-4 md:p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+        <TopProgressBar active={true} />
+        <div className="flex justify-center items-center h-64">
+          <div className="flex items-center gap-2">
+            <Hourglass className="h-8 w-8 animate-spin" />
+            <span>加载中...</span>
+          </div>
         </div>
       </div>
     );
@@ -484,6 +488,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex-1 space-y-8 p-4 md:p-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+      <TopProgressBar active={refreshing} />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div className="space-y-2">

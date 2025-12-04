@@ -132,7 +132,7 @@ export default function ActivityApplications({
       await apiClient.delete(`/applications/${applicationId}`);
       toast.success("申请删除成功");
       fetchApplications();
-      onRefresh?.();
+      // 删除单条申请不会影响活动概要信息，避免额外刷新整个活动详情
     } catch (error) {
       console.error("Failed to delete application:", error);
       toast.error("删除失败");

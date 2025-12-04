@@ -282,6 +282,7 @@ export default function ActivityParticipants({
       toast.success("学分设置成功");
       setEditingCredits((prev) => ({ ...prev, [userId]: undefined }));
       fetchParticipants();
+      onRefresh?.();
     } catch (error) {
       console.error("Failed to set credits:", error);
     }
@@ -310,6 +311,7 @@ export default function ActivityParticipants({
       setShowBatchDialog(false);
       setSelectedParticipants([]);
       fetchParticipants();
+      onRefresh?.();
     } catch (error) {
       console.error("Failed to batch set credits:", error);
     }

@@ -11,14 +11,18 @@ import (
 )
 
 func (h *ActivityHandler) handleStatusSideEffects(tx *gorm.DB, previousStatus, newStatus, activityID string) error {
+	// 当活动第一次被审核通过时（从非 approved -> approved），为所有参与者生成申请记录
 	if previousStatus != models.StatusApproved && newStatus == models.StatusApproved {
 		return h.generateApplicationsForParticipants(tx, activityID)
 	}
 
-	if previousStatus != models.StatusDraft && newStatus == models.StatusDraft {
+	// 当活动从已通过变为其他任何状态（如被拒绝、退回草稿等）时，撤销之前为该活动生成的申请
+	// 这样可以避免活动已被拒绝但申请仍显示“已通过”的不一致问题
+	if previousStatus == models.StatusApproved && newStatus != models.StatusApproved {
 		return h.softDeleteApplications(tx, activityID)
 	}
 
+	// 其他状态流转暂时没有额外副作用
 	return nil
 }
 

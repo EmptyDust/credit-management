@@ -13,7 +13,7 @@ import ReviewActionCard from "../activity-common/ReviewActionCard";
 interface GenericActivityDetailProps {
   activity: Activity;
   detail?: any;
-  onRefresh?: () => void;
+  onRefresh: () => void;
 }
 
 const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
@@ -25,8 +25,7 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
   const isReviewer = user?.userType === "teacher" || user?.userType === "admin";
 
   const handleRefresh = () => {
-    if (onRefresh) onRefresh();
-    else window.location.reload();
+    onRefresh();
   };
 
   // 通用详情（已改为配置驱动，前端不再硬编码）

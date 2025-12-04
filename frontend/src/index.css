@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes progressSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-progressSlide {
+  animation: progressSlide 1.2s ease-in-out infinite;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

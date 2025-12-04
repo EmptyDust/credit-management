@@ -36,13 +36,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getActivityOptions } from "@/lib/options";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 
 export default function ActivityDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activity, setActivity] = useState<Activity | null>(null);
+  // 首次加载使用全屏 loading，后续刷新只做数据更新，不打断当前视图
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<"approved" | "rejected">(
@@ -52,9 +55,15 @@ export default function ActivityDetailPage() {
   const [reviewActions, setReviewActions] = useState<{ value: string; label: string }[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const fetchActivity = async () => {
+  const fetchActivity = async (options?: { isInitial?: boolean }) => {
     if (!id) return;
-    setLoading(true);
+    const isInitial = options?.isInitial ?? loading;
+
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
 
     try {
       const response = await apiClient.get(`/activities/${id}`);
@@ -64,12 +73,17 @@ export default function ActivityDetailPage() {
       console.error("Failed to fetch activity:", error);
       toast.error("获取活动详情失败");
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchActivity();
+    // 首次进入详情页时使用全屏 loading，后续通过 onRefresh 调用则为“静默刷新”
+    fetchActivity({ isInitial: true });
     (async () => {
       try {
         const opts = await getActivityOptions();
@@ -224,6 +238,8 @@ export default function ActivityDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <TopProgressBar active={refreshing} />
+
       {/* 顶部按钮区 */}
       <div className="mb-6 flex items-center justify-between">
         <button

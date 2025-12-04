@@ -54,6 +54,7 @@ import { FilterCard } from "@/components/ui/filter-card";
 import type { Activity } from "@/types/activity";
 import { getActivityOptions } from "@/lib/options";
 import { ActivityEditDialog } from "@/components/activity-common";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ export default function ActivitiesPage() {
   const { user, hasPermission } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -98,9 +100,20 @@ export default function ActivitiesPage() {
     }
   }, [searchParams]);
 
-  const fetchActivities = useCallback(async (page = currentPage, size = pageSize) => {
-    try {
-      setLoading(true);
+  const fetchActivities = useCallback(
+    async (
+      page = currentPage,
+      size = pageSize,
+      options?: { isInitial?: boolean }
+    ) => {
+      // 显式由调用方控制是否为首次加载，避免依赖 loading 造成循环
+      const isInitial = options?.isInitial ?? false;
+      try {
+        if (isInitial) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
 
       // 构建查询参数
       const params: any = {
@@ -118,7 +131,7 @@ export default function ActivitiesPage() {
         params.status = statusFilter;
       }
 
-      const response = await apiClient.get("/activities", { params });
+        const response = await apiClient.get("/activities", { params });
 
       // 调试：打印响应数据
       console.log("API Response:", response.data);
@@ -161,19 +174,25 @@ export default function ActivitiesPage() {
       console.log("Activities Data:", activitiesData);
       console.log("Is Array:", Array.isArray(activitiesData));
       
-      setActivities(activitiesData);
-      setTotalItems(paginationData.total);
-      setTotalPages(paginationData.total_pages);
-    } catch (error) {
-      console.error("Failed to fetch activities:", error);
-      toast.error("获取活动列表失败");
-      setActivities([]);
-      setTotalItems(0);
-      setTotalPages(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, pageSize, searchTerm, categoryFilter, statusFilter]);
+        setActivities(activitiesData);
+        setTotalItems(paginationData.total);
+        setTotalPages(paginationData.total_pages);
+      } catch (error) {
+        console.error("Failed to fetch activities:", error);
+        toast.error("获取活动列表失败");
+        setActivities([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (isInitial) {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
+      }
+    },
+    [currentPage, pageSize, searchTerm, categoryFilter, statusFilter]
+  );
 
   const fetchActivityStats = useCallback(async () => {
     try {
@@ -229,24 +248,34 @@ export default function ActivitiesPage() {
     })();
   }, []);
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-    fetchActivities(page, pageSize);
-  }, [fetchActivities, pageSize]);
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+      fetchActivities(page, pageSize, { isInitial: false });
+    },
+    [fetchActivities, pageSize]
+  );
 
-  const handlePageSizeChange = useCallback((size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
-    fetchActivities(1, size);
-  }, [fetchActivities]);
+  const handlePageSizeChange = useCallback(
+    (size: number) => {
+      setPageSize(size);
+      setCurrentPage(1);
+      fetchActivities(1, size, { isInitial: false });
+    },
+    [fetchActivities]
+  );
 
-  const handleSearchAndFilter = useCallback(() => {
-    setCurrentPage(1);
-    fetchActivities(1, pageSize);
-  }, [fetchActivities, pageSize]);
+  const handleSearchAndFilter = useCallback(
+    (options?: { isInitial?: boolean }) => {
+      setCurrentPage(1);
+      fetchActivities(1, pageSize, options);
+    },
+    [fetchActivities, pageSize]
+  );
 
   useEffect(() => {
-    handleSearchAndFilter();
+    // 首次进入列表页使用 loading，其余筛选/分页使用 refreshing 细进度条
+    handleSearchAndFilter({ isInitial: true });
   }, [handleSearchAndFilter]);
 
   // 根据 URL 参数自动打开编辑弹窗，例如 /activities?edit=123
@@ -277,7 +306,7 @@ export default function ActivitiesPage() {
     try {
       await apiClient.delete(`/activities/${deletingActivity.id}`);
       toast.success("活动删除成功");
-      fetchActivities();
+      fetchActivities(currentPage, pageSize, { isInitial: false });
     } catch (error) {
       console.error("Failed to delete activity:", error);
       toast.error("删除活动失败");
@@ -397,6 +426,7 @@ export default function ActivitiesPage() {
 
   return (
     <div className="space-y-8 p-4 md:p-8">
+      <TopProgressBar active={refreshing} />
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">活动列表</h1>
@@ -510,7 +540,7 @@ export default function ActivitiesPage() {
           </Select>
           <Button
             variant="outline"
-            onClick={handleSearchAndFilter}
+            onClick={() => handleSearchAndFilter({ isInitial: false })}
             disabled={loading}
             className="rounded-lg shadow"
           >
