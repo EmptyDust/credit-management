@@ -156,7 +156,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	// 处理部门 / 班级变更：
 	// 1. 优先使用显式传入的 department_id
 	// 2. 教师：根据传入的学部名称（department/college）反查学部 department_id
-	// 3. 学生：根据传入的专业 + 班级名称反查班级 department_id
+	// 3. 学生：根据传入的学部 + 专业 + 班级名称反查班级 department_id，并验证层级关系
 	if req.DepartmentID != "" {
 		// 直接使用前端提供的部门ID
 		user.DepartmentID = &req.DepartmentID
@@ -185,27 +185,84 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		}
 		user.DepartmentID = &collegeDept.ID
 	} else if req.Major != "" && req.Class != "" {
-		// 学生：根据“专业名称 + 班级代码”反查班级对应的 department_id
+		// 学生：根据学部 + 专业 + 班级名称反查班级 department_id，并验证层级关系
+		collegeName := req.College
+		if collegeName == "" {
+			collegeName = req.Department
+		}
+
 		type deptRow struct {
 			ID string
 		}
-		var classDept deptRow
-		// 班级节点的 name 是班级代码（例如 202405C1），父节点是专业名称（例如 计算机科学与技术）
-		if err := h.db.Raw(`
-			SELECT c.id
-			FROM departments c
-			JOIN departments m ON c.parent_id = m.id
-			WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
-			LIMIT 1
-		`, req.Major, req.Class).Scan(&classDept).Error; err != nil {
-			utils.SendInternalServerError(c, err)
-			return
+
+		if collegeName != "" {
+			// 首先验证学部是否存在
+			var collegeDept deptRow
+			if err := h.db.Raw(`
+				SELECT id
+				FROM departments
+				WHERE dept_type = 'college' AND name = ?
+				LIMIT 1
+			`, collegeName).Scan(&collegeDept).Error; err != nil {
+				utils.SendInternalServerError(c, err)
+				return
+			}
+			if collegeDept.ID == "" {
+				utils.SendBadRequest(c, "未找到对应的学部（学部="+collegeName+"）")
+				return
+			}
+
+			// 验证专业是否属于该学部
+			var majorDept deptRow
+			if err := h.db.Raw(`
+				SELECT id
+				FROM departments
+				WHERE dept_type = 'major' AND name = ? AND parent_id = ?
+				LIMIT 1
+			`, req.Major, collegeDept.ID).Scan(&majorDept).Error; err != nil {
+				utils.SendInternalServerError(c, err)
+				return
+			}
+			if majorDept.ID == "" {
+				utils.SendBadRequest(c, "未找到对应的专业，或专业不属于该学部（学部="+collegeName+", 专业="+req.Major+"）")
+				return
+			}
+
+			// 验证班级是否属于该专业
+			var classDept deptRow
+			if err := h.db.Raw(`
+				SELECT id
+				FROM departments
+				WHERE dept_type = 'class' AND name = ? AND parent_id = ?
+				LIMIT 1
+			`, req.Class, majorDept.ID).Scan(&classDept).Error; err != nil {
+				utils.SendInternalServerError(c, err)
+				return
+			}
+			if classDept.ID == "" {
+				utils.SendBadRequest(c, "未找到对应的班级，或班级不属于该专业（专业="+req.Major+", 班级="+req.Class+"）")
+				return
+			}
+			user.DepartmentID = &classDept.ID
+		} else {
+			// 没有提供学部名称，仅根据专业+班级查找（保持向后兼容，但不验证学部）
+			var classDept deptRow
+			if err := h.db.Raw(`
+				SELECT c.id
+				FROM departments c
+				JOIN departments m ON c.parent_id = m.id
+				WHERE c.dept_type = 'class' AND m.dept_type = 'major' AND m.name = ? AND c.name = ?
+				LIMIT 1
+			`, req.Major, req.Class).Scan(&classDept).Error; err != nil {
+				utils.SendInternalServerError(c, err)
+				return
+			}
+			if classDept.ID == "" {
+				utils.SendBadRequest(c, "未找到对应的班级，请检查学部/专业/班级是否匹配")
+				return
+			}
+			user.DepartmentID = &classDept.ID
 		}
-		if classDept.ID == "" {
-			utils.SendBadRequest(c, "未找到对应的班级，请检查学部/专业/班级是否匹配")
-			return
-		}
-		user.DepartmentID = &classDept.ID
 	}
 
 	if req.StudentID != nil {
