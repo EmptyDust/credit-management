@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"credit-management/credit-activity-service/models"
 	"credit-management/credit-activity-service/utils"
@@ -96,7 +97,7 @@ func GetActivityOptions(c *gin.Context) {
 }
 
 func (h *ActivityHandler) ExportActivities(c *gin.Context) {
-	format := c.DefaultQuery("format", "json")
+	format := c.DefaultQuery("format", "excel")
 	category := c.Query("category")
 	status := c.Query("status")
 	startDate := c.Query("start_date")
@@ -131,10 +132,129 @@ func (h *ActivityHandler) ExportActivities(c *gin.Context) {
 	case "json":
 		utils.SendSuccessResponse(c, activities)
 	case "csv":
-		utils.SendSuccessResponse(c, gin.H{"message": "CSV导出功能待实现", "count": len(activities)})
+		h.exportActivitiesToCSV(c, activities)
+	case "excel", "xlsx":
+		h.exportActivitiesToExcel(c, activities)
 	default:
 		utils.SendBadRequest(c, "不支持的导出格式")
 	}
+}
+
+func (h *ActivityHandler) exportActivitiesToCSV(c *gin.Context, activities []models.CreditActivity) {
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=activities_%s.csv", time.Now().Format("2006-01-02")))
+
+	// 写入 UTF-8 BOM，避免在 Excel 中出现中文乱码
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		utils.SendErrorResponse(c, 500, fmt.Sprintf("failed to write BOM: %v", err))
+		return
+	}
+
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+
+	// 写入标题行
+	headers := []string{"ID", "标题", "描述", "开始日期", "结束日期", "状态", "类别", "创建者ID", "审核者ID", "审核意见", "审核时间", "创建时间", "更新时间"}
+	if err := writer.Write(headers); err != nil {
+		return
+	}
+
+	// 写入数据行
+	for _, activity := range activities {
+		row := []string{
+			activity.ID,
+			activity.Title,
+			activity.Description,
+			activity.StartDate.Format("2006-01-02"),
+			activity.EndDate.Format("2006-01-02"),
+			activity.Status,
+			activity.Category,
+			activity.OwnerID,
+			getStringValue(activity.ReviewerID),
+			activity.ReviewComments,
+			formatTime(activity.ReviewedAt),
+			activity.CreatedAt.Format("2006-01-02 15:04:05"),
+			activity.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		if err := writer.Write(row); err != nil {
+			return
+		}
+	}
+}
+
+func (h *ActivityHandler) exportActivitiesToExcel(c *gin.Context, activities []models.CreditActivity) {
+	f := excelize.NewFile()
+	defer f.Close()
+
+	sheetName := "Sheet1"
+	index, _ := f.NewSheet(sheetName)
+	f.SetActiveSheet(index)
+
+	// 设置标题行
+	headers := []string{"ID", "标题", "描述", "开始日期", "结束日期", "状态", "类别", "创建者ID", "审核者ID", "审核意见", "审核时间", "创建时间", "更新时间"}
+	for i, header := range headers {
+		cell := fmt.Sprintf("%c1", 'A'+i)
+		f.SetCellValue(sheetName, cell, header)
+		// 设置标题行样式（加粗）
+		style, _ := f.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true},
+		})
+		f.SetCellStyle(sheetName, cell, cell, style)
+	}
+
+	// 写入数据行
+	for rowIdx, activity := range activities {
+		rowNum := rowIdx + 2
+		row := []interface{}{
+			activity.ID,
+			activity.Title,
+			activity.Description,
+			activity.StartDate.Format("2006-01-02"),
+			activity.EndDate.Format("2006-01-02"),
+			activity.Status,
+			activity.Category,
+			activity.OwnerID,
+			getStringValue(activity.ReviewerID),
+			activity.ReviewComments,
+			formatTime(activity.ReviewedAt),
+			activity.CreatedAt.Format("2006-01-02 15:04:05"),
+			activity.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		for colIdx, value := range row {
+			cell := fmt.Sprintf("%c%d", 'A'+colIdx, rowNum)
+			f.SetCellValue(sheetName, cell, value)
+		}
+	}
+
+	// 自动调整列宽
+	for i := range headers {
+		col := string(rune('A' + i))
+		f.SetColWidth(sheetName, col, col, 15)
+	}
+
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=activities_%s.xlsx", time.Now().Format("2006-01-02")))
+
+	if err := f.Write(c.Writer); err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+}
+
+// 辅助函数：获取字符串指针的值
+func getStringValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// 辅助函数：格式化时间指针
+func formatTime(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func (h *ActivityHandler) SaveAsTemplate(c *gin.Context) {
