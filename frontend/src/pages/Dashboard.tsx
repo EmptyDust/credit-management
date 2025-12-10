@@ -43,6 +43,8 @@ interface UserStats {
   admin_users: number;
   active_users: number;
   new_users_this_month: number;
+  new_users_month: number;
+  new_users_last_month: number;
 }
 
 interface ActivityStats {
@@ -521,7 +523,21 @@ export default function Dashboard() {
             icon={Users}
             to="/students"
             description="所有注册用户"
-            trend={{ value: 12, isPositive: true }}
+            trend={
+              userStats?.new_users_last_month !== undefined &&
+              userStats?.new_users_month !== undefined &&
+              userStats.new_users_last_month > 0
+                ? {
+                    value: Math.round(
+                      ((userStats.new_users_month - userStats.new_users_last_month) /
+                        userStats.new_users_last_month) *
+                        100
+                    ),
+                    isPositive:
+                      userStats.new_users_month >= userStats.new_users_last_month,
+                  }
+                : undefined
+            }
             color="info"
             loading={refreshing}
           />

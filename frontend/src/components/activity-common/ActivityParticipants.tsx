@@ -222,6 +222,7 @@ export default function ActivityParticipants({
       setUserSearchQuery("");
       setAddDialogCredits(1.0);
       fetchParticipants();
+      fetchStats();
       onRefresh?.();
     } catch (error) {
       console.error("Failed to add participants:", error);
@@ -236,6 +237,7 @@ export default function ActivityParticipants({
       );
       toast.success("参与者删除成功");
       fetchParticipants();
+      fetchStats();
       onRefresh?.();
     } catch (error) {
       console.error("Failed to remove participant:", error);
@@ -260,6 +262,7 @@ export default function ActivityParticipants({
       setShowBatchDialog(false);
       setSelectedParticipants([]);
       fetchParticipants();
+      fetchStats();
       onRefresh?.();
     } catch (error) {
       console.error("Failed to batch remove participants:", error);
@@ -283,6 +286,7 @@ export default function ActivityParticipants({
       toast.success("学分设置成功");
       setEditingCredits((prev) => ({ ...prev, [userId]: undefined }));
       fetchParticipants();
+      fetchStats();
       onRefresh?.();
     } catch (error) {
       console.error("Failed to set credits:", error);
@@ -312,6 +316,7 @@ export default function ActivityParticipants({
       setShowBatchDialog(false);
       setSelectedParticipants([]);
       fetchParticipants();
+      fetchStats();
       onRefresh?.();
     } catch (error) {
       console.error("Failed to batch set credits:", error);
@@ -393,6 +398,13 @@ export default function ActivityParticipants({
       setBatchDialogCredits(1.0);
     }
   }, [showBatchDialog]);
+
+  // 当统计对话框打开时，刷新统计数据
+  useEffect(() => {
+    if (showStatsDialog) {
+      fetchStats();
+    }
+  }, [showStatsDialog]);
 
   // 防抖搜索：只在用户停止输入后触发搜索
   useEffect(() => {

@@ -12,15 +12,16 @@ type ViewBasedSearchResponse struct {
 
 // UserStats 用户统计信息
 type UserStats struct {
-	TotalUsers     int64 `json:"total_users"`
-	ActiveUsers    int64 `json:"active_users"`
-	SuspendedUsers int64 `json:"suspended_users"`
-	StudentUsers   int64 `json:"student_users"`
-	TeacherUsers   int64 `json:"teacher_users"`
-	AdminUsers     int64 `json:"admin_users"`
-	NewUsersToday  int64 `json:"new_users_today"`
-	NewUsersWeek   int64 `json:"new_users_week"`
-	NewUsersMonth  int64 `json:"new_users_month"`
+	TotalUsers        int64 `json:"total_users"`
+	ActiveUsers       int64 `json:"active_users"`
+	SuspendedUsers    int64 `json:"suspended_users"`
+	StudentUsers      int64 `json:"student_users"`
+	TeacherUsers      int64 `json:"teacher_users"`
+	AdminUsers        int64 `json:"admin_users"`
+	NewUsersToday     int64 `json:"new_users_today"`
+	NewUsersWeek      int64 `json:"new_users_week"`
+	NewUsersMonth     int64 `json:"new_users_month"`
+	NewUsersLastMonth int64 `json:"new_users_last_month"`
 }
 
 // StudentStats 学生统计信息

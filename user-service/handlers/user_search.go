@@ -68,20 +68,9 @@ func (h *UserHandler) SearchUsers(c *gin.Context) {
 	var viewName string
 	switch req.UserType {
 	case "student":
-		// if utils.IsAdmin(currentUserRole) {
 		viewName = "student_complete_info"
-		// } else if utils.IsTeacher(currentUserRole) {
-		// 	viewName = "student_teacher_view"
-		// } else {
-		// 	viewName = "student_student_view"
-		// }
 	case "teacher":
-		// if utils.IsAdmin(currentUserRole) {
 		viewName = "teacher_complete_info"
-		// } else {
-		// 	utils.SendForbidden(c, "权限不足")
-		// 	return
-		// }
 	default:
 		utils.SendBadRequest(c, "无效的用户类型")
 		return
@@ -178,6 +167,11 @@ func (h *UserHandler) GetUserStats(c *gin.Context) {
 
 	monthStart := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -time.Now().Day()+1)
 	h.db.Model(&models.User{}).Where("created_at >= ?", monthStart).Count(&stats.NewUsersMonth)
+
+	// 计算上个月的新用户数（用于计算增长率）
+	lastMonthStart := monthStart.AddDate(0, -1, 0)
+	lastMonthEnd := monthStart
+	h.db.Model(&models.User{}).Where("created_at >= ? AND created_at < ?", lastMonthStart, lastMonthEnd).Count(&stats.NewUsersLastMonth)
 
 	utils.SendSuccessResponse(c, stats)
 }

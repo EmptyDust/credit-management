@@ -18,7 +18,6 @@
   ],
   "category_fields": {
     "创新创业实践活动": [
-      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
       { "name": "organizer", "label": "主办单位", "type": "text", "required": false, "maxLength": 100 },
       { "name": "role", "label": "角色", "type": "select", "required": true, "options": [
         { "value": "负责人", "label": "负责人" }, { "value": "核心成员", "label": "核心成员" }, { "value": "成员", "label": "成员" }
@@ -36,7 +35,6 @@
       { "name": "rank", "label": "排名", "type": "text", "required": false }
     ],
     "大学生创业项目": [
-      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
       { "name": "stage", "label": "项目阶段", "type": "select", "required": true, "options": [
         { "value": "立项", "label": "立项" }, { "value": "中期", "label": "中期" }, { "value": "结项", "label": "结项" }
       ], "filterable": true },
@@ -46,7 +44,6 @@
       { "name": "funding", "label": "经费(元)", "type": "number", "required": false, "min": 0 }
     ],
     "创业实践项目": [
-      { "name": "project_name", "label": "项目名称", "type": "text", "required": true, "maxLength": 100 },
       { "name": "practice_type", "label": "实践类型", "type": "select", "required": true, "options": [
         { "value": "志愿服务", "label": "志愿服务" }, { "value": "社会调查", "label": "社会调查" }, { "value": "专业实践", "label": "专业实践" }
       ], "filterable": true },

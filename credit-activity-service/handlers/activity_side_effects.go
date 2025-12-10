@@ -33,16 +33,34 @@ func (h *ActivityHandler) generateApplicationsForParticipants(tx *gorm.DB, activ
 	}
 
 	for _, participant := range participants {
-		var existing int64
-		if err := tx.Model(&models.Application{}).
-			Where("activity_id = ? AND user_id = ? AND deleted_at IS NULL", activityID, participant.UUID).
-			Count(&existing).Error; err != nil {
+		// 检查是否存在申请记录（包括软删除的）
+		var existingApp models.Application
+		err := tx.Unscoped().Where("activity_id = ? AND user_id = ?", activityID, participant.UUID).First(&existingApp).Error
+		
+		if err == nil {
+			// 申请记录已存在
+			if existingApp.DeletedAt.Valid {
+				// 如果是软删除的记录，恢复它并更新字段
+				// 使用 Unscoped().Update 来更新软删除的记录，设置 deleted_at 为 NULL
+				if err := tx.Unscoped().Model(&models.Application{}).
+					Where("id = ?", existingApp.ID).
+					Updates(map[string]interface{}{
+						"deleted_at":      nil,
+						"status":          models.StatusApproved,
+						"applied_credits": participant.Credits,
+						"awarded_credits": participant.Credits,
+					}).Error; err != nil {
+					return err
+				}
+			}
+			// 如果记录已存在且未删除，跳过
+			continue
+		} else if err != gorm.ErrRecordNotFound {
+			// 其他错误
 			return err
 		}
-		if existing > 0 {
-			continue
-		}
 
+		// 记录不存在，创建新的申请
 		app := models.Application{
 			ActivityID:     activityID,
 			UUID:           participant.UUID,
