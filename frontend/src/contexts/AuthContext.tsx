@@ -16,6 +16,7 @@ interface User {
   major?: string;
   class?: string;
   status: "active" | "inactive";
+  avatar?: string;
   createdAt: string;
   updatedAt: string;
   permissions?: string[];
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             uuid: userData.uuid,
             student_id: userData.student_id,
             teacher_id: userData.teacher_id,
+            avatar: userData.avatar,
           };
           setIsAuthenticated(true);
           setUser(normalizedUser);
@@ -97,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       uuid: (user as any).uuid ?? (user as any).id,
       student_id: (user as any).student_id,
       teacher_id: (user as any).teacher_id,
+      avatar: (user as any).avatar,
     };
 
     localStorage.setItem("token", token);
@@ -139,6 +142,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         uuid: userData.uuid,
         student_id: userData.student_id,
         teacher_id: userData.teacher_id,
+        avatar: userData.avatar,
       };
       setUser(normalizedUser);
       localStorage.setItem("user", JSON.stringify(normalizedUser));

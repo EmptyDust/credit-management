@@ -257,6 +257,9 @@ func main() {
 		// 配置选项（透传到 user-service）
 		api.GET("/config/options", createProxyHandler(config.UserServiceURL))
 
+		// 头像文件静态服务（无需认证）
+		api.GET("/uploads/avatars/:filename", createProxyHandler(config.UserServiceURL))
+
 		// 测试数据相关接口
 		// 是否可用由 API Gateway 基于 TEST_DATA_MODE 环境变量控制：
 		// - TEST_DATA_MODE=enabled: 完全开放，无需任何鉴权
@@ -332,15 +335,19 @@ func main() {
 				teacherOrAdmin.GET("/stats/teachers", createProxyHandler(config.UserServiceURL))
 			}
 
-			// 所有认证用户都可以访问的路由
-			users.GET("/stats", createProxyHandler(config.UserServiceURL))
-			users.GET("/profile", createProxyHandler(config.UserServiceURL))
-			users.PUT("/profile", createProxyHandler(config.UserServiceURL))
-			users.GET("/:id", createProxyHandler(config.UserServiceURL))
-			users.POST("/change_password", createProxyHandler(config.UserServiceURL))
-			users.GET("/activity", createProxyHandler(config.UserServiceURL))
-			users.GET("/:id/activity", createProxyHandler(config.UserServiceURL))
-		}
+		// 所有认证用户都可以访问的路由
+		users.GET("/stats", createProxyHandler(config.UserServiceURL))
+		users.GET("/profile", createProxyHandler(config.UserServiceURL))
+		users.PUT("/profile", createProxyHandler(config.UserServiceURL))
+		users.GET("/:id", createProxyHandler(config.UserServiceURL))
+		users.POST("/change_password", createProxyHandler(config.UserServiceURL))
+		users.GET("/activity", createProxyHandler(config.UserServiceURL))
+		users.GET("/:id/activity", createProxyHandler(config.UserServiceURL))
+
+		// 头像管理
+		users.POST("/avatar", createProxyHandler(config.UserServiceURL))
+		users.DELETE("/avatar", createProxyHandler(config.UserServiceURL))
+	}
 
 		// 学生相关路由（需要认证，管理员权限由 user-service 自己校验）
 		students := api.Group("/students")
@@ -553,7 +560,7 @@ func createProxyHandler(targetURL string) gin.HandlerFunc {
 		}
 
 		// 特殊处理：为文件上传路由保留Content-Type和请求体
-		if strings.Contains(path, "/import") || strings.Contains(path, "/upload") {
+		if strings.Contains(path, "/import") || strings.Contains(path, "/upload") || strings.Contains(path, "/avatar") {
 			// 确保multipart/form-data的Content-Type被保留
 			contentType := c.GetHeader("Content-Type")
 			if strings.Contains(contentType, "multipart/form-data") {

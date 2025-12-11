@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,12 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Reset avatar error when user changes
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
 
   const handleLogout = () => {
     logout();
@@ -168,8 +174,17 @@ export default function Layout() {
         </div>
         {/* 用户卡片始终贴底 */}
         <div className="p-4 border-t flex items-center gap-3 bg-background">
-          <div className="rounded-full bg-muted w-10 h-10 flex items-center justify-center font-bold text-lg">
-            {user?.fullName?.[0] || user?.username?.[0] || "U"}
+          <div className="rounded-full bg-muted w-10 h-10 flex items-center justify-center font-bold text-lg overflow-hidden">
+            {user?.avatar && !avatarError ? (
+              <img 
+                src={user.avatar} 
+                alt="" 
+                className="w-full h-full object-cover" 
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              user?.fullName?.[0] || user?.username?.[0] || "U"
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-medium truncate">
@@ -200,9 +215,18 @@ export default function Layout() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-8 w-8 rounded-full"
+                  className="relative h-8 w-8 rounded-full overflow-hidden"
                 >
-                  <UserIcon className="h-5 w-5" />
+                  {user?.avatar && !avatarError ? (
+                    <img 
+                      src={user.avatar} 
+                      alt="" 
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    <UserIcon className="h-5 w-5" />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>

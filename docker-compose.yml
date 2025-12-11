@@ -105,6 +105,8 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=credit_management
       - DB_SSLMODE=disable
+    volumes:
+      - avatar_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -155,6 +157,8 @@ volumes:
   affair_uploads:
     driver: local
   attachment_uploads:
+    driver: local
+  avatar_uploads:
     driver: local
   redis_data:
     driver: local

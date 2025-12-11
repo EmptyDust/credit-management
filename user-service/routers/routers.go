@@ -20,6 +20,9 @@ func RegisterRouters(userHandler *handlers.UserHandler) *gin.Engine {
 		// 公共配置选项（无需认证）
 		api.GET("/config/options", handlers.GetOptions)
 
+		// 静态文件服务（头像）- 无需认证
+		api.GET("/uploads/avatars/:filename", userHandler.GetAvatar)
+
 		// 测试数据相关
 		testData := api.Group("/test-data")
 		{
@@ -33,22 +36,26 @@ func RegisterRouters(userHandler *handlers.UserHandler) *gin.Engine {
 			auth := users.Group("")
 			auth.Use(authMiddleware.AuthRequired())
 			{
-				// 所有认证用户都可以访问的路由
-				allUsers := auth.Group("")
-				allUsers.Use(permissionMiddleware.AllUsers())
-				{
-					allUsers.GET("/profile", userHandler.GetUser)    // 获取当前用户信息
-					allUsers.PUT("/profile", userHandler.UpdateUser) // 更新当前用户信息
-					allUsers.GET("/stats", userHandler.GetUserStats) // 获取用户统计信息
-					allUsers.GET("/:id", userHandler.GetUser)        // 获取指定用户信息
+			// 所有认证用户都可以访问的路由
+			allUsers := auth.Group("")
+			allUsers.Use(permissionMiddleware.AllUsers())
+			{
+				allUsers.GET("/profile", userHandler.GetUser)    // 获取当前用户信息
+				allUsers.PUT("/profile", userHandler.UpdateUser) // 更新当前用户信息
+				allUsers.GET("/stats", userHandler.GetUserStats) // 获取用户统计信息
+				allUsers.GET("/:id", userHandler.GetUser)        // 获取指定用户信息
 
-					// 用户自助修改密码
-					allUsers.POST("/change_password", userHandler.ChangePassword) // 修改自己密码
+				// 用户自助修改密码
+				allUsers.POST("/change_password", userHandler.ChangePassword) // 修改自己密码
 
-					// 获取用户活动记录（预留）
-					allUsers.GET("/activity", userHandler.GetUserActivity)     // 当前用户活动
-					allUsers.GET("/:id/activity", userHandler.GetUserActivity) // 指定用户活动（管理员/教师）
-				}
+				// 头像管理
+				allUsers.POST("/avatar", userHandler.UploadAvatar)   // 上传头像
+				allUsers.DELETE("/avatar", userHandler.DeleteAvatar) // 删除头像
+
+				// 获取用户活动记录（预留）
+				allUsers.GET("/activity", userHandler.GetUserActivity)     // 当前用户活动
+				allUsers.GET("/:id/activity", userHandler.GetUserActivity) // 指定用户活动（管理员/教师）
+			}
 
 				// 管理员路由
 				admin := auth.Group("")

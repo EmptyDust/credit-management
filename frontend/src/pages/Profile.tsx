@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,6 +27,9 @@ import {
   Award,
   Clock,
   Lock,
+  Camera,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import * as z from "zod";
 import { useForm } from "react-hook-form";
@@ -97,6 +100,7 @@ type UserProfile = {
   username: string;
   user_type: string;
   status: string;
+  avatar?: string;
   created_at: string;
   updated_at: string;
   // Student specific fields
@@ -125,6 +129,12 @@ export default function ProfilePage() {
   const [majorOptions, setMajorOptions] = useState<Record<string, { value: string; label: string }[]>>({});
   const [classOptions, setClassOptions] = useState<Record<string, { value: string; label: string }[]>>({});
   const [gradeOptions, setGradeOptions] = useState<{ value: string; label: string }[]>([]);
+  
+  // Avatar states
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -132,7 +142,6 @@ export default function ProfilePage() {
       email: "",
       phone: "",
       real_name: "",
-      id: "",
       college: "",
       major: "",
       class: "",
@@ -305,6 +314,98 @@ export default function ProfilePage() {
     }
   };
 
+  // Avatar handlers
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("只支持 JPG、PNG、GIF、WebP 格式的图片");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("头像文件大小不能超过5MB");
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setAvatarPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload avatar
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const response = await apiClient.post("/users/avatar", formData);
+      const avatarUrl = response.data.data?.avatar || response.data.avatar;
+      
+      // Update profile and auth context
+      if (profile) {
+        setProfile({ ...profile, avatar: avatarUrl });
+      }
+      updateUser({ avatar: avatarUrl });
+      setAvatarLoadError(false);
+      // Keep preview visible briefly to avoid flash, then clear it
+      // The actual image will load from the new avatar URL
+      setTimeout(() => setAvatarPreview(null), 500);
+      toast.success("头像上传成功！");
+    } catch (err: any) {
+      setAvatarPreview(null);
+      const errorMessage = err.response?.data?.message || "头像上传失败";
+      toast.error(errorMessage);
+    } finally {
+      setUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!profile?.avatar) return;
+
+    setUploadingAvatar(true);
+    try {
+      await apiClient.delete("/users/avatar");
+      
+      // Update profile and auth context
+      if (profile) {
+        setProfile({ ...profile, avatar: undefined });
+      }
+      updateUser({ avatar: undefined });
+      toast.success("头像删除成功！");
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "头像删除失败";
+      toast.error(errorMessage);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const getAvatarUrl = () => {
+    if (avatarPreview) return avatarPreview;
+    if (profile?.avatar && !avatarLoadError) return profile.avatar;
+    return null;
+  };
+
+  const handleAvatarLoadError = () => {
+    setAvatarLoadError(true);
+    console.error("Failed to load avatar image");
+  };
 
   const getUserTypeLabel = (userType: string) => {
     const labels = {
@@ -350,6 +451,96 @@ export default function ProfilePage() {
         <h1 className="text-3xl font-bold">个人资料</h1>
         <p className="text-muted-foreground">查看和管理您的个人信息</p>
       </div>
+
+      {/* Avatar Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>头像设置</CardTitle>
+          <CardDescription>点击头像区域上传新头像（支持 JPG、PNG、GIF、WebP，最大 5MB）</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-6">
+            {/* Avatar Display */}
+            <div className="relative group">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              <div
+                onClick={handleAvatarClick}
+                className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-muted cursor-pointer transition-all hover:border-primary group-hover:shadow-lg"
+              >
+                {getAvatarUrl() ? (
+                  <img
+                    src={getAvatarUrl()!}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={handleAvatarLoadError}
+                    onLoad={() => setAvatarLoadError(false)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-primary">
+                      {profile?.real_name?.[0] || profile?.username?.[0] || "U"}
+                    </span>
+                  </div>
+                )}
+                {/* Overlay on hover */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {uploadingAvatar ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  ) : (
+                    <Camera className="h-8 w-8 text-white" />
+                  )}
+                </div>
+              </div>
+              {/* Upload indicator */}
+              {uploadingAvatar && (
+                <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1">
+                  <Upload className="h-4 w-4 text-primary-foreground animate-pulse" />
+                </div>
+              )}
+            </div>
+
+            {/* Avatar info and actions */}
+            <div className="flex-1 space-y-3">
+              <div>
+                <p className="font-medium">{profile?.real_name || profile?.username}</p>
+                <p className="text-sm text-muted-foreground">{profile?.email}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAvatarClick}
+                  disabled={uploadingAvatar}
+                >
+                  <Camera className="mr-2 h-4 w-4" />
+                  {profile?.avatar ? "更换头像" : "上传头像"}
+                </Button>
+                {profile?.avatar && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteAvatar}
+                    disabled={uploadingAvatar}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    删除头像
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSave)} className="space-y-8">
           <div className="grid gap-6 md:grid-cols-2">

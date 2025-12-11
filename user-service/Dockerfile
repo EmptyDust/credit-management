@@ -55,6 +55,9 @@ COPY --from=builder /app/main .
 # 复制配置文件
 COPY --from=builder /app/config ./config
 
+# 创建上传目录
+RUN mkdir -p /app/uploads/avatars
+
 # 更改文件所有者
 RUN chown -R appuser:appgroup /app
 

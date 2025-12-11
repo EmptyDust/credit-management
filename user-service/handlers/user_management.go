@@ -2,12 +2,18 @@ package handlers
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"credit-management/user-service/models"
 	"credit-management/user-service/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -713,4 +719,152 @@ func (h *UserHandler) convertToUserResponse(user models.User) models.UserRespons
 		Grade:        user.Grade,
 		Title:        user.Title,
 	}
+}
+
+// UploadAvatar handles avatar file upload
+func (h *UserHandler) UploadAvatar(c *gin.Context) {
+	userID := utils.GetCurrentUserID(c)
+	if userID == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
+
+	// Check if user exists
+	var user models.User
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendNotFound(c, "用户不存在")
+		} else {
+			utils.SendInternalServerError(c, err)
+		}
+		return
+	}
+
+	// Get uploaded file
+	file, header, err := c.Request.FormFile("avatar")
+	if err != nil {
+		utils.SendBadRequest(c, "请选择要上传的头像文件")
+		return
+	}
+	defer file.Close()
+
+	// Validate file size (max 5MB)
+	maxSize := int64(5 * 1024 * 1024)
+	if header.Size > maxSize {
+		utils.SendBadRequest(c, "头像文件大小不能超过5MB")
+		return
+	}
+
+	// Validate file type
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowedExts[ext] {
+		utils.SendBadRequest(c, "只支持 JPG、PNG、GIF、WebP 格式的图片")
+		return
+	}
+
+	// Create uploads directory if not exists
+	uploadsDir := "./uploads/avatars"
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		utils.SendInternalServerError(c, fmt.Errorf("创建上传目录失败: %v", err))
+		return
+	}
+
+	// Generate unique filename
+	newFilename := fmt.Sprintf("%s_%d%s", uuid.New().String(), time.Now().Unix(), ext)
+	filePath := filepath.Join(uploadsDir, newFilename)
+
+	// Save file
+	out, err := os.Create(filePath)
+	if err != nil {
+		utils.SendInternalServerError(c, fmt.Errorf("创建文件失败: %v", err))
+		return
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, file); err != nil {
+		utils.SendInternalServerError(c, fmt.Errorf("保存文件失败: %v", err))
+		return
+	}
+
+	// Delete old avatar if exists
+	if user.Avatar != nil && *user.Avatar != "" {
+		oldPath := strings.TrimPrefix(*user.Avatar, "/api/uploads/avatars/")
+		oldFilePath := filepath.Join(uploadsDir, oldPath)
+		os.Remove(oldFilePath) // Ignore error if file doesn't exist
+	}
+
+	// Update user avatar in database
+	avatarURL := "/api/uploads/avatars/" + newFilename
+	user.Avatar = &avatarURL
+	if err := h.db.Save(&user).Error; err != nil {
+		// Clean up uploaded file on error
+		os.Remove(filePath)
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	utils.SendSuccessResponse(c, gin.H{
+		"message": "头像上传成功",
+		"avatar":  avatarURL,
+	})
+}
+
+// GetAvatar serves avatar files
+func (h *UserHandler) GetAvatar(c *gin.Context) {
+	filename := c.Param("filename")
+	if filename == "" {
+		utils.SendBadRequest(c, "文件名不能为空")
+		return
+	}
+
+	// Prevent directory traversal
+	filename = filepath.Base(filename)
+	filePath := filepath.Join("./uploads/avatars", filename)
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		utils.SendNotFound(c, "头像文件不存在")
+		return
+	}
+
+	// Serve the file
+	c.File(filePath)
+}
+
+// DeleteAvatar removes the user's avatar
+func (h *UserHandler) DeleteAvatar(c *gin.Context) {
+	userID := utils.GetCurrentUserID(c)
+	if userID == "" {
+		utils.SendUnauthorized(c)
+		return
+	}
+
+	var user models.User
+	if err := h.db.Where("uuid = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			utils.SendNotFound(c, "用户不存在")
+		} else {
+			utils.SendInternalServerError(c, err)
+		}
+		return
+	}
+
+	// Delete old avatar file if exists
+	if user.Avatar != nil && *user.Avatar != "" {
+		oldPath := strings.TrimPrefix(*user.Avatar, "/api/uploads/avatars/")
+		oldFilePath := filepath.Join("./uploads/avatars", oldPath)
+		os.Remove(oldFilePath) // Ignore error if file doesn't exist
+	}
+
+	// Clear avatar in database
+	user.Avatar = nil
+	if err := h.db.Save(&user).Error; err != nil {
+		utils.SendInternalServerError(c, err)
+		return
+	}
+
+	utils.SendSuccessResponse(c, gin.H{
+		"message": "头像删除成功",
+	})
 }
