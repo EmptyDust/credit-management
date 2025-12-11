@@ -34,12 +34,8 @@ FROM docker.io/library/alpine:latest
 # 换ustc源
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
 
-# 安装运行时依赖
-RUN apk add --no-cache ca-certificates tzdata wget
-
-# 创建非 root 用户
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+# 安装运行时依赖和 Docker CLI（用于日志查看功能）
+RUN apk add --no-cache ca-certificates tzdata wget docker-cli
 
 # 设置工作目录
 WORKDIR /app
@@ -47,18 +43,12 @@ WORKDIR /app
 # 复制二进制
 COPY --from=builder /app/main .
 
-# 设置权限
-RUN chown -R appuser:appgroup /app
-
-# 切换用户（安全）
-USER appuser
-
 # 暴露端口
 EXPOSE 8080
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health ||
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# 运行应用
+# 运行应用（以 root 运行以便访问 Docker socket）
 CMD ["./main"] 

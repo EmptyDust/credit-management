@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -9,12 +11,27 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
+
+// 辅助函数
+func newScanner(r io.Reader) *bufio.Scanner {
+	return bufio.NewScanner(r)
+}
+
+func execCommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, args...)
+}
+
+func execCommandShell(command string) *exec.Cmd {
+	return exec.Command("sh", "-c", command)
+}
 
 type ProxyConfig struct {
 	UserServiceURL           string
@@ -45,8 +62,18 @@ func NewAuthMiddleware(jwtSecret string) *AuthMiddleware {
 // AuthRequired 认证必需中间件
 func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenString string
+
+		// 首先尝试从 Authorization header 获取
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			// 如果没有 Authorization header，尝试从 URL query 参数获取（用于 SSE）
+			tokenString = c.Query("token")
+		}
+
+		if tokenString == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code":    401,
 				"message": "缺少认证令牌",
@@ -55,19 +82,6 @@ func (m *AuthMiddleware) AuthRequired() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		// 检查Bearer前缀
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"code":    401,
-				"message": "无效的认证格式",
-				"data":    nil,
-			})
-			c.Abort()
-			return
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		// 解析JWT token
 		token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
@@ -228,6 +242,15 @@ func main() {
 	// API路由组
 	api := r.Group("/api")
 	{
+		// 开发者工具路由（仅管理员）
+		devtools := api.Group("/devtools")
+		devtools.Use(authMiddleware.AuthRequired())
+		devtools.Use(permissionMiddleware.RequireRoles("admin"))
+		{
+			devtools.GET("/services", getDockerServices)
+			devtools.GET("/logs/:service", streamServiceLogs)
+		}
+
 		// 认证服务路由（无需认证）
 		api.Any("/auth/*path", createProxyHandler(config.AuthServiceURL))
 
@@ -572,4 +595,221 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// Docker 服务配置
+var dockerServices = []struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}{
+	{ID: "credit_management_gateway", Name: "API Gateway"},
+	{ID: "credit_management_auth", Name: "Auth Service"},
+	{ID: "credit_management_user", Name: "User Service"},
+	{ID: "credit_management_credit_activity", Name: "Activity Service"},
+	{ID: "credit_management_postgres", Name: "PostgreSQL"},
+	{ID: "credit_management_redis", Name: "Redis"},
+	{ID: "credit_management_frontend", Name: "Frontend"},
+}
+
+// ServiceStatus 服务状态
+type ServiceStatus struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Health string `json:"health,omitempty"`
+}
+
+// 获取 Docker 服务列表和状态
+func getDockerServices(c *gin.Context) {
+	services := make([]ServiceStatus, 0, len(dockerServices))
+
+	for _, svc := range dockerServices {
+		status := ServiceStatus{
+			ID:     svc.ID,
+			Name:   svc.Name,
+			Status: "unknown",
+		}
+
+		// 尝试检查容器状态（使用 docker inspect）
+		cmd := fmt.Sprintf("docker inspect --format='{{.State.Status}}' %s 2>/dev/null || echo 'not_found'", svc.ID)
+		out, err := execCommand(cmd)
+		if err == nil {
+			out = strings.TrimSpace(out)
+			if out != "not_found" && out != "" {
+				status.Status = out
+			}
+		}
+
+		services = append(services, status)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "success",
+		"data":    services,
+	})
+}
+
+// 流式传输服务日志
+func streamServiceLogs(c *gin.Context) {
+	service := c.Param("service")
+	tail := c.DefaultQuery("tail", "100")
+	follow := c.DefaultQuery("follow", "true")
+
+	// 验证服务名
+	validService := false
+	for _, svc := range dockerServices {
+		if svc.ID == service {
+			validService = true
+			break
+		}
+	}
+
+	if !validService {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "无效的服务名",
+			"data":    nil,
+		})
+		return
+	}
+
+	// 设置 SSE headers
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	// 创建 context 用于取消
+	ctx := c.Request.Context()
+
+	// 构建 docker logs 命令
+	args := []string{"logs", "--tail", tail}
+	if follow == "true" {
+		args = append(args, "-f")
+	}
+	args = append(args, "--timestamps", service)
+
+	cmd := execCommandContext(ctx, "docker", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		c.SSEvent("error", gin.H{"message": "无法获取日志流: " + err.Error()})
+		return
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		c.SSEvent("error", gin.H{"message": "无法获取错误流: " + err.Error()})
+		return
+	}
+
+	if err := cmd.Start(); err != nil {
+		c.SSEvent("error", gin.H{"message": "启动日志命令失败: " + err.Error()})
+		return
+	}
+
+	// 创建一个 channel 用于合并 stdout 和 stderr
+	logChan := make(chan string, 100)
+	done := make(chan struct{})
+
+	// 读取 stdout
+	go func() {
+		scanner := newScanner(stdout)
+		for scanner.Scan() {
+			select {
+			case logChan <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// 读取 stderr
+	go func() {
+		scanner := newScanner(stderr)
+		for scanner.Scan() {
+			select {
+			case logChan <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// 等待命令结束
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
+
+	// 发送日志
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case line := <-logChan:
+			// 解析日志行，提取时间戳和内容
+			logEntry := parseLogLine(line, service)
+			c.SSEvent("log", logEntry)
+			return true
+		case <-done:
+			return false
+		case <-ctx.Done():
+			return false
+		}
+	})
+}
+
+// LogEntry 日志条目
+type LogEntry struct {
+	ID        string `json:"id"`
+	Timestamp string `json:"timestamp"`
+	Level     string `json:"level"`
+	Service   string `json:"service"`
+	Message   string `json:"message"`
+}
+
+// 解析日志行
+func parseLogLine(line string, service string) LogEntry {
+	entry := LogEntry{
+		ID:      fmt.Sprintf("%d-%s", time.Now().UnixNano(), randString(6)),
+		Service: service,
+		Level:   "INFO",
+		Message: line,
+	}
+
+	// 尝试解析时间戳（Docker logs --timestamps 格式）
+	if len(line) > 30 && line[4] == '-' && line[10] == 'T' {
+		entry.Timestamp = line[:30]
+		entry.Message = strings.TrimSpace(line[31:])
+	} else {
+		entry.Timestamp = time.Now().Format("2006-01-02T15:04:05.000000000Z")
+	}
+
+	// 简单的日志级别检测
+	msgLower := strings.ToLower(entry.Message)
+	if strings.Contains(msgLower, "error") || strings.Contains(msgLower, "err") || strings.Contains(msgLower, "fail") {
+		entry.Level = "ERROR"
+	} else if strings.Contains(msgLower, "warn") {
+		entry.Level = "WARN"
+	} else if strings.Contains(msgLower, "debug") {
+		entry.Level = "DEBUG"
+	}
+
+	return entry
+}
+
+// 执行命令并返回输出
+func execCommand(command string) (string, error) {
+	cmd := execCommandShell(command)
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// 生成随机字符串
+func randString(n int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+		time.Sleep(time.Nanosecond)
+	}
+	return string(b)
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,11 @@ import {
   User as UserIcon,
   Menu,
   Award,
+  Terminal,
+  Zap,
+  ScrollText,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -21,8 +27,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const getMenuItems = (userType: string) => {
-  const baseItems = [
+interface MenuItem {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  path: string;
+  children?: MenuItem[];
+}
+
+const getMenuItems = (userType: string): MenuItem[] => {
+  const baseItems: MenuItem[] = [
     { label: "仪表板", icon: Home, path: "/dashboard" },
     { label: "活动列表", icon: Award, path: "/activities" },
     { label: "申请列表", icon: FileText, path: "/applications" },
@@ -34,6 +47,16 @@ const getMenuItems = (userType: string) => {
 
   if (userType === "admin") {
     baseItems.push({ label: "教师列表", icon: BookUser, path: "/teachers" });
+    // 管理员专属：开发者工具
+    baseItems.push({
+      label: "开发者工具",
+      icon: Terminal,
+      path: "/devtools",
+      children: [
+        { label: "API 测试器", icon: Zap, path: "/devtools/api-tester" },
+        { label: "服务日志", icon: ScrollText, path: "/devtools/logs" },
+      ],
+    });
   }
 
   return baseItems;
@@ -43,6 +66,7 @@ export default function Layout() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
   const handleLogout = () => {
     logout();
@@ -58,6 +82,19 @@ export default function Layout() {
     return labels[userType as keyof typeof labels] || userType;
   };
 
+  const toggleMenu = (path: string) => {
+    setExpandedMenus((prev) => ({ ...prev, [path]: !prev[path] }));
+  };
+
+  const isMenuActive = (item: MenuItem): boolean => {
+    if (location.pathname === item.path) return true;
+    if (location.pathname.startsWith(item.path + "/")) return true;
+    if (item.children) {
+      return item.children.some((child) => isMenuActive(child));
+    }
+    return false;
+  };
+
   // 根据用户类型获取菜单项
   const menuItems = getMenuItems(user?.userType || "");
 
@@ -71,18 +108,60 @@ export default function Layout() {
           </div>
           <nav className="flex flex-col gap-1 mt-4">
             {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-6 py-3 rounded-lg transition-colors text-base font-medium hover:bg-primary/10 ${
-                  location.pathname.startsWith(item.path)
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </Link>
+              <div key={item.path}>
+                {item.children ? (
+                  // 有子菜单的项
+                  <>
+                    <button
+                      onClick={() => toggleMenu(item.path)}
+                      className={`w-full flex items-center gap-3 px-6 py-3 rounded-lg transition-colors text-base font-medium hover:bg-primary/10 ${
+                        isMenuActive(item)
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {expandedMenus[item.path] || isMenuActive(item) ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </button>
+                    {(expandedMenus[item.path] || isMenuActive(item)) && (
+                      <div className="ml-6 mt-1 space-y-1">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            className={`flex items-center gap-3 px-6 py-2 rounded-lg transition-colors text-sm font-medium hover:bg-primary/10 ${
+                              location.pathname === child.path
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            <child.icon className="h-4 w-4" />
+                            {child.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // 普通菜单项
+                  <Link
+                    to={item.path}
+                    className={`flex items-center gap-3 px-6 py-3 rounded-lg transition-colors text-base font-medium hover:bg-primary/10 ${
+                      isMenuActive(item)
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.label}
+                  </Link>
+                )}
+              </div>
             ))}
           </nav>
         </div>

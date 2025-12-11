@@ -15,6 +15,9 @@ import ActivityDetail from "./pages/ActivityDetail";
 import Applications from "./pages/Applications";
 import ProfilePage from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import DevToolsLayout from "./pages/devtools";
+import ApiTester from "./pages/devtools/ApiTester";
+import LogViewer from "./pages/devtools/LogViewer";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -52,6 +55,18 @@ function App() {
                 <Route path="/activities/:id" element={<ActivityDetail />} />
                 <Route path="/applications" element={<Applications />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                {/* 开发者工具 - 仅管理员可访问 */}
+                <Route
+                  path="/devtools"
+                  element={
+                    <RoleBasedRoute allowedRoles={["admin"]}>
+                      <DevToolsLayout />
+                    </RoleBasedRoute>
+                  }
+                >
+                  <Route path="api-tester" element={<ApiTester />} />
+                  <Route path="logs" element={<LogViewer />} />
+                </Route>
               </Route>
             </Route>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
