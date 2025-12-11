@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { HelpMeWidget } from "@/components/HelpMeWidget";
 import {
   Home,
   Users,
@@ -242,6 +243,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </main>
+
+      {/* HelpMe Widget - 全局帮助按钮 */}
+      <HelpMeWidget />
     </div>
   );
 }
