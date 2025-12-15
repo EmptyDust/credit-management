@@ -2,12 +2,16 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
+	"os"
 	"time"
 
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -32,7 +36,8 @@ func NewAuthHandler(db *gorm.DB, jwtSecret string, redis *utils.RedisClient) *Au
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.UserLoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		log.Printf("Login binding error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求参数错误", "data": nil})
 		return
 	}
@@ -541,7 +546,24 @@ func InitializeAdminUser(db *gorm.DB) error {
 	var userCount int64
 	db.Model(&models.User{}).Where("username = ?", "admin").Count(&userCount)
 	if userCount == 0 {
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("adminpassword"), bcrypt.DefaultCost)
+		// 从环境变量读取管理员密码，如果未设置则生成随机密码
+		adminPassword := os.Getenv("ADMIN_DEFAULT_PASSWORD")
+		if adminPassword == "" {
+			// 生成16字节随机密码
+			randomBytes := make([]byte, 16)
+			if _, err := rand.Read(randomBytes); err != nil {
+				return err
+			}
+			adminPassword = base64.URLEncoding.EncodeToString(randomBytes)
+			log.Printf("⚠️  IMPORTANT: Generated random admin password: %s", adminPassword)
+			log.Printf("⚠️  Please save this password and change it after first login!")
+		}
+
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
 		adminUser := models.User{
 			Username: "admin",
 			Password: string(hashedPassword),

@@ -47,7 +47,7 @@ func main() {
 	searchHandler := handlers.NewSearchHandler(db)
 
 	authMiddleware := utils.NewHeaderAuthMiddleware()
-	permissionMiddleware := utils.NewPermissionMiddleware()
+	permissionMiddleware := utils.NewPermissionMiddleware(db)
 
 	log.Println("正在创建路由...")
 	r := gin.New()

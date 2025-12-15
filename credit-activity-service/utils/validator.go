@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -104,8 +105,9 @@ func (v *Validator) ValidateUUID(id string) error {
 		return fmt.Errorf("ID不能为空")
 	}
 
-	// 简单的UUID格式验证
-	if len(id) != 36 || !strings.Contains(id, "-") {
+	// 使用正则表达式验证UUID格式（标准UUID v4格式：8-4-4-4-12）
+	uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	if !uuidRegex.MatchString(id) {
 		return fmt.Errorf("无效的UUID格式")
 	}
 

@@ -87,3 +87,34 @@ func (r *RedisClient) DeleteCache(ctx context.Context, key string) error {
 func (r *RedisClient) Close() error {
 	return r.client.Close()
 }
+
+// IncrementRateLimit 增加速率限制计数器
+// 返回当前计数和是否超过限制
+func (r *RedisClient) IncrementRateLimit(ctx context.Context, key string, limit int64, window time.Duration) (int64, bool, error) {
+	// 增加计数
+	count, err := r.client.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, false, err
+	}
+
+	// 如果是第一次访问，设置过期时间
+	if count == 1 {
+		if err := r.client.Expire(ctx, key, window).Err(); err != nil {
+			return count, false, err
+		}
+	}
+
+	// 检查是否超过限制
+	exceeded := count > limit
+	return count, exceeded, nil
+}
+
+// GetRateLimitCount 获取当前速率限制计数
+func (r *RedisClient) GetRateLimitCount(ctx context.Context, key string) (int64, error) {
+	count, err := r.client.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return count, err
+}
+

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -656,11 +657,101 @@ func (h *AttachmentHandler) validateFile(header *multipart.FileHeader) error {
 		return fmt.Errorf("文件大小不能超过%dMB", models.MaxFileSize/1024/1024)
 	}
 
-	// 检查文件类型
+	// 检查文件扩展名
 	fileExt := strings.ToLower(filepath.Ext(header.Filename))
 	if !models.IsSupportedFileType(fileExt) {
 		return fmt.Errorf("不支持的文件类型: %s", fileExt)
 	}
 
+	// 检查文件的实际 MIME 类型
+	file, err := header.Open()
+	if err != nil {
+		return fmt.Errorf("无法打开文件: %v", err)
+	}
+	defer file.Close()
+
+	// 读取文件头部（前512字节）来检测 MIME 类型
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return fmt.Errorf("无法读取文件内容: %v", err)
+	}
+
+	// 检测 MIME 类型
+	mimeType := http.DetectContentType(buffer[:n])
+
+	// 验证 MIME 类型是否与扩展名匹配
+	if !isValidMimeTypeForExtension(fileExt, mimeType) {
+		return fmt.Errorf("文件内容与扩展名不匹配，检测到的类型: %s", mimeType)
+	}
+
 	return nil
+}
+
+// isValidMimeTypeForExtension 验证 MIME 类型是否与文件扩展名匹配
+func isValidMimeTypeForExtension(ext, mimeType string) bool {
+	// 定义扩展名与 MIME 类型的映射关系
+	validMimeTypes := map[string][]string{
+		// 文档类型
+		".pdf":  {"application/pdf"},
+		".doc":  {"application/msword", "application/x-cfb"},
+		".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/zip"},
+		".xls":  {"application/vnd.ms-excel", "application/x-cfb"},
+		".xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/zip"},
+		".ppt":  {"application/vnd.ms-powerpoint", "application/x-cfb"},
+		".pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/zip"},
+		".txt":  {"text/plain"},
+
+		// 图片类型
+		".jpg":  {"image/jpeg"},
+		".jpeg": {"image/jpeg"},
+		".png":  {"image/png"},
+		".gif":  {"image/gif"},
+		".bmp":  {"image/bmp", "image/x-ms-bmp"},
+		".svg":  {"image/svg+xml", "text/xml"},
+		".webp": {"image/webp"},
+
+		// 视频类型
+		".mp4":  {"video/mp4"},
+		".avi":  {"video/x-msvideo", "video/avi"},
+		".mov":  {"video/quicktime"},
+		".wmv":  {"video/x-ms-wmv"},
+		".flv":  {"video/x-flv"},
+		".mkv":  {"video/x-matroska"},
+
+		// 音频类型
+		".mp3":  {"audio/mpeg"},
+		".wav":  {"audio/wav", "audio/x-wav"},
+		".flac": {"audio/flac"},
+		".aac":  {"audio/aac"},
+
+		// 压缩文件
+		".zip":  {"application/zip"},
+		".rar":  {"application/x-rar-compressed", "application/octet-stream"},
+		".7z":   {"application/x-7z-compressed", "application/octet-stream"},
+		".tar":  {"application/x-tar"},
+		".gz":   {"application/gzip", "application/x-gzip"},
+	}
+
+	allowedTypes, exists := validMimeTypes[ext]
+	if !exists {
+		// 如果没有定义，则允许（向后兼容）
+		return true
+	}
+
+	// 检查 MIME 类型是否在允许列表中
+	for _, allowedType := range allowedTypes {
+		if strings.HasPrefix(mimeType, allowedType) {
+			return true
+		}
+	}
+
+	// Office 文档的特殊处理（可能被检测为 application/zip）
+	if strings.HasSuffix(ext, "x") && (ext == ".docx" || ext == ".xlsx" || ext == ".pptx") {
+		if strings.HasPrefix(mimeType, "application/zip") {
+			return true
+		}
+	}
+
+	return false
 }

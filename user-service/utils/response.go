@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -100,5 +101,8 @@ func SendConflict(c *gin.Context, message string) {
 }
 
 func SendInternalServerError(c *gin.Context, err error) {
-	SendErrorResponse(c, http.StatusInternalServerError, "服务器内部错误: "+err.Error())
+	// 记录详细错误到服务器日志
+	log.Printf("Internal server error: %v", err)
+	// 向客户端返回通用错误消息，不暴露内部细节
+	SendErrorResponse(c, http.StatusInternalServerError, "服务器内部错误")
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
@@ -212,11 +213,25 @@ func main() {
 	// 设置Gin路由
 	r := gin.Default()
 
+	// 获取允许的前端域名
+	corsAllowedOrigins := getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+
 	// 添加CORS中间件
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		// 检查请求来源是否在允许列表中
+		if origin != "" {
+			allowedOrigins := strings.Split(corsAllowedOrigins, ",")
+			for _, allowedOrigin := range allowedOrigins {
+				if strings.TrimSpace(allowedOrigin) == origin {
+					c.Header("Access-Control-Allow-Origin", origin)
+					break
+				}
+			}
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -685,7 +700,7 @@ func streamServiceLogs(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
+	// CORS 头已在全局中间件设置
 
 	// 创建 context 用于取消
 	ctx := c.Request.Context()
@@ -810,13 +825,24 @@ func execCommand(command string) (string, error) {
 	return string(out), err
 }
 
-// 生成随机字符串
+// 生成随机字符串（使用加密安全的随机数生成器）
 func randString(n int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, n)
+	randomBytes := make([]byte, n)
+
+	if _, err := rand.Read(randomBytes); err != nil {
+		// 如果随机生成失败，记录错误并使用时间戳作为后备
+		log.Printf("Failed to generate secure random string: %v", err)
+		for i := range b {
+			b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+			time.Sleep(time.Nanosecond)
+		}
+		return string(b)
+	}
+
 	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
-		time.Sleep(time.Nanosecond)
+		b[i] = letters[int(randomBytes[i])%len(letters)]
 	}
 	return string(b)
 }

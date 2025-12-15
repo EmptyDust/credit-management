@@ -1,10 +1,14 @@
 package utils
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
@@ -97,4 +101,125 @@ func (m *PermissionMiddleware) RequireUserType(userType string) gin.HandlerFunc 
 
 		c.Next()
 	}
+}
+
+// RateLimitMiddleware 速率限制中间件
+type RateLimitMiddleware struct {
+	redis  *RedisClient
+	limit  int64         // 最大请求次数
+	window time.Duration // 时间窗口
+}
+
+// NewRateLimitMiddleware 创建速率限制中间件
+// limit: 在时间窗口内允许的最大请求次数
+// window: 时间窗口（例如：1分钟）
+func NewRateLimitMiddleware(redis *RedisClient, limit int64, window time.Duration) *RateLimitMiddleware {
+	return &RateLimitMiddleware{
+		redis:  redis,
+		limit:  limit,
+		window: window,
+	}
+}
+
+// LimitByIP 基于IP地址的速率限制
+func (m *RateLimitMiddleware) LimitByIP() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 获取客户端IP
+		clientIP := c.ClientIP()
+		key := fmt.Sprintf("rate_limit:ip:%s", clientIP)
+
+		// 检查速率限制
+		ctx := context.Background()
+		count, exceeded, err := m.redis.IncrementRateLimit(ctx, key, m.limit, m.window)
+
+		if err != nil {
+			// 如果Redis出错，记录日志但不阻止请求
+			c.Next()
+			return
+		}
+
+		// 设置速率限制响应头
+		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", m.limit))
+		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", max(0, m.limit-count)))
+
+		if exceeded {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    429,
+				"message": fmt.Sprintf("请求过于频繁，请在%v后重试", m.window),
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// LimitByUsername 基于用户名的速率限制（用于登录等场景）
+func (m *RateLimitMiddleware) LimitByUsername() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从请求体中提取用户名
+		var req struct {
+			Username string `json:"username"`
+			Email    string `json:"email"`
+			Phone    string `json:"phone"`
+		}
+
+		// 使用ShouldBindBodyWith允许请求体被多次读取
+		if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+			c.Next()
+			return
+		}
+
+		// 确定用户标识（优先使用username，然后是email，最后是phone）
+		userIdentifier := req.Username
+		if userIdentifier == "" {
+			userIdentifier = req.Email
+		}
+		if userIdentifier == "" {
+			userIdentifier = req.Phone
+		}
+
+		if userIdentifier == "" {
+			c.Next()
+			return
+		}
+
+		key := fmt.Sprintf("rate_limit:user:%s", userIdentifier)
+
+		// 检查速率限制
+		ctx := context.Background()
+		count, exceeded, err := m.redis.IncrementRateLimit(ctx, key, m.limit, m.window)
+
+		if err != nil {
+			// 如果Redis出错，记录日志但不阻止请求
+			c.Next()
+			return
+		}
+
+		// 设置速率限制响应头
+		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", m.limit))
+		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", max(0, m.limit-count)))
+
+		if exceeded {
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"code":    429,
+				"message": fmt.Sprintf("登录尝试过于频繁，请在%v后重试", m.window),
+				"data":    nil,
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// max 返回两个int64中较大的值
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
