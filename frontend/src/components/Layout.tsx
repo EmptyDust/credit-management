@@ -172,61 +172,38 @@ export default function Layout() {
             ))}
           </nav>
         </div>
-        {/* 用户卡片始终贴底 */}
-        <div className="p-4 border-t flex items-center gap-3 bg-background">
-          <div className="rounded-full bg-muted w-10 h-10 flex items-center justify-center font-bold text-lg overflow-hidden">
-            {user?.avatar && !avatarError ? (
-              <img 
-                src={user.avatar} 
-                alt="" 
-                className="w-full h-full object-cover" 
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              user?.fullName?.[0] || user?.username?.[0] || "U"
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-medium truncate">
-              {user?.fullName || user?.username}
+        {/* 用户卡片和主题切换始终贴底 */}
+        <div className="p-4 border-t bg-background">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="rounded-full bg-muted w-10 h-10 flex items-center justify-center font-bold text-lg overflow-hidden">
+              {user?.avatar && !avatarError ? (
+                <img
+                  src={user.avatar}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                user?.fullName?.[0] || user?.username?.[0] || "U"
+              )}
             </div>
-            <div className="text-xs text-muted-foreground truncate">
-              {getUserTypeLabel(user?.userType || "")}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">
+                {user?.fullName || user?.username}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {getUserTypeLabel(user?.userType || "")}
+              </div>
             </div>
-          </div>
-        </div>
-      </aside>
-      {/* 右侧主内容区 */}
-      <main className="flex-1 ml-64 h-screen overflow-y-auto bg-background">
-        {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b bg-background px-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="sm:hidden">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Theme toggle */}
-            <ThemeToggle />
-
-            {/* User menu */}
+            {/* User menu dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-8 w-8 rounded-full overflow-hidden"
+                  size="icon"
+                  className="h-8 w-8"
                 >
-                  {user?.avatar && !avatarError ? (
-                    <img 
-                      src={user.avatar} 
-                      alt="" 
-                      className="w-full h-full object-cover"
-                      onError={() => setAvatarError(true)}
-                    />
-                  ) : (
-                    <UserIcon className="h-5 w-5" />
-                  )}
+                  <Menu className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -259,6 +236,25 @@ export default function Layout() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+          {/* Theme toggle */}
+          <div className="flex items-center justify-center pt-3 border-t">
+            <ThemeToggle />
+          </div>
+        </div>
+      </aside>
+      {/* 右侧主内容区 */}
+      <main className="flex-1 ml-64 h-screen overflow-y-auto bg-background">
+        {/* Header */}
+        <header className="flex h-16 items-center justify-between border-b bg-background px-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="sm:hidden">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Empty right side - components moved to sidebar */}
+          <div className="flex items-center gap-4">
           </div>
         </header>
 
