@@ -174,36 +174,26 @@ export default function Layout() {
         </div>
         {/* 用户卡片和主题切换始终贴底 */}
         <div className="p-4 border-t bg-background">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="rounded-full bg-muted w-10 h-10 flex items-center justify-center font-bold text-lg overflow-hidden">
-              {user?.avatar && !avatarError ? (
-                <img
-                  src={user.avatar}
-                  alt=""
-                  className="w-full h-full object-cover"
-                  onError={() => setAvatarError(true)}
-                />
-              ) : (
-                user?.fullName?.[0] || user?.username?.[0] || "U"
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">
-                {user?.fullName || user?.username}
-              </div>
-              <div className="text-xs text-muted-foreground truncate">
-                {getUserTypeLabel(user?.userType || "")}
-              </div>
-            </div>
-            {/* User menu dropdown */}
+          <div className="flex items-center gap-3">
+            {/* User avatar with dropdown on the left */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
+                  className="relative h-10 w-10 rounded-full overflow-hidden p-0"
                 >
-                  <Menu className="h-4 w-4" />
+                  {user?.avatar && !avatarError ? (
+                    <img
+                      src={user.avatar}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    <div className="rounded-full bg-muted w-full h-full flex items-center justify-center font-bold text-lg">
+                      {user?.fullName?.[0] || user?.username?.[0] || "U"}
+                    </div>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -236,28 +226,24 @@ export default function Layout() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-          {/* Theme toggle */}
-          <div className="flex items-center justify-center pt-3 border-t">
+
+            {/* User info in the middle */}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">
+                {user?.fullName || user?.username}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {getUserTypeLabel(user?.userType || "")}
+              </div>
+            </div>
+
+            {/* Theme toggle on the right */}
             <ThemeToggle />
           </div>
         </div>
       </aside>
       {/* 右侧主内容区 */}
       <main className="flex-1 ml-64 h-screen overflow-y-auto bg-background">
-        {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b bg-background px-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="sm:hidden">
-              <Menu className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Empty right side - components moved to sidebar */}
-          <div className="flex items-center gap-4">
-          </div>
-        </header>
-
         {/* Main content area */}
         <main className="flex-1 overflow-auto">
           <Outlet />
