@@ -1,0 +1,419 @@
+# ========================================
+# Docker Compose 优化配置
+# 基于Debian内核优化的微服务部署配置
+# ========================================
+
+services:
+  # PostgreSQL数据库 - 重点优化
+  postgres:
+    build: ./database
+    container_name: credit_management_postgres
+    environment:
+      POSTGRES_DB: credit_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      # PostgreSQL性能优化参数
+      POSTGRES_SHARED_BUFFERS: "256MB"           # 共享缓冲区（推荐物理内存的25%）
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "1GB"       # 有效缓存大小
+      POSTGRES_MAINTENANCE_WORK_MEM: "64MB"      # 维护操作内存
+      POSTGRES_WORK_MEM: "16MB"                  # 查询操作内存
+      POSTGRES_MAX_CONNECTIONS: "100"            # 最大连接数
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/backups:/backups
+      # 优化：添加PostgreSQL配置文件挂载
+      - ./optimization/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    networks:
+      - credit_network
+
+    # 资源限制（根据实际需求调整）
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'              # 最多使用2个CPU核心
+          memory: 1G               # 最大内存1GB
+        reservations:
+          cpus: '0.5'              # 预留0.5个CPU核心
+          memory: 512M             # 预留512MB内存
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true     # 禁止进程获取新权限
+    read_only: false                # PostgreSQL需要写入，不能只读
+    tmpfs:
+      - /tmp                        # 临时文件使用tmpfs（内存文件系统）
+      - /run
+
+    # 健康检查优化
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credit_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # Redis缓存服务 - 内存优化
+  redis:
+    image: docker.io/library/redis:7.2-alpine
+    container_name: credit_management_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - credit_network
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_HOST=credit_management_redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=password
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # API网关 - 网络优化
+  api-gateway:
+    build: ./api-gateway
+    container_name: credit_management_gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - CREDIT_ACTIVITY_SERVICE_URL=http://credit-activity-service:8083
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - USER_SERVICE_URL=http://user-service:8084
+      - JWT_SECRET=your-secret-key
+      - TEST_DATA_MODE=enabled
+      # Go运行时优化
+      - GOMAXPROCS=2                # 限制Go使用的CPU核心数
+      - GOGC=100                    # GC触发阈值（默认100）
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # 只读挂载
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # 认证服务
+  auth-service:
+    build: ./auth-service
+    container_name: credit_management_auth
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=credit_management_postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_SSLMODE=disable
+      - JWT_SECRET=your-secret-key
+      - REDIS_HOST=credit_management_redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=password
+      # Go运行时优化
+      - GOMAXPROCS=1
+      - GOGC=100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - credit_network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # 学分活动服务
+  credit-activity-service:
+    build: ./credit-activity-service
+    container_name: credit_management_credit_activity
+    ports:
+      - "8083:8083"
+    environment:
+      - DB_HOST=credit_management_postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_SSLMODE=disable
+      # Go运行时优化
+      - GOMAXPROCS=1
+      - GOGC=100
+    volumes:
+      - attachment_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # 需要写入uploads目录
+    tmpfs:
+      - /tmp
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # 用户服务
+  user-service:
+    build: ./user-service
+    container_name: credit_management_user
+    ports:
+      - "8084:8084"
+    environment:
+      - DB_HOST=credit_management_postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=credit_management
+      - DB_SSLMODE=disable
+      # Go运行时优化
+      - GOMAXPROCS=1
+      - GOGC=100
+    volumes:
+      - avatar_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - credit_network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # 需要写入uploads目录
+    tmpfs:
+      - /tmp
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+  # 前端应用
+  frontend:
+    build: ./frontend
+    container_name: credit_management_frontend
+    user: root  # Nginx需要root权限绑定80端口
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - credit_network
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 32M
+
+    # 安全配置
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+    restart: unless-stopped
+
+# 卷配置 - 使用本地驱动优化
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+
+  attachment_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/attachments
+
+  avatar_uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/avatars
+
+# 网络配置 - 优化网络性能
+networks:
+  credit_network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-credit
+      com.docker.network.driver.mtu: 1500
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# ========================================
+# 使用说明
+# ========================================
+# 1. 创建数据目录：
+#    mkdir -p ./data/{postgres,redis,attachments,avatars}
+#    chmod 700 ./data/postgres ./data/redis
+#
+# 2. 应用配置：
+#    docker-compose -f docker-compose.optimized.yml up -d
+#
+# 3. 监控资源使用：
+#    docker stats
+#
+# 4. 查看日志：
+#    docker-compose -f docker-compose.optimized.yml logs -f [service_name]

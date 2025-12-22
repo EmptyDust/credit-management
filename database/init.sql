@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS credit_activities
     reviewed_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deleted_at      TIMESTAMPTZ
+    deleted_at      TIMESTAMPTZ,
+    details         JSONB        NOT NULL DEFAULT '{}'::jsonb
 );
 
 -- 创建活动参与者表
