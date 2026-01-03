@@ -291,3 +291,5 @@ yarn.lock
 package-lock.json 
 
 set_env.sh
+
+/docs

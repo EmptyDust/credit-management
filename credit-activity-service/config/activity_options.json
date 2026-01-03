@@ -91,6 +91,10 @@
           {
             "value": "国家级",
             "label": "国家级"
+          },
+          {
+            "value": "国际级",
+            "label": "国际级"
           }
         ],
         "filterable": true
