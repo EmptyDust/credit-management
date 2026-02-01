@@ -13,7 +13,7 @@ jobs:
     steps:
       # 步骤1: 检出代码（这一步是为了让Action可以访问到仓库信息，比如仓库URL）
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 步骤2: SSH 连接到服务器并执行部署脚本
       - name: Deploy to Server
