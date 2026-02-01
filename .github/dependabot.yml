@@ -1,0 +1,69 @@
+version: 2
+updates:
+  # 1. 监控 Go 后端依赖 (针对每个微服务)
+  - package-ecosystem: "gomod"
+    directory: "/api-gateway"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "backend"
+      - "dependencies"
+
+  - package-ecosystem: "gomod"
+    directory: "/auth-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "backend"
+      - "dependencies"
+
+  - package-ecosystem: "gomod"
+    directory: "/credit-activity-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "backend"
+      - "dependencies"
+
+  - package-ecosystem: "gomod"
+    directory: "/user-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "backend"
+      - "dependencies"
+
+  - package-ecosystem: "gomod"
+    directory: "/test-utils"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "test"
+      - "dependencies"
+
+  # 2. 监控前端依赖 (React / TypeScript)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "frontend"
+      - "dependencies"
+
+  # 3. 监控 Docker 镜像更新 (docker-compose.yml)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "dependencies"
+
+  # 4. 监控 GitHub Actions 工作流更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci/cd"
+      - "dependencies"
