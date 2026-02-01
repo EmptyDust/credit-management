@@ -12,7 +12,7 @@ require (
 	github.com/xuri/excelize/v2 v2.9.1
 	golang.org/x/crypto v0.45.0
 	gorm.io/driver/postgres v1.5.2
-	gorm.io/gorm v1.30.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
