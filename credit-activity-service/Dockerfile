@@ -1,5 +1,5 @@
 # 多阶段构建 - 构建阶段
-FROM docker.io/library/golang:1.24-alpine AS builder
+FROM docker.io/library/golang:1.25-alpine AS builder
 
 # 设置国内 Go 代理
 ENV GOPROXY=https://goproxy.cn,direct
