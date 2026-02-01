@@ -11,8 +11,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xuri/excelize/v2 v2.9.1
 	gorm.io/datatypes v1.2.1
-	gorm.io/driver/postgres v1.5.4
-	gorm.io/gorm v1.25.9
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.25.10
 )
 
 require (
