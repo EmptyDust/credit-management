@@ -1,6 +1,56 @@
 version: 2
 updates:
-  # 1. 监控 Go 后端依赖 (针对每个微服务)
+  # 1. 监控 GitHub Actions (检查 .github/workflows 里的 action 版本)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci/cd"
+
+  # 2. 监控 Docker 镜像更新
+  # 检查根目录的 docker-compose.yml
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+
+  # 检查各个微服务子目录下的 Dockerfile (解决你提到的找不到 Dockerfile 问题)
+  - package-ecosystem: "docker"
+    directory: "/api-gateway"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "backend"
+
+  - package-ecosystem: "docker"
+    directory: "/auth-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "backend"
+
+  - package-ecosystem: "docker"
+    directory: "/credit-activity-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "backend"
+
+  - package-ecosystem: "docker"
+    directory: "/user-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "docker"
+      - "backend"
+
+  # 3. 监控 Go 后端依赖 (Go Modules)
   - package-ecosystem: "gomod"
     directory: "/api-gateway"
     schedule:
@@ -41,29 +91,11 @@ updates:
       - "test"
       - "dependencies"
 
-  # 2. 监控前端依赖 (React / TypeScript)
+  # 4. 监控前端依赖 (NPM/React)
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
     labels:
       - "frontend"
-      - "dependencies"
-
-  # 3. 监控 Docker 镜像更新 (docker-compose.yml)
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "docker"
-      - "dependencies"
-
-  # 4. 监控 GitHub Actions 工作流更新
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "ci/cd"
       - "dependencies"
