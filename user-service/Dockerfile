@@ -1,5 +1,5 @@
 # 使用官方Go镜像作为构建环境
-FROM docker.io/library/golang:1.25-alpine AS builder
+FROM docker.io/library/golang:1.26-alpine AS builder
 
 # 设置国内 Go 代理
 ENV GOPROXY=https://goproxy.cn,direct
