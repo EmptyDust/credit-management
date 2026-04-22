@@ -19,6 +19,7 @@ type User struct {
 	Title               string
 	RefreshTokenVersion int64
 	LastLoginAt         *time.Time
+	DeletedAt           *time.Time
 }
 
 type ProfilePatch struct {

@@ -12,6 +12,7 @@ import (
 
 	authdomain "credit-management/backend/internal/modules/auth/domain"
 	usersdomain "credit-management/backend/internal/modules/users/domain"
+	usersrepo "credit-management/backend/internal/modules/users/repo"
 	"credit-management/backend/internal/platform/authn"
 	"credit-management/backend/internal/platform/authz"
 	"credit-management/backend/internal/platform/idgen"
@@ -314,6 +315,9 @@ func (s *MemoryStore) FindByLoginID(_ context.Context, loginID string) (*usersdo
 	defer s.mu.RUnlock()
 
 	for _, user := range s.users {
+		if user.DeletedAt != nil {
+			continue
+		}
 		if user.Username == loginID || user.StudentID == loginID || user.TeacherID == loginID {
 			return cloneUser(user), nil
 		}
@@ -327,7 +331,7 @@ func (s *MemoryStore) FindByID(_ context.Context, userID string) (*usersdomain.U
 	defer s.mu.RUnlock()
 
 	user, ok := s.users[userID]
-	if !ok {
+	if !ok || user.DeletedAt != nil {
 		return nil, ErrUserNotFound
 	}
 
@@ -338,7 +342,7 @@ func (s *MemoryStore) CreateStudent(_ context.Context, input RegisterStudentInpu
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.ensureUnique("", input.Username, input.StudentID, input.Email, input.Phone); err != nil {
+	if err := s.ensureUnique("", input.Username, input.StudentID, "", input.Email, input.Phone); err != nil {
 		return nil, err
 	}
 
@@ -371,10 +375,10 @@ func (s *MemoryStore) UpdateProfile(_ context.Context, userID string, patch user
 	defer s.mu.Unlock()
 
 	user, ok := s.users[userID]
-	if !ok {
+	if !ok || user.DeletedAt != nil {
 		return nil, ErrUserNotFound
 	}
-	if err := s.ensureUnique(userID, user.Username, user.StudentID, patch.Email, patch.Phone); err != nil {
+	if err := s.ensureUnique(userID, user.Username, user.StudentID, user.TeacherID, patch.Email, patch.Phone); err != nil {
 		return nil, err
 	}
 
@@ -393,7 +397,7 @@ func (s *MemoryStore) UpdatePassword(_ context.Context, userID string, passwordH
 	defer s.mu.Unlock()
 
 	user, ok := s.users[userID]
-	if !ok {
+	if !ok || user.DeletedAt != nil {
 		return ErrUserNotFound
 	}
 
@@ -407,7 +411,7 @@ func (s *MemoryStore) UpdateAvatar(_ context.Context, userID string, fileID stri
 	defer s.mu.Unlock()
 
 	user, ok := s.users[userID]
-	if !ok {
+	if !ok || user.DeletedAt != nil {
 		return nil, ErrUserNotFound
 	}
 
@@ -420,7 +424,7 @@ func (s *MemoryStore) DeleteAvatar(_ context.Context, userID string) (*usersdoma
 	defer s.mu.Unlock()
 
 	user, ok := s.users[userID]
-	if !ok {
+	if !ok || user.DeletedAt != nil {
 		return nil, ErrUserNotFound
 	}
 
@@ -481,9 +485,145 @@ func (s *MemoryStore) RevokeAllUserSessions(_ context.Context, userID string, re
 	return nil
 }
 
-func (s *MemoryStore) ensureUnique(userID string, username string, studentID string, email string, phone string) error {
+func (s *MemoryStore) ListUsers(_ context.Context, filter usersrepo.ListFilter) ([]usersdomain.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]usersdomain.User, 0, len(s.users))
+	for _, user := range s.users {
+		if user.DeletedAt != nil {
+			continue
+		}
+		if filter.UserType != "" && user.UserType != filter.UserType {
+			continue
+		}
+		if filter.Status != "" && user.Status != filter.Status {
+			continue
+		}
+		if filter.Grade != "" && user.Grade != filter.Grade {
+			continue
+		}
+		if filter.Title != "" && user.Title != filter.Title {
+			continue
+		}
+		if filter.Keyword != "" {
+			keyword := strings.ToLower(filter.Keyword)
+			if !strings.Contains(strings.ToLower(user.Username), keyword) &&
+				!strings.Contains(strings.ToLower(user.RealName), keyword) &&
+				!strings.Contains(strings.ToLower(user.StudentID), keyword) &&
+				!strings.Contains(strings.ToLower(user.TeacherID), keyword) {
+				continue
+			}
+		}
+
+		items = append(items, *cloneUser(user))
+	}
+
+	return items, nil
+}
+
+func (s *MemoryStore) GetUser(ctx context.Context, userID string) (*usersdomain.User, error) {
+	return s.FindByID(ctx, userID)
+}
+
+func (s *MemoryStore) CreateUser(_ context.Context, input usersrepo.CreateUserInput) (*usersdomain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.ensureUnique("", input.Username, input.StudentID, input.TeacherID, input.Email, input.Phone); err != nil {
+		return nil, err
+	}
+
+	passwordHash, err := HashPassword(input.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &usersdomain.User{
+		ID:                  idgen.New(),
+		Username:            input.Username,
+		PasswordHash:        passwordHash,
+		Email:               input.Email,
+		Phone:               input.Phone,
+		RealName:            input.RealName,
+		UserType:            input.UserType,
+		Status:              "active",
+		DepartmentID:        input.DepartmentID,
+		StudentID:           input.StudentID,
+		TeacherID:           input.TeacherID,
+		Grade:               input.Grade,
+		Title:               input.Title,
+		RefreshTokenVersion: 1,
+	}
+	s.users[user.ID] = user
+
+	return cloneUser(user), nil
+}
+
+func (s *MemoryStore) UpdateUser(_ context.Context, userID string, input usersrepo.UpdateUserInput) (*usersdomain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, ok := s.users[userID]
+	if !ok || user.DeletedAt != nil {
+		return nil, ErrUserNotFound
+	}
+	if err := s.ensureUnique(userID, input.Username, input.StudentID, input.TeacherID, input.Email, input.Phone); err != nil {
+		return nil, err
+	}
+
+	if input.Username != "" {
+		user.Username = input.Username
+	}
+	user.RealName = input.RealName
+	user.Email = input.Email
+	user.Phone = input.Phone
+	user.DepartmentID = input.DepartmentID
+	user.StudentID = input.StudentID
+	user.TeacherID = input.TeacherID
+	user.Grade = input.Grade
+	user.Title = input.Title
+
+	return cloneUser(user), nil
+}
+
+func (s *MemoryStore) SoftDeleteUser(_ context.Context, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, ok := s.users[userID]
+	if !ok || user.DeletedAt != nil {
+		return ErrUserNotFound
+	}
+
+	now := time.Now().UTC()
+	user.DeletedAt = &now
+	return nil
+}
+
+func (s *MemoryStore) UpdateStatus(_ context.Context, userID string, status string) (*usersdomain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, ok := s.users[userID]
+	if !ok || user.DeletedAt != nil {
+		return nil, ErrUserNotFound
+	}
+
+	user.Status = status
+	return cloneUser(user), nil
+}
+
+func (s *MemoryStore) ResetPassword(ctx context.Context, userID string, passwordHash string, refreshTokenVersion int64) error {
+	return s.UpdatePassword(ctx, userID, passwordHash, refreshTokenVersion)
+}
+
+func (s *MemoryStore) ensureUnique(userID string, username string, studentID string, teacherID string, email string, phone string) error {
 	for id, user := range s.users {
 		if id == userID {
+			continue
+		}
+		if user.DeletedAt != nil {
 			continue
 		}
 		if user.Username == username {
@@ -491,6 +631,9 @@ func (s *MemoryStore) ensureUnique(userID string, username string, studentID str
 		}
 		if studentID != "" && user.StudentID == studentID {
 			return fmt.Errorf("%w: student_id", ErrConflict)
+		}
+		if teacherID != "" && user.TeacherID == teacherID {
+			return fmt.Errorf("%w: teacher_id", ErrConflict)
 		}
 		if email != "" && user.Status == "active" && strings.EqualFold(user.Email, email) {
 			return fmt.Errorf("%w: email", ErrConflict)
@@ -512,6 +655,10 @@ func cloneUser(user *usersdomain.User) *usersdomain.User {
 	if user.LastLoginAt != nil {
 		t := *user.LastLoginAt
 		copy.LastLoginAt = &t
+	}
+	if user.DeletedAt != nil {
+		t := *user.DeletedAt
+		copy.DeletedAt = &t
 	}
 	return &copy
 }

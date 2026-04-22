@@ -17,13 +17,13 @@ type UserStore interface {
 	DeleteAvatar(ctx context.Context, userID string) (*usersdomain.User, error)
 }
 
-type SessionStore interface {
+type ProfileSessionStore interface {
 	RevokeAllUserSessions(ctx context.Context, userID string, reason string) error
 }
 
 type Service struct {
 	users    UserStore
-	sessions SessionStore
+	sessions ProfileSessionStore
 }
 
 type Actions struct {
@@ -56,7 +56,7 @@ type AvatarResult struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-func NewProfileService(users UserStore, sessions SessionStore) *Service {
+func NewProfileService(users UserStore, sessions ProfileSessionStore) *Service {
 	return &Service{
 		users:    users,
 		sessions: sessions,

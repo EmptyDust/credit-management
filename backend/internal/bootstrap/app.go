@@ -8,6 +8,9 @@ import (
 	"credit-management/backend/internal/httpapi/router"
 	authhttp "credit-management/backend/internal/modules/auth/http"
 	authservice "credit-management/backend/internal/modules/auth/service"
+	exportservice "credit-management/backend/internal/modules/exports/service"
+	importhttp "credit-management/backend/internal/modules/imports/http"
+	importservice "credit-management/backend/internal/modules/imports/service"
 	optionshttp "credit-management/backend/internal/modules/options/http"
 	usershttp "credit-management/backend/internal/modules/users/http"
 	userservice "credit-management/backend/internal/modules/users/service"
@@ -34,14 +37,21 @@ func NewApp() (*App, error) {
 	}
 	authSvc := authservice.New(store, store)
 	profileSvc := userservice.NewProfileService(store, store)
+	adminSvc := userservice.NewAdminService(store, store)
+	exportSvc := exportservice.NewUserExportService(store)
+	importSvc := importservice.NewUserImportService(store)
 	authHandler := authhttp.NewHandler(authSvc)
 	meHandler := usershttp.NewMeHandler(profileSvc)
+	adminHandler := usershttp.NewAdminHandler(adminSvc, exportSvc)
+	importHandler := importhttp.NewUserImportHandler(importSvc)
 	optionsHandler := optionshttp.NewHandler()
 
 	gin.SetMode(cfg.GinMode)
 	engine := router.New(router.Dependencies{
 		Logger:         logger,
 		AuthHandler:    authHandler,
+		AdminHandler:   adminHandler,
+		ImportHandler:  importHandler,
 		MeHandler:      meHandler,
 		OptionsHandler: optionsHandler,
 	})
