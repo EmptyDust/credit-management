@@ -1,6 +1,6 @@
 # Credit Management System - Test Suite
 
-.PHONY: help test test-unit test-integration test-coverage test-all clean install-deps
+.PHONY: help test test-unit test-integration test-coverage test-all clean install-deps test-backend dev-backend
 
 # Default target
 help:
@@ -13,6 +13,8 @@ help:
 	@echo "  make test-auth        - Run auth-service tests"
 	@echo "  make test-activity    - Run credit-activity-service tests"
 	@echo "  make test-user        - Run user-service tests"
+	@echo "  make test-backend     - Run modular monolith backend tests"
+	@echo "  make dev-backend      - Run the modular monolith backend locally"
 	@echo "  make clean            - Clean test artifacts"
 
 # Install test dependencies
@@ -37,6 +39,13 @@ test-unit:
 	cd auth-service && go test -v -short ./...
 	cd credit-activity-service && go test -v -short ./...
 	cd user-service && go test -v -short ./...
+
+test-backend:
+	@echo "Running backend tests..."
+	cd backend && go test ./...
+
+dev-backend:
+	cd backend && go run ./cmd/server
 
 # Run integration tests only (with database)
 test-integration:
