@@ -14,9 +14,6 @@
 # Output of the go coverage tool
 *.out
 
-# Go workspace file
-go.work
-
 # Go build artifacts
 *.o
 *.a
