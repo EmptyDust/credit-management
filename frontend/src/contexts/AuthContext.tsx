@@ -1,24 +1,17 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import apiClient from "@/lib/api";
+import { createContext, useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-// Define a comprehensive user interface
-interface User {
-  uuid: string;
+import apiClient from "@/lib/api";
+import {
+  clearStoredSession,
+  storeTokens,
+  USER_STORAGE_KEY,
+} from "@/shared/api/http";
+import type { SessionUser, UserRole } from "@/shared/types/api";
+
+export interface User extends SessionUser {
   student_id?: string;
   teacher_id?: string;
-  username: string;
-  userType: "student" | "teacher" | "admin";
-  email?: string;
-  fullName?: string;
-  department?: string;
-  college?: string;
-  major?: string;
-  class?: string;
-  status: "active" | "inactive";
-  avatar?: string;
-  createdAt: string;
-  updatedAt: string;
   permissions?: string[];
   roles?: string[];
 }
@@ -32,7 +25,7 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (token: string, refreshToken: string, user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -44,88 +37,128 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   login: () => {},
-  logout: () => {},
+  logout: async () => {},
   refreshUser: async () => {},
   hasPermission: () => false,
   hasRole: () => false,
   updateUser: () => {},
 });
 
+function normalizeUser(userData: Partial<User> | null | undefined): User | null {
+  if (!userData) {
+    return null;
+  }
+
+  const role = (userData.userType ||
+    userData.user_type ||
+    "student") as UserRole;
+  const id = userData.id || userData.uuid || "";
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...userData,
+    id,
+    uuid: id,
+    userType: role,
+    user_type: role,
+    fullName: userData.fullName || userData.real_name || "",
+    real_name: userData.real_name || userData.fullName || "",
+    avatar: userData.avatar || userData.avatar_url,
+    avatar_url: userData.avatar_url || userData.avatar,
+    status: (userData.status || "active") as User["status"],
+  };
+}
+
+function storeUser(user: User | null) {
+  if (!user) {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return;
+  }
+
+  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+}
+
+function loadStoredUser() {
+  const raw = localStorage.getItem(USER_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return normalizeUser(JSON.parse(raw));
+  } catch {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check token validity and get user info on mount
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem("token");
-      if (token) {
-        try {
-          // Validate token and get user info
-          const response = await apiClient.get("/users/profile");
-          // 兼容后端返回格式
-          const userData = response.data.data || response.data;
-          const normalizedUser: User = {
-            ...userData,
-            userType: userData.userType || userData.user_type,
-            uuid: userData.uuid,
-            student_id: userData.student_id,
-            teacher_id: userData.teacher_id,
-            avatar: userData.avatar,
-          };
-          setIsAuthenticated(true);
-          setUser(normalizedUser);
-        } catch (error) {
-          // Token is invalid, clear storage
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("user");
-          setIsAuthenticated(false);
-          setUser(null);
-        }
+      const storedUser = loadStoredUser();
+
+      if (!token) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      if (storedUser) {
+        setUser(storedUser);
+        setIsAuthenticated(true);
+      }
+
+      try {
+        const response = await apiClient.get("/me/profile");
+        const normalizedUser = normalizeUser(response.data?.data);
+
+        if (!normalizedUser) {
+          throw new Error("invalid profile payload");
+        }
+
+        setUser(normalizedUser);
+        setIsAuthenticated(true);
+        storeUser(normalizedUser);
+      } catch {
+        clearStoredSession();
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    initializeAuth();
+    void initializeAuth();
   }, []);
 
-  const login = (token: string, refreshToken: string, user: User) => {
-    // 标准化用户对象
-    const normalizedUser: User = {
-      ...user,
-      userType: user.userType,
-      uuid: (user as any).uuid ?? (user as any).id,
-      student_id: (user as any).student_id,
-      teacher_id: (user as any).teacher_id,
-      avatar: (user as any).avatar,
-    };
+  const login = (token: string, refreshToken: string, nextUser: User) => {
+    const normalizedUser = normalizeUser(nextUser);
+    if (!normalizedUser) {
+      return;
+    }
 
-    localStorage.setItem("token", token);
-    localStorage.setItem("refreshToken", refreshToken);
-    localStorage.setItem("user", JSON.stringify(normalizedUser));
-    apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    storeTokens(token, refreshToken);
+    storeUser(normalizedUser);
     setIsAuthenticated(true);
     setUser(normalizedUser);
-    toast.success(
-      `欢迎回来，${normalizedUser.fullName || normalizedUser.username}！`
-    );
+    toast.success(`欢迎回来，${normalizedUser.fullName || normalizedUser.username}！`);
   };
 
   const logout = async () => {
     try {
-      // Call logout endpoint to invalidate token on server
       await apiClient.post("/auth/logout");
     } catch (error) {
-      // Ignore logout errors
       console.error("Logout error:", error);
     } finally {
-      // Clear local storage and state
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("user");
-      delete apiClient.defaults.headers.common["Authorization"];
+      clearStoredSession();
       setIsAuthenticated(false);
       setUser(null);
       toast.success("已成功退出登录");
@@ -134,103 +167,57 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshUser = async () => {
     try {
-      const response = await apiClient.get("/users/profile");
-      const userData = response.data.data || response.data;
-      const normalizedUser: User = {
-        ...userData,
-        userType: userData.userType || userData.user_type,
-        uuid: userData.uuid,
-        student_id: userData.student_id,
-        teacher_id: userData.teacher_id,
-        avatar: userData.avatar,
-      };
+      const response = await apiClient.get("/me/profile");
+      const normalizedUser = normalizeUser(response.data?.data);
+      if (!normalizedUser) {
+        throw new Error("invalid profile payload");
+      }
+
       setUser(normalizedUser);
-      localStorage.setItem("user", JSON.stringify(normalizedUser));
+      storeUser(normalizedUser);
     } catch (error) {
       console.error("Failed to refresh user data:", error);
-      // If refresh fails, logout user
-      logout();
+      clearStoredSession();
+      setIsAuthenticated(false);
+      setUser(null);
     }
   };
 
   const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
+    const normalizedUser = normalizeUser({ ...(user ?? {}), ...userData });
+    if (!normalizedUser) {
+      return;
     }
+
+    setUser(normalizedUser);
+    storeUser(normalizedUser);
   };
 
   const hasPermission = (permission: string): boolean => {
-    if (!user) return false;
+    if (!user) {
+      return false;
+    }
 
-    // Admin has all permissions
-    if (user.userType === "admin") return true;
-
-    // Check user's explicit permissions
-    if (user.permissions && user.permissions.includes(permission)) {
+    if (user.userType === "admin") {
       return true;
     }
 
-    // Check role-based permissions
-    if (user.roles) {
-      const rolePermissions: Record<string, string[]> = {
-        student: [
-          "view_own_applications",
-          "create_application",
-          "view_own_profile",
-          "edit_own_profile",
-        ],
-        teacher: [
-          "view_applications",
-          "review_applications",
-          "view_students",
-          "view_own_profile",
-          "edit_own_profile",
-        ],
-        admin: ["*"], // All permissions
-      };
-
-      for (const role of user.roles) {
-        const permissions = rolePermissions[role] || [];
-        if (permissions.includes("*") || permissions.includes(permission)) {
-          return true;
-        }
-      }
-    }
-
-    // Fallback to user type permissions
-    const userTypePermissions: Record<string, string[]> = {
-      student: [
-        "view_own_applications",
-        "create_application",
-        "view_own_profile",
-        "edit_own_profile",
-      ],
-      teacher: [
-        "view_applications",
-        "review_applications",
-        "view_students",
-        "view_own_profile",
-        "edit_own_profile",
-      ],
-      admin: ["*"], // All permissions
+    const rolePermissions: Record<UserRole, string[]> = {
+      student: [],
+      teacher: ["manage_activities", "view_user_stats", "view_students"],
+      admin: ["*"],
     };
 
-    const permissions = userTypePermissions[user.userType] || [];
+    const permissions = rolePermissions[user.userType] || [];
     return permissions.includes("*") || permissions.includes(permission);
   };
 
-  const hasRole = (role: string): boolean => {
-    if (!user) return false;
-
-    // Check explicit roles
-    if (user.roles && user.roles.includes(role)) {
-      return true;
+  const hasRole = (role: string) => {
+    if (!user) {
+      return false;
     }
 
-    // Check user type as role
-    return user.userType === role;
+    return user.userType === role || user.roles?.includes(role) === true;
   };
 
   return (
@@ -252,6 +239,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);

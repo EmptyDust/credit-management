@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
+import type { ApiSuccessResponse, AuthPayload } from "@/shared/types/api";
 
 const loginSchema = z.object({
   username: z.string().min(1, "用户名不能为空"),
@@ -51,39 +52,26 @@ export default function Login() {
     setLoading(true);
     setLoginError("");
     try {
-      const response = await apiClient.post("/auth/login", values);
-
-      // 检查响应格式
-      if (response.data && response.data.code === 0 && response.data.data) {
-        const { token, refresh_token, user } = response.data.data;
-
-        if (token && user) {
-          // 转换用户数据格式以匹配前端接口（以数据库模型为准）
-          const normalizedUser = {
-            uuid: user.uuid,
-            student_id: user.student_id,
-            teacher_id: user.teacher_id,
-            username: user.username,
-            userType: user.user_type,
-            email: user.email,
-            fullName: user.real_name,
-            department: user.department,
-            college: user.college,
-            major: user.major,
-            class: user.class,
-            status: user.status,
-            createdAt: user.created_at,
-            updatedAt: user.updated_at,
-          } as const;
-
-          login(token, refresh_token || "", normalizedUser);
-          navigate("/dashboard");
-        } else {
-          setLoginError("登录响应格式错误");
+      const response = await apiClient.post<ApiSuccessResponse<AuthPayload>>(
+        "/auth/login",
+        {
+          login_id: values.username,
+          password: values.password,
         }
-      } else {
-        setLoginError(response.data?.message || "登录失败");
+      );
+
+      const payload = response.data?.data;
+      if (!payload?.access_token || !payload.user) {
+        setLoginError("登录响应格式错误");
+        return;
       }
+
+      login(payload.access_token, payload.refresh_token || "", {
+        ...payload.user,
+        fullName: payload.user.real_name,
+        avatar: payload.user.avatar_url,
+      });
+      navigate("/dashboard");
     } catch (err: any) {
       console.error("Login error:", err);
 

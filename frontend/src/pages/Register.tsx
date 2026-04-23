@@ -40,6 +40,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { PasswordInput } from "@/components/ui/password-input";
+import type { ApiSuccessResponse } from "@/shared/types/api";
 
 // 学生注册表单验证规则
 const studentRegisterSchema = z.object({
@@ -122,28 +123,22 @@ export default function Register() {
   const onSubmit = async (values: StudentRegisterForm) => {
     setLoading(true);
     try {
-      // 构造符合后端API的请求数据
       const registerData = {
-        // 学生注册请求体字段映射到后端 models.StudentRegisterRequest
         student_id: values.student_id,
         username: values.username,
         password: values.password,
         email: values.email,
         phone: values.phone,
         real_name: values.real_name,
-        // 班级在后端用 department_id 表示（班级/部门 UUID），
-        // 同时传递 college/major/class 便于后端在缺少UUID时反查
         department_id: values.class,
-        college: values.college,
-        major: values.major,
-        class: values.class,
         grade: values.grade,
       };
 
-      // 使用更直观的学生注册接口：POST /api/students/register
-      const response = await apiClient.post("/students/register", registerData);
+      const response = await apiClient.post<
+        ApiSuccessResponse<{ user: { username: string } }>
+      >("/auth/register/student", registerData);
 
-      if (response.data.code === 0) {
+      if (response.data.code === "OK") {
         toast.success("注册成功！正在跳转到登录页面...");
         setTimeout(() => {
           navigate("/login");

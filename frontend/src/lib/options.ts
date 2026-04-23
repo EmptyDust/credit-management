@@ -20,24 +20,52 @@ export async function getOptions(): Promise<OptionsResponse> {
   if (optionsPromise) return optionsPromise;
 
   optionsPromise = (async () => {
-    const res = await apiClient.get("/config/options");
-    const data = res.data?.data || {};
+    const [organizationRes, gradesRes, titlesRes] = await Promise.all([
+      apiClient.get("/options/organization/tree"),
+      apiClient.get("/options/grades"),
+      apiClient.get("/options/teacher-titles").catch(() => ({ data: { data: { items: [] } } })),
+    ]);
+
+    const treeItems = organizationRes.data?.data?.items || [];
+    const colleges: SelectOption[] = [];
+    const majors: Record<string, SelectOption[]> = {};
+    const classes: Record<string, SelectOption[]> = {};
+
+    for (const school of treeItems) {
+      const collegeNodes = Array.isArray(school.children) ? school.children : [];
+      for (const college of collegeNodes) {
+        colleges.push({ value: college.id, label: college.name });
+
+        const majorNodes = Array.isArray(college.children) ? college.children : [];
+        majors[college.id] = majorNodes.map((major: { id: string; name: string }) => ({
+          value: major.id,
+          label: major.name,
+        }));
+
+        for (const major of majorNodes) {
+          const classNodes = Array.isArray(major.children) ? major.children : [];
+          classes[major.id] = classNodes.map((item: { id: string; name: string }) => ({
+            value: item.id,
+            label: item.name,
+          }));
+        }
+      }
+    }
+
     const normalized: OptionsResponse = {
-      colleges: Array.isArray(data.colleges) ? data.colleges : [],
-      majors:
-        typeof data.majors === "object" && data.majors !== null
-          ? data.majors
-          : {},
-      classes:
-        typeof data.classes === "object" && data.classes !== null
-          ? data.classes
-          : {},
-      grades: Array.isArray(data.grades) ? data.grades : [],
-      user_statuses: Array.isArray(data.user_statuses)
-        ? data.user_statuses
+      colleges,
+      majors,
+      classes,
+      grades: Array.isArray(gradesRes.data?.data?.items)
+        ? gradesRes.data.data.items
         : [],
-      teacher_titles: Array.isArray(data.teacher_titles)
-        ? data.teacher_titles
+      user_statuses: [
+        { value: "active", label: "启用" },
+        { value: "inactive", label: "停用" },
+        { value: "suspended", label: "冻结" },
+      ],
+      teacher_titles: Array.isArray(titlesRes.data?.data?.items)
+        ? titlesRes.data.data.items
         : [],
     };
     cachedOptions = normalized;
@@ -93,4 +121,3 @@ export async function getActivityOptions(): Promise<ActivityOptions> {
 
   return activityOptionsPromise;
 }
-
