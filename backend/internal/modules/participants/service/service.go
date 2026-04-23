@@ -137,3 +137,16 @@ func (s *Service) Leave(ctx context.Context, actorID string, actorRole string, a
 	delete(rows, actorID)
 	return nil
 }
+
+func (s *Service) SnapshotByActivity(_ context.Context, activityID string) ([]Participant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows := s.byActivity[activityID]
+	items := make([]Participant, 0, len(rows))
+	for _, participant := range rows {
+		items = append(items, *participant)
+	}
+
+	return items, nil
+}

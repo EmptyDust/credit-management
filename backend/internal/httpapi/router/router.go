@@ -6,7 +6,10 @@ import (
 
 	"credit-management/backend/internal/httpapi/middleware"
 	activityhttp "credit-management/backend/internal/modules/activities/http"
+	apphttp "credit-management/backend/internal/modules/applications/http"
 	authhttp "credit-management/backend/internal/modules/auth/http"
+	dashboardhttp "credit-management/backend/internal/modules/dashboard/http"
+	devtoolshttp "credit-management/backend/internal/modules/devtools/http"
 	filehttp "credit-management/backend/internal/modules/files/http"
 	importhttp "credit-management/backend/internal/modules/imports/http"
 	optionshttp "credit-management/backend/internal/modules/options/http"
@@ -21,7 +24,10 @@ type Dependencies struct {
 	Logger             *slog.Logger
 	AuthHandler        *authhttp.Handler
 	ActivityHandler    *activityhttp.Handler
+	ApplicationHandler *apphttp.Handler
 	AdminHandler       *usershttp.AdminHandler
+	DashboardHandler   *dashboardhttp.Handler
+	DevtoolsHandler    *devtoolshttp.Handler
 	FileHandler        *filehttp.Handler
 	ImportHandler      *importhttp.UserImportHandler
 	MeHandler          *usershttp.MeHandler
@@ -108,6 +114,17 @@ func New(deps Dependencies) *gin.Engine {
 		protected.GET("/files/:file_id/download", deps.FileHandler.Download)
 	}
 
+	if deps.ApplicationHandler != nil {
+		protected.GET("/applications", deps.ApplicationHandler.List)
+		protected.GET("/applications/stats", deps.ApplicationHandler.Stats)
+		protected.GET("/applications/export", deps.ApplicationHandler.Export)
+		protected.GET("/applications/:id", deps.ApplicationHandler.Get)
+	}
+
+	if deps.DashboardHandler != nil {
+		protected.GET("/dashboard/overview", deps.DashboardHandler.Overview)
+	}
+
 	if deps.AdminHandler != nil {
 		teacherOrAdmin.GET("/students", deps.AdminHandler.ListStudents)
 		teacherOrAdmin.GET("/students/export", deps.AdminHandler.ExportStudents)
@@ -135,6 +152,13 @@ func New(deps Dependencies) *gin.Engine {
 		adminOnly.POST("/imports/students/confirm", deps.ImportHandler.ConfirmStudents)
 		adminOnly.POST("/imports/teachers/precheck", deps.ImportHandler.PrecheckTeachers)
 		adminOnly.POST("/imports/teachers/confirm", deps.ImportHandler.ConfirmTeachers)
+	}
+
+	if deps.DevtoolsHandler != nil {
+		adminOnly.GET("/devtools/health", deps.DevtoolsHandler.DetailedHealth)
+		adminOnly.GET("/devtools/logs", deps.DevtoolsHandler.Logs)
+		adminOnly.GET("/devtools/audit-logs", deps.DevtoolsHandler.AuditLogs)
+		adminOnly.GET("/devtools/audit-logs/export", deps.DevtoolsHandler.ExportAuditLogs)
 	}
 
 	return engine
