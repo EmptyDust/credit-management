@@ -5,9 +5,12 @@ import (
 	"net/http"
 
 	"credit-management/backend/internal/httpapi/middleware"
+	activityhttp "credit-management/backend/internal/modules/activities/http"
 	authhttp "credit-management/backend/internal/modules/auth/http"
+	filehttp "credit-management/backend/internal/modules/files/http"
 	importhttp "credit-management/backend/internal/modules/imports/http"
 	optionshttp "credit-management/backend/internal/modules/options/http"
+	participanthttp "credit-management/backend/internal/modules/participants/http"
 	usershttp "credit-management/backend/internal/modules/users/http"
 	"credit-management/backend/internal/platform/authz"
 
@@ -15,12 +18,15 @@ import (
 )
 
 type Dependencies struct {
-	Logger         *slog.Logger
-	AuthHandler    *authhttp.Handler
-	AdminHandler   *usershttp.AdminHandler
-	ImportHandler  *importhttp.UserImportHandler
-	MeHandler      *usershttp.MeHandler
-	OptionsHandler *optionshttp.Handler
+	Logger             *slog.Logger
+	AuthHandler        *authhttp.Handler
+	ActivityHandler    *activityhttp.Handler
+	AdminHandler       *usershttp.AdminHandler
+	FileHandler        *filehttp.Handler
+	ImportHandler      *importhttp.UserImportHandler
+	MeHandler          *usershttp.MeHandler
+	OptionsHandler     *optionshttp.Handler
+	ParticipantHandler *participanthttp.Handler
 }
 
 func New(deps Dependencies) *gin.Engine {
@@ -74,6 +80,32 @@ func New(deps Dependencies) *gin.Engine {
 		protected.GET("/options/academic-years", deps.OptionsHandler.GetAcademicYears)
 		protected.GET("/options/semesters", deps.OptionsHandler.GetSemesters)
 		protected.GET("/options/teacher-titles", deps.OptionsHandler.GetTeacherTitles)
+	}
+
+	if deps.ActivityHandler != nil {
+		protected.GET("/activities", deps.ActivityHandler.List)
+		protected.POST("/activities", deps.ActivityHandler.Create)
+		protected.GET("/activities/:id", deps.ActivityHandler.Get)
+		protected.PATCH("/activities/:id", deps.ActivityHandler.Update)
+		protected.DELETE("/activities/:id", deps.ActivityHandler.Delete)
+		protected.POST("/activities/:id/submit", deps.ActivityHandler.Submit)
+		protected.POST("/activities/:id/withdraw", deps.ActivityHandler.Withdraw)
+		protected.POST("/activities/:id/review", deps.ActivityHandler.Review)
+		protected.POST("/activities/:id/copy", deps.ActivityHandler.Copy)
+		protected.POST("/activities/:id/transfer-owner", deps.ActivityHandler.TransferOwner)
+	}
+
+	if deps.ParticipantHandler != nil {
+		protected.GET("/activities/:id/participants", deps.ParticipantHandler.List)
+		protected.POST("/activities/:id/participants", deps.ParticipantHandler.Add)
+		protected.POST("/activities/:id/participants/leave", deps.ParticipantHandler.Leave)
+	}
+
+	if deps.FileHandler != nil {
+		protected.GET("/activities/:id/files", deps.FileHandler.List)
+		protected.POST("/activities/:id/files", deps.FileHandler.Upload)
+		protected.DELETE("/activities/:id/files/:file_id", deps.FileHandler.Delete)
+		protected.GET("/files/:file_id/download", deps.FileHandler.Download)
 	}
 
 	if deps.AdminHandler != nil {

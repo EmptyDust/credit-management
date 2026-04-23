@@ -165,6 +165,8 @@ coverage/
 uploads/
 files/
 media/
+!backend/internal/modules/files/
+!backend/internal/modules/files/**
 
 # ===========================================
 # Backup and Archive files
