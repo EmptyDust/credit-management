@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, Upload } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { UserImportDialog } from "@/modules/imports/components/UserImportDialog";
 import { exportStudents, listStudents } from "@/modules/users/api/users";
 
 export default function StudentsPage() {
   const [keyword, setKeyword] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ["students", keyword],
@@ -44,6 +46,10 @@ export default function StudentsPage() {
             <Button variant="secondary" className="gap-2" onClick={() => query.refetch()}>
               <RefreshCw className="h-4 w-4" />
               刷新
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              导入
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => void exportStudents()}>
               <Download className="h-4 w-4" />
@@ -84,6 +90,13 @@ export default function StudentsPage() {
           )}
         </CardContent>
       </Card>
+
+      <UserImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        userType="student"
+        onCompleted={() => void query.refetch()}
+      />
     </div>
   );
 }

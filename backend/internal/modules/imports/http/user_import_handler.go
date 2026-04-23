@@ -162,7 +162,7 @@ func readRowsFromUpload(c *gin.Context, userType string) (*multipart.FileHeader,
 		return nil, nil, err
 	}
 
-	return nil, rows, nil
+	return fileHeader, rows, nil
 }
 
 func parseCSV(reader io.Reader, userType string) ([]importservice.UserRow, error) {
