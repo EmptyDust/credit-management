@@ -10,28 +10,19 @@ import AdminLayout from "@/app/layouts/AdminLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
 import ActivityDetail from "@/pages/ActivityDetail";
-import Dashboard from "@/pages/Dashboard";
 import ApplicationsPage from "@/modules/applications/pages/ApplicationsPage";
 import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
-import ApiTester from "@/pages/devtools/ApiTester";
-import LogViewer from "@/pages/devtools/LogViewer";
+import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
+import ApiTesterPage from "@/modules/devtools/pages/ApiTesterPage";
+import AuditLogsPage from "@/modules/devtools/pages/AuditLogsPage";
+import DevtoolsLogsPage from "@/modules/devtools/pages/DevtoolsLogsPage";
+import DevtoolsOverviewPage from "@/modules/devtools/pages/DevtoolsOverviewPage";
+import ProfilePage from "@/modules/users/pages/ProfilePage";
+import StudentsPage from "@/modules/users/pages/StudentsPage";
+import TeachersPage from "@/modules/users/pages/TeachersPage";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
-import ProfilePage from "@/pages/Profile";
 import Register from "@/pages/Register";
-import Students from "@/pages/Students";
-import Teachers from "@/pages/Teachers";
-
-function AuditLogsPlaceholder() {
-  return (
-    <div className="rounded-xl border bg-card p-6 shadow-sm">
-      <h1 className="text-xl font-semibold">审计日志</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        审计日志页面会在下一阶段迁移到模块化前端，这里先保留路由入口。
-      </p>
-    </div>
-  );
-}
 
 export const appRoutes: RouteObject[] = [
   {
@@ -59,13 +50,13 @@ export const appRoutes: RouteObject[] = [
         children: [
           {
             path: "/dashboard",
-            element: <Dashboard />,
+            element: <DashboardPage />,
           },
           {
             path: "/students",
             element: (
               <RoleBasedRoute allowedRoles={["teacher", "admin"]}>
-                <Students />
+                <StudentsPage />
               </RoleBasedRoute>
             ),
           },
@@ -73,7 +64,7 @@ export const appRoutes: RouteObject[] = [
             path: "/teachers",
             element: (
               <RoleBasedRoute allowedRoles={["admin"]}>
-                <Teachers />
+                <TeachersPage />
               </RoleBasedRoute>
             ),
           },
@@ -98,16 +89,20 @@ export const appRoutes: RouteObject[] = [
             element: <AdminLayout />,
             children: [
               {
+                index: true,
+                element: <DevtoolsOverviewPage />,
+              },
+              {
                 path: "api-tester",
-                element: <ApiTester />,
+                element: <ApiTesterPage />,
               },
               {
                 path: "logs",
-                element: <LogViewer />,
+                element: <DevtoolsLogsPage />,
               },
               {
                 path: "audit-logs",
-                element: <AuditLogsPlaceholder />,
+                element: <AuditLogsPage />,
               },
             ],
           },
