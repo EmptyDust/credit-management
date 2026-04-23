@@ -9,10 +9,10 @@ import AuthLayout from "@/app/layouts/AuthLayout";
 import AdminLayout from "@/app/layouts/AdminLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
-import Activities from "@/pages/Activities";
 import ActivityDetail from "@/pages/ActivityDetail";
-import Applications from "@/pages/Applications";
 import Dashboard from "@/pages/Dashboard";
+import ApplicationsPage from "@/modules/applications/pages/ApplicationsPage";
+import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
 import ApiTester from "@/pages/devtools/ApiTester";
 import LogViewer from "@/pages/devtools/LogViewer";
 import Login from "@/pages/Login";
@@ -79,7 +79,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             path: "/activities",
-            element: <Activities />,
+            element: <ActivitiesPage />,
           },
           {
             path: "/activities/:id",
@@ -87,7 +87,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             path: "/applications",
-            element: <Applications />,
+            element: <ApplicationsPage />,
           },
           {
             path: "/profile",
