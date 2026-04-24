@@ -9,9 +9,11 @@ import AuthLayout from "@/app/layouts/AuthLayout";
 import AdminLayout from "@/app/layouts/AdminLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
-import ActivityDetail from "@/pages/ActivityDetail";
+import ActivityDetailPage from "@/modules/activities/pages/ActivityDetailPage";
 import ApplicationsPage from "@/modules/applications/pages/ApplicationsPage";
 import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
+import LoginPage from "@/modules/auth/pages/LoginPage";
+import RegisterPage from "@/modules/auth/pages/RegisterPage";
 import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
 import ApiTesterPage from "@/modules/devtools/pages/ApiTesterPage";
 import AuditLogsPage from "@/modules/devtools/pages/AuditLogsPage";
@@ -20,9 +22,7 @@ import DevtoolsOverviewPage from "@/modules/devtools/pages/DevtoolsOverviewPage"
 import ProfilePage from "@/modules/users/pages/ProfilePage";
 import StudentsPage from "@/modules/users/pages/StudentsPage";
 import TeachersPage from "@/modules/users/pages/TeachersPage";
-import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
-import Register from "@/pages/Register";
 
 export const appRoutes: RouteObject[] = [
   {
@@ -34,11 +34,11 @@ export const appRoutes: RouteObject[] = [
     children: [
       {
         path: "/login",
-        element: <Login />,
+        element: <LoginPage />,
       },
       {
         path: "/register",
-        element: <Register />,
+        element: <RegisterPage />,
       },
     ],
   },
@@ -74,7 +74,7 @@ export const appRoutes: RouteObject[] = [
           },
           {
             path: "/activities/:id",
-            element: <ActivityDetail />,
+            element: <ActivityDetailPage />,
           },
           {
             path: "/applications",
