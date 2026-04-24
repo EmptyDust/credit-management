@@ -1,0 +1,7 @@
+.git
+.idea
+.vscode
+tmp
+coverage
+tests
+**/*_test.go

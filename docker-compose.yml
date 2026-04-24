@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL数据库
   postgres:
     build: ./database
     container_name: credit_management_postgres
@@ -22,8 +21,8 @@ services:
       retries: 5
       start_period: 30s
 
-  # API网关
   api-gateway:
+    profiles: ["legacy"]
     build: ./api-gateway
     container_name: credit_management_gateway
     ports:
@@ -43,8 +42,8 @@ services:
       - credit_network
     restart: unless-stopped
 
-  # 认证服务
   auth-service:
+    profiles: ["legacy"]
     build: ./auth-service
     container_name: credit_management_auth
     ports:
@@ -70,8 +69,8 @@ services:
       - credit_network
     restart: unless-stopped
 
-  # 学分活动服务（合并了事务和申请管理功能）
   credit-activity-service:
+    profiles: ["legacy"]
     build: ./credit-activity-service
     container_name: credit_management_credit_activity
     ports:
@@ -92,8 +91,8 @@ services:
       - credit_network
     restart: unless-stopped
 
-  # 统一用户服务（合并了用户管理、学生信息、教师信息服务）
   user-service:
+    profiles: ["legacy"]
     build: ./user-service
     container_name: credit_management_user
     ports:
@@ -115,17 +114,13 @@ services:
     restart: unless-stopped
 
   backend:
-    image: golang:1.24
+    build: ./backend
     container_name: credit_management_backend
-    working_dir: /app
-    command: sh -c "go mod download && go run ./cmd/server"
     ports:
       - "8082:8082"
     environment:
       - BACKEND_HTTP_PORT=8082
       - GIN_MODE=release
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,7 +130,6 @@ services:
       - credit_network
     restart: unless-stopped
 
-  # 前端应用
   frontend:
     build: ./frontend
     container_name: credit_management_frontend
@@ -143,7 +137,7 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      api-gateway:
+      backend:
         condition: service_started
     networks:
       - credit_network

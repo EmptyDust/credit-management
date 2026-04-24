@@ -126,3 +126,7 @@ func (a *App) Run() error {
 
 	return err
 }
+
+func (a *App) Handler() http.Handler {
+	return a.server.Handler
+}
