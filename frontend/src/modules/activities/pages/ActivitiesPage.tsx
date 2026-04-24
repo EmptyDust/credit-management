@@ -1,13 +1,26 @@
-import { useQuery } from "@tanstack/react-query";
-import { Eye, RefreshCw, Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, Plus, RefreshCw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
-import { listActivities } from "@/modules/activities/api/activities";
+import {
+  createActivity,
+  listActivities,
+} from "@/modules/activities/api/activities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -34,7 +47,16 @@ function statusLabel(status: string) {
 
 export default function ActivitiesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [draftForm, setDraftForm] = useState({
+    title: "",
+    description: "",
+    category: "",
+    academic_year: "",
+    semester: "",
+  });
 
   const query = useQuery({
     queryKey: ["activities", keyword],
@@ -48,6 +70,38 @@ export default function ActivitiesPage() {
     const values = new Set(query.data?.items.map((item) => item.category) || []);
     return Array.from(values);
   }, [query.data?.items]);
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      createActivity({
+        title: draftForm.title,
+        description: draftForm.description || undefined,
+        category: draftForm.category,
+        academic_year: draftForm.academic_year,
+        semester: draftForm.semester,
+        start_date: undefined,
+        end_date: undefined,
+        details: {},
+      }),
+    onSuccess: async (activity) => {
+      await queryClient.invalidateQueries({ queryKey: ["activities"] });
+      toast.success("活动草稿已创建");
+      setIsCreateOpen(false);
+      setDraftForm({
+        title: "",
+        description: "",
+        category: "",
+        academic_year: "",
+        semester: "",
+      });
+      navigate(`/activities/${activity.id}`);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "创建活动失败，请稍后重试";
+      toast.error(message);
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -76,6 +130,10 @@ export default function ActivitiesPage() {
             >
               <RefreshCw className="h-4 w-4" />
               刷新
+            </Button>
+            <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              新建活动
             </Button>
           </div>
         </CardHeader>
@@ -147,6 +205,94 @@ export default function ActivitiesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建活动草稿</DialogTitle>
+            <DialogDescription>
+              填写基础字段后立即创建一个新的 draft 活动，后续在详情页继续编辑参与者、附件和审核流程。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="create-title">标题</Label>
+              <Input
+                id="create-title"
+                aria-label="标题"
+                value={draftForm.title}
+                onChange={(event) =>
+                  setDraftForm((current) => ({ ...current, title: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-description">描述</Label>
+              <Input
+                id="create-description"
+                aria-label="描述"
+                value={draftForm.description}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-category">分类</Label>
+              <Input
+                id="create-category"
+                aria-label="分类"
+                value={draftForm.category}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    category: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-academic-year">学年</Label>
+              <Input
+                id="create-academic-year"
+                aria-label="学年"
+                value={draftForm.academic_year}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    academic_year: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-semester">学期</Label>
+              <Input
+                id="create-semester"
+                aria-label="学期"
+                value={draftForm.semester}
+                onChange={(event) =>
+                  setDraftForm((current) => ({
+                    ...current,
+                    semester: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              取消
+            </Button>
+            <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+              创建草稿
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
