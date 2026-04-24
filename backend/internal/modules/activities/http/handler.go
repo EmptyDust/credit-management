@@ -17,6 +17,23 @@ type Handler struct {
 	service *activityservice.Service
 }
 
+type activityResponse struct {
+	ID             string         `json:"id"`
+	Title          string         `json:"title"`
+	Description    string         `json:"description,omitempty"`
+	Category       string         `json:"category"`
+	AcademicYear   string         `json:"academic_year"`
+	Semester       string         `json:"semester"`
+	StartDate      string         `json:"start_date,omitempty"`
+	EndDate        string         `json:"end_date,omitempty"`
+	Status         string         `json:"status"`
+	OwnerID        string         `json:"owner_id"`
+	ReviewerID     string         `json:"reviewer_id,omitempty"`
+	ReviewComments string         `json:"review_comments,omitempty"`
+	ReviewedAt     any            `json:"reviewed_at"`
+	Details        map[string]any `json:"details,omitempty"`
+}
+
 type transferOwnerRequest struct {
 	NewOwnerID string `json:"new_owner_id"`
 }
@@ -46,7 +63,7 @@ func (h *Handler) List(c *gin.Context) {
 	}
 
 	response.OK(c, gin.H{
-		"items":       items,
+		"items":       mapActivities(items),
 		"page":        1,
 		"page_size":   len(items),
 		"total":       len(items),
@@ -73,7 +90,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, gin.H{"activity": activity})
+	response.Success(c, http.StatusCreated, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -89,7 +106,7 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Update(c *gin.Context) {
@@ -111,7 +128,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Delete(c *gin.Context) {
@@ -142,7 +159,7 @@ func (h *Handler) Submit(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Withdraw(c *gin.Context) {
@@ -158,7 +175,7 @@ func (h *Handler) Withdraw(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Review(c *gin.Context) {
@@ -180,7 +197,7 @@ func (h *Handler) Review(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) Copy(c *gin.Context) {
@@ -196,7 +213,7 @@ func (h *Handler) Copy(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, http.StatusCreated, gin.H{"activity": activity})
+	response.Success(c, http.StatusCreated, gin.H{"activity": mapActivity(*activity)})
 }
 
 func (h *Handler) TransferOwner(c *gin.Context) {
@@ -218,7 +235,34 @@ func (h *Handler) TransferOwner(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{"activity": activity})
+	response.OK(c, gin.H{"activity": mapActivity(*activity)})
+}
+
+func mapActivities(items []activitydomain.Activity) []activityResponse {
+	mapped := make([]activityResponse, 0, len(items))
+	for _, item := range items {
+		mapped = append(mapped, mapActivity(item))
+	}
+	return mapped
+}
+
+func mapActivity(activity activitydomain.Activity) activityResponse {
+	return activityResponse{
+		ID:             activity.ID,
+		Title:          activity.Title,
+		Description:    activity.Description,
+		Category:       activity.Category,
+		AcademicYear:   activity.AcademicYear,
+		Semester:       activity.Semester,
+		StartDate:      activity.StartDate,
+		EndDate:        activity.EndDate,
+		Status:         activity.Status,
+		OwnerID:        activity.OwnerID,
+		ReviewerID:     activity.ReviewerID,
+		ReviewComments: activity.ReviewComments,
+		ReviewedAt:     activity.ReviewedAt,
+		Details:        activity.Details,
+	}
 }
 
 func handleActivityError(c *gin.Context, err error, fallback string) {

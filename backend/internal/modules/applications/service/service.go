@@ -74,27 +74,43 @@ func (s *Service) SetParticipantService(participants *participantservice.Service
 }
 
 func (s *Service) SyncApprovedActivity(activityID string, userIDs []string) SyncEffect {
+	participants := make([]participantservice.Participant, 0, len(userIDs))
+	for _, userID := range userIDs {
+		participants = append(participants, participantservice.Participant{
+			ActivityID: activityID,
+			UserID:     userID,
+		})
+	}
+
+	return s.syncApprovedParticipants(participants)
+}
+
+func (s *Service) syncApprovedParticipants(participants []participantservice.Participant) SyncEffect {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	affected := 0
-	for _, userID := range userIDs {
-		key := activityID + ":" + userID
+	for _, participant := range participants {
+		key := participant.ActivityID + ":" + participant.UserID
 		existing, ok := s.applications[key]
 		if ok {
 			if existing.Deleted {
 				existing.Deleted = false
 				existing.Status = "approved"
-				affected++
 			}
+			existing.AppliedCredits = participant.Credits
+			existing.AwardedCredits = participant.Credits
+			affected++
 			continue
 		}
 
 		s.applications[key] = &Application{
-			ID:         key,
-			ActivityID: activityID,
-			UserID:     userID,
-			Status:     "approved",
+			ID:             key,
+			ActivityID:     participant.ActivityID,
+			UserID:         participant.UserID,
+			Status:         "approved",
+			AppliedCredits: participant.Credits,
+			AwardedCredits: participant.Credits,
 		}
 		affected++
 	}
@@ -114,12 +130,8 @@ func (s *Service) SyncApprovedActivityContext(ctx context.Context, activityID st
 	if err != nil {
 		return err
 	}
-	userIDs := make([]string, 0, len(participants))
-	for _, participant := range participants {
-		userIDs = append(userIDs, participant.UserID)
-	}
 
-	s.SyncApprovedActivity(activityID, userIDs)
+	s.syncApprovedParticipants(participants)
 	return nil
 }
 

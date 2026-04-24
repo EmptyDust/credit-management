@@ -1,9 +1,43 @@
 package e2e
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 )
+
+func TestCreateActivityResponseUsesAPIFieldNames(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "API contract smoke",
+		"description":   "assert raw field names",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details":       map[string]any{},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+
+	envelope := decodeEnvelope(t, createRecorder)
+
+	var payload map[string]map[string]any
+	if err := json.Unmarshal(envelope.Data, &payload); err != nil {
+		t.Fatalf("decode raw payload: %v\nraw=%s", err, string(envelope.Data))
+	}
+
+	activity := payload["activity"]
+	if activity["id"] == nil {
+		t.Fatalf("expected activity.id in response, got %v", activity)
+	}
+	if activity["ID"] != nil {
+		t.Fatalf("unexpected PascalCase field in response: %v", activity)
+	}
+}
 
 func TestDraftToApprovedGeneratesApplications(t *testing.T) {
 	h := newHarness(t)

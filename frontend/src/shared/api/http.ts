@@ -95,6 +95,7 @@ http.interceptors.response.use(
     const response = error.response;
     const config = error.config as RetryableRequestConfig | undefined;
     const requestPath = config?.url ?? "";
+    const hasStoredSession = Boolean(getAccessToken() || getRefreshToken());
 
     if (
       response?.status === 401 &&
@@ -117,10 +118,16 @@ http.interceptors.response.use(
       switch (response.status) {
         case 401:
           clearStoredSession();
-          if (window.location.pathname !== "/login") {
+          if (
+            hasStoredSession &&
+            window.location.pathname !== "/login" &&
+            window.location.pathname !== "/register"
+          ) {
             window.location.href = "/login";
           }
-          toast.error("登录已过期，请重新登录");
+          if (hasStoredSession) {
+            toast.error("登录已过期，请重新登录");
+          }
           break;
         case 403:
           toast.error("权限不足，无法执行此操作");
