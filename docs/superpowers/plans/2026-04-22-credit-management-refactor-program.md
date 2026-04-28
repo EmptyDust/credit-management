@@ -6,7 +6,7 @@
 
 **Architecture:** Build the new `backend/` modular monolith in parallel with the legacy services, migrate business domains in slices, then switch the frontend to the new `/api/v1` contract and retire the old gateway/service composition. The frontend is refactored in place under `frontend/`, but reorganized into `app/`, `modules/`, and `shared/` boundaries.
 
-**Tech Stack:** Go 1.24, Gin, GORM, PostgreSQL, Redis, React 18, TypeScript, Vite, React Router, React Hook Form, Zod, TanStack Query, Tailwind CSS, Radix UI, pnpm, Docker Compose.
+**Tech Stack:** Go 1.26, Gin, GORM, PostgreSQL, Redis, React 18, TypeScript, Vite, React Router, React Hook Form, Zod, TanStack Query, Tailwind CSS, Radix UI, pnpm, Docker Compose.
 
 **Status:** Completed on `master` as of `2026-04-28`.
 
@@ -107,7 +107,7 @@ These old services are migration references only until Task 9.
 ```go
 module credit-management/backend
 
-go 1.24.0
+go 1.26.0
 
 require (
     github.com/gin-gonic/gin v1.11.0
