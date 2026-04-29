@@ -291,3 +291,7 @@ yarn.lock
 package-lock.json 
 
 set_env.sh
+
+/docs/*
+!/docs/
+!/docs/ai-collaboration-workflow.md
