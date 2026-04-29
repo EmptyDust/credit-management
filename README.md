@@ -82,3 +82,8 @@ make test-frontend
 - 后端 acceptance e2e 位于 `backend/tests/e2e`
 - 活动审核通过后会自动生成只读申请
 - 默认 compose 直接运行新 backend；前端 Nginx 代理也已指向 `backend:8082`
+
+## Core Docs
+
+- `docs/superpowers/plans/` 不再作为运行时基线的一部分保留。
+- 当前仓库内仅保留仍与 `v2` 直接相关的交付与运维文档。

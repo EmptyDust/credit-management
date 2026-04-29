@@ -52,7 +52,7 @@ export default function DevToolsLayout() {
           </h1>
           <p className="text-gray-500 mb-10 flex items-center justify-center gap-2">
             <Code2 className="w-4 h-4" />
-            调试、测试和监控你的微服务
+            调试、测试和监控当前应用服务
           </p>
 
           {/* 工具卡片 */}
@@ -98,4 +98,3 @@ export default function DevToolsLayout() {
 
   return <Outlet />;
 }
-
