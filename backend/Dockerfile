@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/backend ./cmd/server
 
-FROM docker.io/library/alpine:3.22
+FROM docker.io/library/alpine:3.23
 
 RUN apk add --no-cache ca-certificates
 
