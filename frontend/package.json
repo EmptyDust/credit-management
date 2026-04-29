@@ -41,26 +41,30 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
     "@vitejs/plugin-react": "^5.1.2",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.27.2",
-    "eslint": "^9.26.0",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.3.0",
     "jsdom": "^26.1.0",
     "postcss": "^8.5.12",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.54.0",
+    "typescript-eslint": "^8.59.1",
     "vite": "^7.3.2",
     "vitest": "^3.2.4"
   },
   "pnpm": {
     "overrides": {
-      "follow-redirects": "^1.16.0"
+      "follow-redirects": "^1.16.0",
+      "rollup@4.57.1": "4.59.0",
+      "flatted@3.3.3": "3.4.2",
+      "yaml@2.8.0": "2.8.3",
+      "picomatch@2.3.1": "2.3.2",
+      "picomatch@4.0.3": "4.0.4",
+      "brace-expansion@1.1.12": "1.1.13"
     }
   }
 }
