@@ -1,0 +1,85 @@
+services:
+  postgres:
+    build: ./database
+    container_name: credit_management_postgres
+    environment:
+      POSTGRES_DB: credit_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/backups:/backups
+    networks:
+      - credit_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d credit_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build: ./backend
+    container_name: credit_management_backend
+    ports:
+      - "8082:8082"
+    environment:
+      - BACKEND_HTTP_PORT=8082
+      - GIN_MODE=release
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: credit_management_frontend
+    user: root
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - credit_network
+    restart: unless-stopped
+
+  redis:
+    image: docker.io/library/redis:7.2-alpine
+    container_name: credit_management_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    networks:
+      - credit_network
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_HOST=credit_management_redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=password # 新增
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  credit_network:
+    driver: bridge

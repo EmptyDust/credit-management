@@ -1,0 +1,295 @@
+# ===========================================
+# Go specific ignores
+# ===========================================
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go build artifacts
+*.o
+*.a
+*.so
+
+# Go vendor directory
+vendor/
+
+# Go specific
+go.sum.backup
+
+# ===========================================
+# Node.js / JavaScript / TypeScript
+# ===========================================
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Node.js specific
+.npmrc
+.yarnrc
+.yarn-integrity
+yarn-error.log
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+node_modules/.tmp/
+
+# ===========================================
+# React / Vite specific
+# ===========================================
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+*.local
+
+# ===========================================
+# Environment and Configuration
+# ===========================================
+# dotenv environment variables file
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Configuration files with sensitive data
+config.json
+secrets.json
+credentials.json
+*.kubeconfig
+
+# ===========================================
+# IDE and Editor files
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# IDE specific
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# ===========================================
+# OS generated files
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+*.lnk
+
+# ===========================================
+# Logs and Runtime data
+# ===========================================
+# Logs
+*.log
+logs/
+log/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ===========================================
+# Build and Temporary files
+# ===========================================
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Coverage reports
+coverage/
+*.coverage
+*.cover
+
+# Profiling data
+*.prof
+
+# ===========================================
+# Database files
+# ===========================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ===========================================
+# Docker and Containerization
+# ===========================================
+.dockerignore
+
+# ===========================================
+# Upload and Media files
+# ===========================================
+uploads/
+files/
+media/
+!backend/internal/modules/files/
+!backend/internal/modules/files/**
+
+# ===========================================
+# Backup and Archive files
+# ===========================================
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+
+# ===========================================
+# Certificate and Security files
+# ===========================================
+# Certificate files
+*.pem
+*.key
+*.crt
+*.csr
+
+# ===========================================
+# Infrastructure and Deployment
+# ===========================================
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Helm
+charts/*.tgz
+
+# ===========================================
+# Local development
+# ===========================================
+.local/
+local/
+.worktrees/
+
+# ===========================================
+# Testing
+# ===========================================
+# Test coverage
+coverage/
+.nyc_output/
+
+# ===========================================
+# Package managers
+# ===========================================
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# pnpm
+.pnpm-store/
+
+# ===========================================
+# Project specific ignores
+# ===========================================
+# Test files and temporary files
+test_*.pdf
+test_*.txt
+downloaded_*.pdf
+*.test.js
+*.test.ts
+
+# Temporary test files in tester directory
+tester/*.pdf
+tester/*.txt
+tester/go.mod
+tester/go.sum
+
+# Application uploads and attachments
+application-management-service/uploads/
+*/uploads/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build artifacts
+dist/
+build/
+out/
+*.local
+
+# Node modules (already covered but explicit)
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json 
+
+set_env.sh
+
+/docs

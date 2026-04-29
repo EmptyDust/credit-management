@@ -1,0 +1,57 @@
+# .github/workflows/deploy.yml
+
+name: Deploy with Docker Compose
+
+on:
+  push:
+    branches: ["master"] # 监听 master 分支的 push 事件
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # 使用 GitHub 提供的虚拟机
+
+    steps:
+      # 步骤1: 检出代码（这一步是为了让Action可以访问到仓库信息，比如仓库URL）
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # 步骤2: SSH 连接到服务器并执行部署脚本
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }} # 从 Secrets 读取服务器 IP
+          username: ${{ secrets.SERVER_USER }} # 从 Secrets 读取用户名
+          key: ${{ secrets.SERVER_SSH_KEY }} # 从 Secrets 读取 SSH 私钥
+          script: |
+            # --- 在您的服务器上执行以下命令 ---
+
+            # 1. 定义项目目录和仓库URL
+            # DOCKER_COMPOSE_PATH 应该是在 GitHub Secrets 中设置的路径
+            # 例如: /home/emptydust/credit-management
+            APP_DIR="${{ secrets.DOCKER_COMPOSE_PATH }}"
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+
+            # 2. 检查目录是否存在，如果不存在则从 GitHub 克隆项目
+            if [ ! -d "$APP_DIR" ]; then
+              echo "项目目录不存在，正在克隆仓库..."
+              git clone $REPO_URL "$APP_DIR"
+            fi
+
+            # 3. 进入项目目录并拉取最新代码
+            cd "$APP_DIR"
+            echo "正在拉取最新的代码..."
+            git checkout master
+            git pull origin master
+
+            # 4. 使用 Docker Compose 构建并启动所有服务
+            # --build: 如果服务的代码或 Dockerfile 发生变化，会重新构建镜像
+            # -d: 在后台运行容器
+            # --remove-orphans: 移除在 compose 文件中已不存在的服务的容器
+            echo "正在使用 Docker Compose 构建和部署..."
+            docker compose up --build -d --remove-orphans
+
+            # 5. 清理不再使用的旧镜像，释放磁盘空间
+            echo "正在清理旧的 Docker 镜像..."
+            docker image prune -f
+
+            echo "🚀 部署完成！"
