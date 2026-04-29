@@ -8,6 +8,12 @@
 
 当前 `v2` 分支只保留重构后的新系统实现，不再包含旧微服务运行入口。
 
+## Branch Model
+
+- `v2`: 当前默认分支，也是新系统唯一开发主线
+- `v1`: 旧系统冻结分支，仅保留历史
+- `master`: 历史过渡分支，不再作为新开发基线
+
 ## Default Stack
 
 | Component | Port | Purpose |
@@ -87,3 +93,5 @@ make test-frontend
 
 - `docs/superpowers/plans/` 不再作为运行时基线的一部分保留。
 - 当前仓库内仅保留仍与 `v2` 直接相关的交付与运维文档。
+- 协作与提交流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 开发者 AI 专用流程见 [docs/ai-collaboration-workflow.md](docs/ai-collaboration-workflow.md)。

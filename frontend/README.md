@@ -370,7 +370,4 @@ DEBUG=* pnpm dev
 
 ## 贡献指南
 
-1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 创建 Pull Request
+前端模块已经并入仓库统一的 `v2` 开发流程。请以仓库根目录的 [CONTRIBUTING.md](../CONTRIBUTING.md) 和 [docs/ai-collaboration-workflow.md](../docs/ai-collaboration-workflow.md) 为准，不再单独维护一套前端贡献规则。

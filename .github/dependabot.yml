@@ -1,99 +1,47 @@
 version: 2
 updates:
-  # 1. 监控 GitHub Actions (检查 .github/workflows 里的 action 版本)
+  # 1. 监控 GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "v2"
     schedule:
       interval: "weekly"
     labels:
       - "ci/cd"
 
-  # 2. 监控 Docker 镜像更新
-  # 检查根目录的 docker-compose.yml
+  # 2. 监控根目录 docker-compose.yml
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "v2"
     schedule:
       interval: "weekly"
     labels:
       - "docker"
 
-  # 检查各个微服务子目录下的 Dockerfile (解决你提到的找不到 Dockerfile 问题)
+  # 3. 监控 v2 backend Dockerfile
   - package-ecosystem: "docker"
-    directory: "/api-gateway"
+    directory: "/backend"
+    target-branch: "v2"
     schedule:
       interval: "weekly"
     labels:
       - "docker"
       - "backend"
 
-  - package-ecosystem: "docker"
-    directory: "/auth-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "docker"
-      - "backend"
-
-  - package-ecosystem: "docker"
-    directory: "/credit-activity-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "docker"
-      - "backend"
-
-  - package-ecosystem: "docker"
-    directory: "/user-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "docker"
-      - "backend"
-
-  # 3. 监控 Go 后端依赖 (Go Modules)
+  # 4. 监控 v2 backend Go Modules
   - package-ecosystem: "gomod"
-    directory: "/api-gateway"
+    directory: "/backend"
+    target-branch: "v2"
     schedule:
       interval: "weekly"
     labels:
       - "backend"
       - "dependencies"
 
-  - package-ecosystem: "gomod"
-    directory: "/auth-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "backend"
-      - "dependencies"
-
-  - package-ecosystem: "gomod"
-    directory: "/credit-activity-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "backend"
-      - "dependencies"
-
-  - package-ecosystem: "gomod"
-    directory: "/user-service"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "backend"
-      - "dependencies"
-
-  - package-ecosystem: "gomod"
-    directory: "/test-utils"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "test"
-      - "dependencies"
-
-  # 4. 监控前端依赖 (NPM/React)
+  # 5. 监控前端依赖
   - package-ecosystem: "npm"
     directory: "/frontend"
+    target-branch: "v2"
     schedule:
       interval: "weekly"
     labels:

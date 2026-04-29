@@ -1,10 +1,10 @@
-# .github/workflows/deploy.yml
+# .github/workflows/main.yml
 
-name: Deploy with Docker Compose
+name: Deploy v2 with Docker Compose
 
 on:
   push:
-    branches: ["master"] # 监听 master 分支的 push 事件
+    branches: ["v2"] # 监听 v2 分支的 push 事件
 
 jobs:
   deploy:
@@ -34,14 +34,14 @@ jobs:
             # 2. 检查目录是否存在，如果不存在则从 GitHub 克隆项目
             if [ ! -d "$APP_DIR" ]; then
               echo "项目目录不存在，正在克隆仓库..."
-              git clone $REPO_URL "$APP_DIR"
+              git clone --branch v2 $REPO_URL "$APP_DIR"
             fi
 
             # 3. 进入项目目录并拉取最新代码
             cd "$APP_DIR"
             echo "正在拉取最新的代码..."
-            git checkout master
-            git pull origin master
+            git checkout v2
+            git pull --ff-only origin v2
 
             # 4. 使用 Docker Compose 构建并启动所有服务
             # --build: 如果服务的代码或 Dockerfile 发生变化，会重新构建镜像
