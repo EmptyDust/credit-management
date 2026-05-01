@@ -295,3 +295,6 @@ set_env.sh
 /docs/*
 !/docs/
 !/docs/ai-collaboration-workflow.md
+!/docs/superpowers/
+!/docs/superpowers/specs/
+!/docs/superpowers/specs/*.md
