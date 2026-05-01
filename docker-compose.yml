@@ -31,6 +31,7 @@ services:
       - GIN_MODE=release
       - DATABASE_DSN=postgres://postgres:password@postgres:5432/credit_management?sslmode=disable
       - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
       - REDIS_DB=0
       - STORAGE_BACKEND=local
       - STORAGE_LOCAL_ROOT=/app/tmp/storage

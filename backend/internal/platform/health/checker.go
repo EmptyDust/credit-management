@@ -2,7 +2,6 @@ package health
 
 import (
 	"context"
-	"sort"
 )
 
 type Status string
@@ -26,9 +25,11 @@ type DependencyResult struct {
 }
 
 type DetailedResult struct {
-	Status       Status                      `json:"status"`
-	Version      string                      `json:"version"`
-	Dependencies map[string]DependencyResult `json:"dependencies"`
+	Status   Status           `json:"status"`
+	Version  string           `json:"version"`
+	Database DependencyResult `json:"database"`
+	Redis    DependencyResult `json:"redis"`
+	Storage  DependencyResult `json:"storage"`
 }
 
 type Checker struct {
@@ -57,11 +58,13 @@ func (c *Checker) Summary(ctx context.Context) SummaryResult {
 }
 
 func (c *Checker) Detailed(ctx context.Context) DetailedResult {
-	status, dependencies := c.runChecks(ctx)
+	status, results := c.runChecks(ctx)
 	return DetailedResult{
-		Status:       status,
-		Version:      c.version,
-		Dependencies: dependencies,
+		Status:   status,
+		Version:  c.version,
+		Database: results["database"],
+		Redis:    results["redis"],
+		Storage:  results["storage"],
 	}
 }
 
@@ -69,27 +72,20 @@ func (c *Checker) runChecks(ctx context.Context) (Status, map[string]DependencyR
 	status := StatusOK
 	dependencies := make(map[string]DependencyResult, len(c.checks))
 
-	names := make([]string, 0, len(c.checks))
-	for name := range c.checks {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
+	for _, name := range []string{"database", "redis", "storage"} {
+		result := DependencyResult{Status: StatusError, Error: "check is not configured"}
 		check := c.checks[name]
-		if check == nil {
-			dependencies[name] = DependencyResult{Status: StatusError, Error: "check is not configured"}
-			status = StatusDegraded
-			continue
+		if check != nil {
+			result = DependencyResult{Status: StatusOK}
+			if err := check(ctx); err != nil {
+				result = DependencyResult{Status: StatusError, Error: err.Error()}
+			}
 		}
 
-		if err := check(ctx); err != nil {
-			dependencies[name] = DependencyResult{Status: StatusError, Error: err.Error()}
+		dependencies[name] = result
+		if result.Status != StatusOK {
 			status = StatusDegraded
-			continue
 		}
-
-		dependencies[name] = DependencyResult{Status: StatusOK}
 	}
 
 	return status, dependencies

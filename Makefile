@@ -1,4 +1,4 @@
-.PHONY: help test-refactor test-backend test-e2e test-frontend test-platform up-refactor down-refactor logs-refactor dev-backend clean
+.PHONY: help test-refactor test-backend test-e2e test-frontend test-platform up-refactor down-refactor logs-refactor dev-backend migrate-backend seed-backend clean
 
 help:
 	@echo "Available targets:"
@@ -11,6 +11,8 @@ help:
 	@echo "  make down-refactor  - Stop the refactor stack"
 	@echo "  make logs-refactor  - Tail logs for the refactor stack"
 	@echo "  make dev-backend    - Run the modular monolith backend locally"
+	@echo "  make migrate-backend - Fail fast until the migration entrypoint lands in Task 2"
+	@echo "  make seed-backend   - Fail fast until the seed entrypoint lands in Task 2"
 	@echo "  make clean          - Clean generic test artifacts"
 
 test-refactor: test-backend test-e2e test-frontend
@@ -38,6 +40,14 @@ logs-refactor:
 
 dev-backend:
 	cd backend && go run ./cmd/server
+
+migrate-backend:
+	@echo "migrate-backend is introduced in Task 2 once the backend migration entrypoint exists." >&2
+	@exit 1
+
+seed-backend:
+	@echo "seed-backend is introduced in Task 2 once the backend seed entrypoint exists." >&2
+	@exit 1
 
 clean:
 	rm -rf coverage/

@@ -10,6 +10,7 @@ func TestCheckerSummaryReportsHealthyWhenDependenciesPass(t *testing.T) {
 	checker := NewChecker("1.2.3", map[string]CheckFunc{
 		"database": func(context.Context) error { return nil },
 		"redis":    func(context.Context) error { return nil },
+		"storage":  func(context.Context) error { return nil },
 	})
 
 	summary := checker.Summary(context.Background())
@@ -36,19 +37,21 @@ func TestCheckerDetailedReportsDependencyFailures(t *testing.T) {
 		t.Fatalf("expected detailed version dev, got %s", detailed.Version)
 	}
 
-	redis := detailed.Dependencies["redis"]
-	if redis.Status != StatusError {
-		t.Fatalf("expected redis status %s, got %s", StatusError, redis.Status)
+	if detailed.Redis.Status != StatusError {
+		t.Fatalf("expected redis status %s, got %s", StatusError, detailed.Redis.Status)
 	}
-	if redis.Error != "dial tcp timeout" {
-		t.Fatalf("expected redis error dial tcp timeout, got %s", redis.Error)
+	if detailed.Redis.Error != "dial tcp timeout" {
+		t.Fatalf("expected redis error dial tcp timeout, got %s", detailed.Redis.Error)
 	}
 
-	database := detailed.Dependencies["database"]
-	if database.Status != StatusOK {
-		t.Fatalf("expected database status %s, got %s", StatusOK, database.Status)
+	if detailed.Database.Status != StatusOK {
+		t.Fatalf("expected database status %s, got %s", StatusOK, detailed.Database.Status)
 	}
-	if database.Error != "" {
-		t.Fatalf("expected empty database error, got %s", database.Error)
+	if detailed.Database.Error != "" {
+		t.Fatalf("expected empty database error, got %s", detailed.Database.Error)
+	}
+
+	if detailed.Storage.Status != StatusOK {
+		t.Fatalf("expected storage status %s, got %s", StatusOK, detailed.Storage.Status)
 	}
 }
