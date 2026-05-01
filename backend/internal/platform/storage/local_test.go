@@ -100,6 +100,18 @@ func TestLocalStorePutDoesNotLeaveObjectOnCopyFailure(t *testing.T) {
 	}
 }
 
+func TestLocalStoreRejectsBackslashTraversalKey(t *testing.T) {
+	store := NewLocalStore(t.TempDir(), "")
+
+	_, err := store.Put(context.Background(), PutRequest{
+		Key:  "..\\escape.txt",
+		Body: strings.NewReader("escape"),
+	})
+	if err == nil {
+		t.Fatal("expected backslash traversal key to be rejected")
+	}
+}
+
 type errReader struct {
 	err error
 }

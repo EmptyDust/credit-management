@@ -144,13 +144,15 @@ func validateKey(key string) error {
 		return errors.New("storage key is required")
 	}
 
-	for _, segment := range strings.Split(key, "/") {
+	normalized := strings.ReplaceAll(key, "\\", "/")
+
+	for _, segment := range strings.Split(normalized, "/") {
 		if segment == "" || segment == "." || segment == ".." {
 			return fmt.Errorf("invalid storage key %q", key)
 		}
 	}
 
-	if strings.HasPrefix(path.Clean("/"+key), "/../") {
+	if strings.HasPrefix(path.Clean("/"+normalized), "/../") {
 		return fmt.Errorf("invalid storage key %q", key)
 	}
 

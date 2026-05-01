@@ -6,7 +6,7 @@ help:
 	@echo "  make test-backend   - Run modular monolith backend tests"
 	@echo "  make test-e2e       - Run modular monolith backend e2e tests"
 	@echo "  make test-frontend  - Build the frontend"
-	@echo "  make test-platform  - Run focused platform tests for config, storage, and health"
+	@echo "  make test-platform  - Run focused platform tests for config, storage, health, and redis"
 	@echo "  make up-refactor    - Start postgres, redis, backend, and frontend"
 	@echo "  make down-refactor  - Stop the refactor stack"
 	@echo "  make logs-refactor  - Tail logs for the refactor stack"
@@ -27,7 +27,7 @@ test-frontend:
 	cd frontend && npm exec --yes pnpm -- build
 
 test-platform:
-	cd backend && go test ./internal/platform/config ./internal/platform/storage ./internal/platform/health -v
+	cd backend && go test ./internal/platform/config ./internal/platform/storage ./internal/platform/health ./internal/platform/redis -v
 
 up-refactor:
 	docker compose up -d postgres redis backend frontend
