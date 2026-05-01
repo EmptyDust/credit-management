@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -95,6 +95,30 @@ interface RecentActivity {
   start_date: string;
   end_date: string;
   owner_name?: string;
+}
+
+interface RawDashboardApplication {
+  status?: string;
+  awarded_credits?: number;
+}
+
+interface RawDashboardActivity {
+  id: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  status?: string;
+  participants_count?: number;
+  applications_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  start_date?: string;
+  end_date?: string;
+  owner?: {
+    name?: string;
+  };
+  owner_name?: string;
+  applications?: RawDashboardApplication[];
 }
 
 
@@ -274,10 +298,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      setRefreshing(true);
-
       // Fetch user stats (admin only)
       if (hasPermission("view_user_stats") || user?.userType === "admin") {
         try {
@@ -328,7 +350,7 @@ export default function Dashboard() {
           params: { page: 1, page_size: 20 },
         });
 
-        let activitiesData: any[] = [];
+        let activitiesData: RawDashboardActivity[] = [];
         if (activitiesResponse.data.code === 0 && activitiesResponse.data.data) {
           activitiesData = activitiesResponse.data.data.data || activitiesResponse.data.data.activities || [];
           setRecentActivities(activitiesData);
@@ -337,7 +359,7 @@ export default function Dashboard() {
         // Calculate category stats - 动态分类统计
         const categoryStats: Record<string, number> = {};
 
-        activitiesData.forEach((activity: any) => {
+        activitiesData.forEach((activity) => {
           if (activity.category) {
             if (!categoryStats[activity.category]) {
               categoryStats[activity.category] = 0;
@@ -348,7 +370,7 @@ export default function Dashboard() {
 
         // Calculate total participants and applications
         const totalApplications = activitiesData.reduce(
-          (sum: number, activity: any) =>
+          (sum: number, activity) =>
             sum + (activity.applications?.length || 0),
           0
         );
@@ -358,15 +380,15 @@ export default function Dashboard() {
           activitiesData.length > 0
             ? Math.round(
                 (activitiesData.reduce(
-                  (sum: number, activity: any) => {
+                  (sum: number, activity) => {
                     const approvedApps =
                       activity.applications?.filter(
-                        (app: any) => app.status === "approved"
+                        (app) => app.status === "approved"
                       ) || [];
                     return (
                       sum +
                       approvedApps.reduce(
-                        (appSum: number, app: any) =>
+                        (appSum: number, app) =>
                           appSum + (app.awarded_credits || 0),
                         0
                       )
@@ -381,14 +403,14 @@ export default function Dashboard() {
 
         // Prepare recent activities for the card
         const recentActivitiesData = activitiesData
-          .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
+          .filter((activity) => activity && activity.id) // 过滤掉无效的活动
           .sort(
-            (a: any, b: any) =>
+            (a, b) =>
               new Date(b.updated_at || 0).getTime() -
               new Date(a.updated_at || 0).getTime()
           )
           .slice(0, 6)
-          .map((activity: any) => ({
+          .map((activity) => ({
             id: activity.id || "",
             title: activity.title || "无标题",
             description: activity.description || "暂无描述",
@@ -405,13 +427,13 @@ export default function Dashboard() {
 
         // Prepare popular activities
         const popularActivities = activitiesData
-          .filter((activity: any) => activity && activity.id) // 过滤掉无效的活动
+          .filter((activity) => activity && activity.id) // 过滤掉无效的活动
           .sort(
-            (a: any, b: any) =>
+            (a, b) =>
               (b.participants_count || 0) - (a.participants_count || 0)
           )
           .slice(0, 5)
-          .map((activity: any) => ({
+          .map((activity) => ({
             id: activity.id || "",
             title: activity.title || "无标题",
             application_count: activity.applications_count || 0,
@@ -449,7 +471,7 @@ export default function Dashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [hasPermission, user]);
 
   // 加载活动配置
   useEffect(() => {
@@ -467,11 +489,18 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [hasPermission, user?.username]);
+    const timeoutId = window.setTimeout(() => {
+      void fetchDashboardData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [fetchDashboardData]);
 
   const handleRefresh = () => {
-    fetchDashboardData();
+    setRefreshing(true);
+    void fetchDashboardData();
   };
 
   if (loading) {

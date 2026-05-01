@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { startTransition, useEffect, useState } from "react";
 import * as z from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import toast from "react-hot-toast";
 import apiClient from "@/lib/api";
-import type { Activity } from "@/types/activity";
+import type { Activity, ActivityDetails } from "@/types/activity";
 import { getActivityOptions } from "@/lib/options";
 
 const activitySchema = z.object({
@@ -63,6 +63,29 @@ interface ActivityEditDialogProps {
   onSuccess?: () => void;
 }
 
+type ActivityFieldOption = {
+  value: string;
+  label: string;
+};
+
+type ActivityFieldDefinition = {
+  name: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: ActivityFieldOption[];
+  min?: number;
+  max?: number;
+  maxLength?: number;
+};
+
+type ActivityPayload = ActivityFormValues & {
+  description: string;
+  start_date: string;
+  end_date: string;
+  details: ActivityDetails;
+};
+
 export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
   open,
   onOpenChange,
@@ -74,21 +97,9 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
     { value: string; label: string }[]
   >([]);
   const [categoryFields, setCategoryFields] = useState<
-    Record<
-      string,
-      Array<{
-        name: string;
-        label: string;
-        type: string;
-        required?: boolean;
-        options?: { value: string; label: string }[];
-        min?: number;
-        max?: number;
-        maxLength?: number;
-      }>
-    >
+    Record<string, ActivityFieldDefinition[]>
   >({});
-  const [details, setDetails] = useState<Record<string, any>>({});
+  const [details, setDetails] = useState<ActivityDetails>({});
 
   const form = useForm<ActivityFormValues>({
     resolver: zodResolver(activitySchema),
@@ -108,8 +119,8 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
         const opts = await getActivityOptions();
         setActivityCategories(opts.categories || []);
         setCategoryFields(opts.category_fields || {});
-      } catch (e) {
-        console.error("Failed to load activity options in ActivityEditDialog", e);
+      } catch (error) {
+        console.error("Failed to load activity options in ActivityEditDialog", error);
       }
     })();
   }, []);
@@ -126,8 +137,9 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
           : "",
         end_date: activity.end_date ? activity.end_date.split("T")[0] : "",
       });
-      // @ts-ignore
-      setDetails((activity as any).details || {});
+      startTransition(() => {
+        setDetails(activity.details || {});
+      });
     } else {
       form.reset({
         title: "",
@@ -136,7 +148,9 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
         start_date: "",
         end_date: "",
       });
-      setDetails({});
+      startTransition(() => {
+        setDetails({});
+      });
     }
   }, [activity, form]);
 
@@ -144,7 +158,7 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
     try {
       setLoading(true);
 
-      const payload: any = {
+      const payload: ActivityPayload = {
         ...values,
         description: values.description || "",
         start_date: values.start_date || "",
@@ -172,7 +186,10 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
     }
   };
 
-  const selectedCategory = form.watch("category");
+  const selectedCategory = useWatch({
+    control: form.control,
+    name: "category",
+  }) || "";
   const dynamicFields = categoryFields[selectedCategory] || [];
 
   return (
@@ -357,5 +374,3 @@ export const ActivityEditDialog: React.FC<ActivityEditDialogProps> = ({
     </Dialog>
   );
 };
-
-

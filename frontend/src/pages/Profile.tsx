@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import apiClient from "@/lib/api";
+import axios from "axios";
 import {
   User,
   Mail,
@@ -32,7 +33,7 @@ import {
   Upload,
 } from "lucide-react";
 import * as z from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -115,6 +116,19 @@ type UserProfile = {
   title?: string;
 };
 
+type ProfileUpdatePayload = {
+  email?: string;
+  phone?: string;
+  real_name?: string;
+  department_id?: string;
+  grade?: string;
+  title?: string;
+};
+
+type ApiErrorBody = {
+  message?: string;
+};
+
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -159,6 +173,14 @@ export default function ProfilePage() {
       confirm_password: "",
     },
   });
+  const selectedCollege = useWatch({
+    control: form.control,
+    name: "college",
+  }) || "";
+  const selectedMajor = useWatch({
+    control: form.control,
+    name: "major",
+  }) || "";
 
   const fetchProfile = async (options?: { isInitial?: boolean }) => {
     if (!user) return;
@@ -202,16 +224,38 @@ export default function ProfilePage() {
 
   useEffect(() => {
     // 首次进入个人资料页使用 loading，其余刷新使用顶部进度条
-    fetchProfile({ isInitial: true });
     (async () => {
       try {
-        const opts = await getOptions();
+        const [profileResponse, opts] = await Promise.all([
+          apiClient.get(`/users/profile`),
+          getOptions(),
+        ]);
+        const profileData = profileResponse.data.data || profileResponse.data;
+        setProfile(profileData);
+        form.reset({
+          username: profileData.username || "",
+          email: profileData.email || "",
+          phone: profileData.phone || "",
+          real_name: profileData.real_name || "",
+          college: profileData.college || "",
+          major: profileData.major || "",
+          class: profileData.class || "",
+          grade: profileData.grade || "",
+          department: profileData.department || "",
+          title: profileData.title || "",
+          student_id: profileData.student_id || "",
+          teacher_id: profileData.teacher_id || "",
+        });
         setCollegeOptions(opts.colleges);
         setMajorOptions(opts.majors || {});
         setClassOptions(opts.classes || {});
         setGradeOptions(opts.grades || []);
-      } catch (e) {
-        console.error("Failed to load options", e);
+      } catch (error) {
+        setError("获取个人资料失败");
+        console.error("Failed to bootstrap profile page", error);
+        toast.error("获取个人资料失败");
+      } finally {
+        setLoading(false);
       }
     })();
   }, [user, form]);
@@ -222,7 +266,7 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       // Only send fields that are allowed by the backend UserUpdateRequest
-      const updateData: any = {};
+      const updateData: ProfileUpdatePayload = {};
       
       // Only include fields that have values and are valid for updates
       if (values.email && values.email !== profile.email) {
@@ -303,8 +347,10 @@ export default function ProfilePage() {
       setPasswordDialogOpen(false);
       passwordForm.reset();
       toast.success("密码修改成功！");
-    } catch (err: any) {
-      let errorMessage = err.response?.data?.message || "密码修改失败";
+    } catch (error: unknown) {
+      let errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "密码修改失败"
+        : "密码修改失败";
       if (errorMessage.includes("管理员权限")) {
         errorMessage = "您没有权限修改密码，请重新登录或联系管理员。";
       }
@@ -362,9 +408,11 @@ export default function ProfilePage() {
       // The actual image will load from the new avatar URL
       setTimeout(() => setAvatarPreview(null), 500);
       toast.success("头像上传成功！");
-    } catch (err: any) {
+    } catch (error: unknown) {
       setAvatarPreview(null);
-      const errorMessage = err.response?.data?.message || "头像上传失败";
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "头像上传失败"
+        : "头像上传失败";
       toast.error(errorMessage);
     } finally {
       setUploadingAvatar(false);
@@ -388,8 +436,10 @@ export default function ProfilePage() {
       }
       updateUser({ avatar: undefined });
       toast.success("头像删除成功！");
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "头像删除失败";
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "头像删除失败"
+        : "头像删除失败";
       toast.error(errorMessage);
     } finally {
       setUploadingAvatar(false);
@@ -870,7 +920,6 @@ export default function ProfilePage() {
                     control={form.control}
                     name="major"
                     render={({ field }) => {
-                      const selectedCollege = form.watch("college");
                       const availableMajors = selectedCollege
                         ? majorOptions[selectedCollege || ""] || []
                         : [];
@@ -914,7 +963,6 @@ export default function ProfilePage() {
                     control={form.control}
                     name="class"
                     render={({ field }) => {
-                      const selectedMajor = form.watch("major");
                       const availableClasses = selectedMajor
                         ? classOptions[selectedMajor] || []
                         : [];

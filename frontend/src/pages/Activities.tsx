@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Pagination } from "@/components/ui/pagination";
 import apiClient, { apiHelpers } from "@/lib/api";
+import axios from "axios";
 import {
   PlusCircle,
   Edit,
@@ -65,7 +66,9 @@ export default function ActivitiesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(
+    searchParams.get("status") ?? "all"
+  );
   const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
   const [activityStatuses, setActivityStatuses] = useState<{ value: string; label: string }[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -92,13 +95,46 @@ export default function ActivitiesPage() {
   });
   const [globalApplicationCount, setGlobalApplicationCount] = useState(0);
 
+  type ActivitiesQueryParams = Record<string, string | number>;
+  type ActivitiesPagination = {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+  type ActivitiesImportErrorBody = {
+    message?: string;
+    error?: string;
+    errors?: unknown[];
+    data?: {
+      errors?: unknown[];
+    };
+  };
+
+  const normalizeImportErrors = (errors: unknown[]): string[] =>
+    errors.map((error) =>
+      typeof error === "string" ? error : JSON.stringify(error)
+    );
+
+  const handleDialogOpen = (activity: Activity | null) => {
+    setEditingActivity(activity);
+    setIsDialogOpen(true);
+  };
+
   // 根据URL参数设置初始过滤器
   useEffect(() => {
     const statusFromUrl = searchParams.get("status");
-    if (statusFromUrl) {
-      setStatusFilter(statusFromUrl);
+    if (!statusFromUrl || statusFromUrl === statusFilter) {
+      return;
     }
-  }, [searchParams]);
+    const timeoutId = window.setTimeout(() => {
+      setStatusFilter(statusFromUrl);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchParams, statusFilter]);
 
   const fetchActivities = useCallback(
     async (
@@ -115,60 +151,57 @@ export default function ActivitiesPage() {
           setRefreshing(true);
         }
 
-      // 构建查询参数
-      const params: any = {
-        page,
-        page_size: size,
-      };
+        // 构建查询参数
+        const params: ActivitiesQueryParams = {
+          page,
+          page_size: size,
+        };
 
-      if (searchTerm) {
-        params.query = searchTerm;
-      }
-      if (categoryFilter !== "all") {
-        params.category = categoryFilter;
-      }
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
+        if (searchTerm) {
+          params.query = searchTerm;
+        }
+        if (categoryFilter !== "all") {
+          params.category = categoryFilter;
+        }
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
 
         const response = await apiClient.get("/activities", { params });
 
       // 调试：打印响应数据
       console.log("API Response:", response.data);
 
-      // 处理响应数据
-      let activitiesData = [];
-      let paginationData: any = {};
-
-      if (response.data.code === 0 && response.data.data) {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          // 分页数据结构
-          activitiesData = response.data.data.data;
-          paginationData = {
-            total: response.data.data.total || 0,
-            page: response.data.data.page || 1,
-            page_size: response.data.data.page_size || 10,
-            total_pages: response.data.data.total_pages || 0,
-          };
-        } else {
-          // 非分页数据结构
-          activitiesData = response.data.data.activities || response.data.data || [];
-          paginationData = {
-            total: activitiesData.length,
-            page: 1,
-            page_size: activitiesData.length,
-            total_pages: 1,
-          };
-        }
-      } else {
-        activitiesData = [];
-        paginationData = {
+        // 处理响应数据
+        let activitiesData: Activity[] = [];
+        let paginationData: ActivitiesPagination = {
           total: 0,
           page: 1,
           page_size: 10,
           total_pages: 0,
         };
-      }
+
+        if (response.data.code === 0 && response.data.data) {
+          if (response.data.data.data && Array.isArray(response.data.data.data)) {
+            // 分页数据结构
+            activitiesData = response.data.data.data;
+            paginationData = {
+              total: response.data.data.total || 0,
+              page: response.data.data.page || 1,
+              page_size: response.data.data.page_size || 10,
+              total_pages: response.data.data.total_pages || 0,
+            };
+          } else if (Array.isArray(response.data.data.activities)) {
+            // 非分页数据结构
+            activitiesData = response.data.data.activities;
+            paginationData = {
+              total: activitiesData.length,
+              page: 1,
+              page_size: activitiesData.length,
+              total_pages: 1,
+            };
+          }
+        }
 
       // 调试：打印处理后的数据
       console.log("Activities Data:", activitiesData);
@@ -228,11 +261,17 @@ export default function ActivitiesPage() {
     } catch (error) {
       console.error("Failed to fetch application stats:", error);
     }
-  }, [user?.userType]);
+  }, [user]);
 
   useEffect(() => {
-    fetchActivityStats();
-    fetchGlobalApplicationCount();
+    const timeoutId = window.setTimeout(() => {
+      void fetchActivityStats();
+      void fetchGlobalApplicationCount();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [fetchActivityStats, fetchGlobalApplicationCount]);
 
 
@@ -242,8 +281,8 @@ export default function ActivitiesPage() {
         const opts = await getActivityOptions();
         setActivityCategories(opts.categories || []);
         setActivityStatuses(opts.statuses || []);
-      } catch (e) {
-        console.error("Failed to load activity options", e);
+      } catch (error) {
+        console.error("Failed to load activity options", error);
       }
     })();
   }, []);
@@ -275,7 +314,13 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     // 首次进入列表页使用 loading，其余筛选/分页使用 refreshing 细进度条
-    handleSearchAndFilter({ isInitial: true });
+    const timeoutId = window.setTimeout(() => {
+      handleSearchAndFilter({ isInitial: true });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [handleSearchAndFilter]);
 
   // 根据 URL 参数自动打开编辑弹窗，例如 /activities?edit=123
@@ -286,14 +331,15 @@ export default function ActivitiesPage() {
 
     const target = activities.find((a) => String(a.id) === editId);
     if (target) {
-      handleDialogOpen(target);
+      const timeoutId = window.setTimeout(() => {
+        handleDialogOpen(target);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
     }
   }, [searchParams, activities]);
-
-  const handleDialogOpen = (activity: Activity | null) => {
-    setEditingActivity(activity);
-    setIsDialogOpen(true);
-  };
 
   const handleDeleteClick = (activity: Activity) => {
     setDeletingActivity(activity);
@@ -364,32 +410,27 @@ export default function ActivitiesPage() {
         const errors =
           response.data.data?.errors || response.data.errors || [];
         if (Array.isArray(errors) && errors.length > 0) {
-          setImportErrors(
-            errors.map((e: any) =>
-              typeof e === "string" ? e : JSON.stringify(e)
-            )
-          );
+          setImportErrors(normalizeImportErrors(errors));
         } else {
           toast.error(response.data.message || "活动导入失败");
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to import activities:", error);
-      const apiErrors =
-        error?.response?.data?.data?.errors ||
-        error?.response?.data?.errors ||
-        [];
+      const apiErrors = axios.isAxiosError<ActivitiesImportErrorBody>(error)
+        ? error.response?.data?.data?.errors ||
+          error.response?.data?.errors ||
+          []
+        : [];
       if (Array.isArray(apiErrors) && apiErrors.length > 0) {
-        setImportErrors(
-          apiErrors.map((e: any) =>
-            typeof e === "string" ? e : JSON.stringify(e)
-          )
-        );
+        setImportErrors(normalizeImportErrors(apiErrors));
       } else {
         toast.error(
-          error?.response?.data?.message ||
-            error?.response?.data?.error ||
-            "活动导入失败"
+          axios.isAxiosError<ActivitiesImportErrorBody>(error)
+            ? error.response?.data?.message ||
+                error.response?.data?.error ||
+                "活动导入失败"
+            : "活动导入失败"
         );
       }
     } finally {
@@ -416,7 +457,7 @@ export default function ActivitiesPage() {
       window.URL.revokeObjectURL(url);
 
       toast.success("导出成功");
-    } catch (err) {
+    } catch {
       toast.error("导出失败");
     }
   };

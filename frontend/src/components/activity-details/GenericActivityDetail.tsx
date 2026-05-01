@@ -1,5 +1,5 @@
 import React from "react";
-import type { Activity } from "@/types/activity";
+import type { Activity, ActivityDetails } from "@/types/activity";
 import {
   ActivityBasicInfo,
   ActivityParticipants,
@@ -12,7 +12,7 @@ import ReviewActionCard from "../activity-common/ReviewActionCard";
 
 interface GenericActivityDetailProps {
   activity: Activity;
-  detail?: any;
+  detail?: ActivityDetails;
   onRefresh: () => void;
 }
 
@@ -29,7 +29,7 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
   };
 
   // 通用详情（已改为配置驱动，前端不再硬编码）
-  const detailsData: Record<string, any> = detail ?? (activity as any).details ?? {};
+  const detailsData: ActivityDetails = detail ?? activity.details ?? {};
 
   return (
     <div className="space-y-6">
@@ -85,4 +85,4 @@ const GenericActivityDetail: React.FC<GenericActivityDetailProps> = ({
   );
 };
 
-export default GenericActivityDetail; 
+export default GenericActivityDetail;

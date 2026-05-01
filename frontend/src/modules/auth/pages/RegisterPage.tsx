@@ -8,7 +8,7 @@ import {
   User,
   UserPlus,
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import * as z from "zod";
@@ -107,8 +107,14 @@ export default function RegisterPage() {
     },
   });
 
-  const selectedCollege = form.watch("college");
-  const selectedMajor = form.watch("major");
+  const selectedCollege = useWatch({
+    control: form.control,
+    name: "college",
+  }) || "";
+  const selectedMajor = useWatch({
+    control: form.control,
+    name: "major",
+  }) || "";
   const availableMajors = selectedCollege ? majorOptions[selectedCollege] || [] : [];
   const availableClasses = selectedMajor ? classOptions[selectedMajor] || [] : [];
 

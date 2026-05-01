@@ -60,6 +60,8 @@ export async function getCategoryFields(category: string) {
   return config.category_fields[category] || [];
 }
 
+export type ActivityDetails = Record<string, unknown>;
+
 // 基础活动信息
 export interface Activity {
   id: string;
@@ -82,7 +84,7 @@ export interface Activity {
   participants?: Participant[];
   applications?: Application[];
   // 配置驱动下的通用详情
-  details?: Record<string, any>;
+  details?: ActivityDetails;
 }
 
 
@@ -182,7 +184,7 @@ export interface ActivityDetailProps {
 // 活动类型详情组件属性 - 使用通用的details字段
 export interface ActivityTypeDetailProps {
   activity: Activity;
-  detail: Record<string, any>; // 使用通用的details字段，支持动态配置
+  detail: ActivityDetails; // 使用通用的details字段，支持动态配置
 }
 
 // 附件类型定义
@@ -200,4 +202,4 @@ export interface Attachment {
   download_count: number;
   download_url: string;
   uploader?: UserInfo;
-} 
+}

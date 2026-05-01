@@ -22,7 +22,7 @@ interface PaginationActions {
   resetToFirstPage: (fetchFunction: (page: number, size: number) => Promise<void>) => void;
   fetchData: <T>(
     endpoint: string,
-    params: any,
+    params: Record<string, string | number>,
     setData: (data: T[]) => void,
     errorMessage?: string
   ) => Promise<void>;
@@ -61,7 +61,7 @@ export function usePagination(initialPageSize: number = 10): PaginationState & P
 
   const fetchData = useCallback(async <T>(
     endpoint: string,
-    params: any,
+    params: Record<string, string | number>,
     setData: (data: T[]) => void,
     errorMessage: string = "获取数据失败"
   ) => {
@@ -100,4 +100,4 @@ export function usePagination(initialPageSize: number = 10): PaginationState & P
     resetToFirstPage,
     fetchData,
   };
-} 
+}

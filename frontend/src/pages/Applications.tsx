@@ -96,6 +96,46 @@ interface ApplicationAttachment {
   download_url: string;
 }
 
+type ApplicationQueryParams = Record<string, string | number>;
+
+type ApplicationsPagination = {
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+type RawApplication = {
+  id: string;
+  activity_id?: string;
+  affair_name?: string;
+  student_number?: string;
+  student_name?: string;
+  submitted_at?: string;
+  submission_time?: string;
+  status: Application["status"];
+  reviewer_id?: string;
+  reviewer_name?: string;
+  review_comment?: string;
+  reviewed_at?: string;
+  review_time?: string;
+  applied_credits: number;
+  awarded_credits?: number;
+  approved_credits?: number;
+  attachments?: string;
+  user_info?: (Application["user_info"] & { id?: string }) | undefined;
+  activity?: Application["activity"];
+};
+
+type ApplicationsApiData = {
+  data?: unknown;
+  applications?: unknown;
+  total?: number;
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+};
+
 export default function ApplicationsPage() {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
@@ -142,74 +182,80 @@ export default function ApplicationsPage() {
           setRefreshing(true);
         }
 
-      // 构建查询参数
-      const params: any = {
-        page,
-        page_size: size,
-      };
+        // 构建查询参数
+        const params: ApplicationQueryParams = {
+          page,
+          page_size: size,
+        };
 
-      if (searchTerm) {
-        params.query = searchTerm;
-      }
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
+        if (searchTerm) {
+          params.query = searchTerm;
+        }
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
 
-      // 根据用户类型选择不同的API端点
-      const endpoint =
-        user?.userType === "student"
-          ? "/applications" // 学生只能看到自己的申请
-          : "/applications/all"; // 教师和管理员可以看到所有申请
+        // 根据用户类型选择不同的API端点
+        const endpoint =
+          user?.userType === "student"
+            ? "/applications" // 学生只能看到自己的申请
+            : "/applications/all"; // 教师和管理员可以看到所有申请
 
         const response = await apiClient.get(endpoint, { params });
 
       // 调试：打印响应数据
       console.log("Applications API Response:", response.data);
 
-      // 处理响应数据
-      let applicationsData = [];
-      let paginationData: any = {};
-
-      if (response.data.code === 0 && response.data.data) {
-        if (response.data.data.data && Array.isArray(response.data.data.data)) {
-          // 分页数据结构
-          applicationsData = response.data.data.data;
-          paginationData = {
-            total: response.data.data.total || 0,
-            page: response.data.data.page || 1,
-            page_size: response.data.data.page_size || 10,
-            total_pages: response.data.data.total_pages || 0,
-          };
-        } else {
-          // 非分页数据结构
-          applicationsData = response.data.data.applications || response.data.data || [];
-          paginationData = {
-            total: applicationsData.length,
-            page: 1,
-            page_size: applicationsData.length,
-            total_pages: 1,
-          };
-        }
-      } else {
-        applicationsData = [];
-        paginationData = {
+        // 处理响应数据
+        let applicationsData: unknown = [];
+        let paginationData: ApplicationsPagination = {
           total: 0,
           page: 1,
           page_size: 10,
           total_pages: 0,
         };
-      }
+        const responseData = response.data.data as ApplicationsApiData | undefined;
 
-      // 处理申请数据（确保为数组）
-      const applicationsArray = Array.isArray(applicationsData)
-        ? applicationsData
-        : applicationsData && typeof applicationsData === "object"
-        ? Object.values(applicationsData)
-        : [];
+        if (response.data.code === 0 && responseData) {
+          if (Array.isArray(responseData.data)) {
+            // 分页数据结构
+            applicationsData = responseData.data;
+            paginationData = {
+              total: responseData.total || 0,
+              page: responseData.page || 1,
+              page_size: responseData.page_size || 10,
+              total_pages: responseData.total_pages || 0,
+            };
+          } else {
+            // 非分页数据结构
+            applicationsData = responseData.applications || responseData;
+            const count = Array.isArray(applicationsData)
+              ? applicationsData.length
+              : 0;
+            paginationData = {
+              total: count,
+              page: 1,
+              page_size: count,
+              total_pages: 1,
+            };
+          }
+        } else {
+          applicationsData = [];
+        }
 
-      const processedApplications = applicationsArray
-        .filter((app: any) => app && app.id) // 过滤掉 null/undefined 或没有 id 的项目
-        .map((app: any) => ({
+        // 处理申请数据（确保为数组）
+        const applicationsArray = Array.isArray(applicationsData)
+          ? applicationsData
+          : applicationsData && typeof applicationsData === "object"
+          ? Object.values(applicationsData)
+          : [];
+
+        const processedApplications = applicationsArray
+          .filter(
+            (app): app is RawApplication =>
+              Boolean(app && typeof app === "object" && "id" in app && app.id)
+          )
+          .map((app) => ({
           id: app.id,
           affair_id: app.activity_id,
           affair_name: app.activity?.title || app.affair_name,
@@ -235,10 +281,10 @@ export default function ApplicationsPage() {
       
         setApplications(processedApplications);
 
-      // 更新分页信息
-      const safeTotal = Array.isArray(applicationsArray)
-        ? applicationsArray.length
-        : Number(paginationData.total) || 0;
+        // 更新分页信息
+        const safeTotal = Array.isArray(applicationsArray)
+          ? applicationsArray.length
+          : Number(paginationData.total) || 0;
         setTotalItems(safeTotal);
         setTotalPages(Number(paginationData.total_pages) || 1);
         setCurrentPage(Number(paginationData.page) || 1);
@@ -288,8 +334,127 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     // 首次进入申请记录页使用 loading，其余筛选/分页使用 refreshing 细进度条
-    handleSearchAndFilter({ isInitial: true });
-  }, [handleSearchAndFilter]);
+    let active = true;
+
+    const bootstrapApplications = async () => {
+      try {
+        const params: ApplicationQueryParams = {
+          page: 1,
+          page_size: pageSize,
+        };
+
+        if (searchTerm) {
+          params.query = searchTerm;
+        }
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+
+        const endpoint =
+          user?.userType === "student" ? "/applications" : "/applications/all";
+        const response = await apiClient.get(endpoint, { params });
+        const responseData = response.data.data as ApplicationsApiData | undefined;
+
+        let applicationsData: unknown = [];
+        let paginationData: ApplicationsPagination = {
+          total: 0,
+          page: 1,
+          page_size: pageSize,
+          total_pages: 0,
+        };
+
+        if (response.data.code === 0 && responseData) {
+          if (Array.isArray(responseData.data)) {
+            applicationsData = responseData.data;
+            paginationData = {
+              total: responseData.total || 0,
+              page: responseData.page || 1,
+              page_size: responseData.page_size || pageSize,
+              total_pages: responseData.total_pages || 0,
+            };
+          } else {
+            applicationsData = responseData.applications || responseData;
+            const count = Array.isArray(applicationsData)
+              ? applicationsData.length
+              : 0;
+            paginationData = {
+              total: count,
+              page: 1,
+              page_size: count,
+              total_pages: 1,
+            };
+          }
+        }
+
+        const applicationsArray = Array.isArray(applicationsData)
+          ? applicationsData
+          : applicationsData && typeof applicationsData === "object"
+          ? Object.values(applicationsData)
+          : [];
+
+        const processedApplications = applicationsArray
+          .filter(
+            (app): app is RawApplication =>
+              Boolean(app && typeof app === "object" && "id" in app && app.id)
+          )
+          .map((app) => ({
+            id: app.id,
+            affair_id: app.activity_id,
+            affair_name: app.activity?.title || app.affair_name,
+            student_number: app.user_info?.student_id || app.student_number || "",
+            student_name:
+              app.user_info?.real_name ||
+              app.user_info?.name ||
+              app.student_name ||
+              "",
+            submission_time: app.submitted_at || app.submission_time || "",
+            status: app.status,
+            reviewer_id: app.reviewer_id,
+            reviewer_name: app.reviewer_name,
+            review_comment: app.review_comment,
+            review_time: app.reviewed_at || app.review_time,
+            applied_credits: app.applied_credits,
+            approved_credits: app.awarded_credits || app.approved_credits || 0,
+            attachments: app.attachments,
+            user_id: app.user_info?.id,
+            user_info: app.user_info,
+            activity: app.activity,
+          }));
+
+        if (!active) {
+          return;
+        }
+
+        setApplications(processedApplications);
+        setTotalItems(
+          Array.isArray(applicationsArray)
+            ? applicationsArray.length
+            : Number(paginationData.total) || 0
+        );
+        setTotalPages(Number(paginationData.total_pages) || 1);
+        setCurrentPage(Number(paginationData.page) || 1);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        console.error("Failed to fetch applications:", error);
+        toast.error("获取申请列表失败");
+        setApplications([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void bootstrapApplications();
+
+    return () => {
+      active = false;
+    };
+  }, [pageSize, searchTerm, statusFilter, user?.userType]);
 
   useEffect(() => {
     (async () => {
@@ -297,8 +462,8 @@ export default function ApplicationsPage() {
         const opts = await getActivityOptions();
         // 申请状态通常与活动审核状态一致，若不同可在后端单独提供 application_statuses
         setApplicationStatuses(opts.statuses || []);
-      } catch (e) {
-        console.error("Failed to load application statuses", e);
+      } catch (error) {
+        console.error("Failed to load application statuses", error);
       }
     })();
   }, []);

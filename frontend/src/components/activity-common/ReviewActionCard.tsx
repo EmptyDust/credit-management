@@ -40,7 +40,7 @@ export default function ReviewActionCard({
       alert(isModifying ? "审核状态修改成功" : "审批提交成功");
       setReviewComment("");
       onSuccess?.();
-    } catch (e) {
+    } catch {
       alert(isModifying ? "修改失败" : "审批失败");
     } finally {
       setLoading(false);

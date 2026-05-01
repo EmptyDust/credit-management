@@ -19,7 +19,10 @@ export function cn(...inputs: ClassValue[]) {
  * @param filenameOrCategory 文件名或文件类别
  * @param isCategory 是否直接传入类别
  */
-export const getFileIcon = (filenameOrCategory: string, isCategory = false): ComponentType<any> => {
+export const getFileIcon = (
+  filenameOrCategory: string,
+  isCategory = false,
+): ComponentType<{ className?: string }> => {
   let category = filenameOrCategory;
   if (!isCategory) {
     // 通过扩展名推断类别

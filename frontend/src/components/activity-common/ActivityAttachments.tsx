@@ -24,6 +24,7 @@ import apiClient from "@/lib/api";
 import toast from "react-hot-toast";
 import type { Activity } from "@/types/activity";
 import { getFileIcon, formatFileSize } from "@/lib/utils";
+import axios from "axios";
 
 interface ActivityAttachmentsProps {
   activity: Activity;
@@ -49,13 +50,23 @@ interface Attachment {
   };
 }
 
+interface BatchUploadResult {
+  status: "success" | "failed";
+  file_name: string;
+  message?: string;
+}
+
+interface ApiErrorBody {
+  message?: string;
+}
+
 export default function ActivityAttachments({
   activity,
   onRefresh,
 }: ActivityAttachmentsProps) {
   const { user } = useAuth();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -121,10 +132,11 @@ export default function ActivityAttachments({
       setDragFiles([]);
       setUploadDescription("");
       fetchAttachments();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to upload attachment:", error);
-      const errorMessage =
-        error.response?.data?.message || "附件上传失败";
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "附件上传失败"
+        : "附件上传失败";
       toast.error(errorMessage);
     } finally {
       setUploading(false);
@@ -230,7 +242,7 @@ export default function ActivityAttachments({
       const blob = new Blob([response.data], { type: contentTypeHeader });
       const url = window.URL.createObjectURL(blob);
       setPreviewUrl(url);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to preview attachment:", error);
       setPreviewUrl(null);
       setPreviewType("other");
@@ -301,9 +313,13 @@ export default function ActivityAttachments({
       );
 
       // 处理批量上传结果
-      const results = response.data.data?.results || [];
-      const successCount = results.filter((r: any) => r.status === "success").length;
-      const failCount = results.filter((r: any) => r.status === "failed").length;
+      const results: BatchUploadResult[] = Array.isArray(
+        response.data.data?.results
+      )
+        ? response.data.data.results
+        : [];
+      const successCount = results.filter((r) => r.status === "success").length;
+      const failCount = results.filter((r) => r.status === "failed").length;
 
       if (failCount === 0) {
         toast.success(`成功上传 ${successCount} 个附件`);
@@ -311,8 +327,8 @@ export default function ActivityAttachments({
         toast.success(`成功上传 ${successCount} 个附件，${failCount} 个失败`);
         // 显示失败的文件信息
         const failedFiles = results
-          .filter((r: any) => r.status === "failed")
-          .map((r: any) => `${r.file_name}: ${r.message}`)
+          .filter((r) => r.status === "failed")
+          .map((r) => `${r.file_name}: ${r.message}`)
           .join("\n");
         console.error("上传失败的文件:", failedFiles);
       }
@@ -323,10 +339,11 @@ export default function ActivityAttachments({
       setUploadDescription("");
       fetchAttachments();
       if (onRefresh) onRefresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to upload multiple attachments:", error);
-      const errorMessage =
-        error.response?.data?.message || "批量上传失败";
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "批量上传失败"
+        : "批量上传失败";
       toast.error(errorMessage);
     } finally {
       setUploading(false);
@@ -334,7 +351,34 @@ export default function ActivityAttachments({
   };
 
   useEffect(() => {
-    fetchAttachments();
+    let active = true;
+
+    const loadAttachments = async () => {
+      try {
+        const response = await apiClient.get(
+          `/activities/${activity.id}/attachments`
+        );
+
+        if (active) {
+          setAttachments(response.data.data?.attachments || []);
+        }
+      } catch (error) {
+        if (active) {
+          console.error("Failed to fetch attachments:", error);
+          toast.error("获取附件列表失败");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadAttachments();
+
+    return () => {
+      active = false;
+    };
   }, [activity.id]);
 
   // 防抖搜索：只在用户停止输入后更新搜索状态

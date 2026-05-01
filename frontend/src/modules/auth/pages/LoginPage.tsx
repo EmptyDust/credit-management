@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LogIn, User } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -34,6 +35,12 @@ const loginSchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
+
+interface AuthErrorBody {
+  message?: string;
+  error?: string;
+  errors?: Array<{ message?: string; field?: string }>;
+}
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -73,8 +80,8 @@ export default function LoginPage() {
         avatar: payload.user.avatar_url,
       });
       navigate("/dashboard");
-    } catch (error: any) {
-      if (error.response) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError<AuthErrorBody>(error) && error.response) {
         const { status, data } = error.response;
         switch (status) {
           case 401:
@@ -86,7 +93,7 @@ export default function LoginPage() {
           case 422:
             if (data.errors && Array.isArray(data.errors)) {
               const errorMessages = data.errors
-                .map((item: any) => item.message || item.field)
+                .map((item) => item.message || item.field)
                 .join(", ");
               setLoginError(`数据验证失败: ${errorMessages}`);
             } else {
@@ -99,7 +106,7 @@ export default function LoginPage() {
           default:
             setLoginError(data?.message || data?.error || "登录失败，请重试");
         }
-      } else if (error.request) {
+      } else if (axios.isAxiosError(error) && error.request) {
         setLoginError("网络连接失败，请检查网络设置");
       } else {
         setLoginError("登录失败，请重试");

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,6 +34,12 @@ const loginSchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
+
+interface AuthErrorBody {
+  message?: string;
+  error?: string;
+  errors?: Array<{ message?: string; field?: string }>;
+}
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
@@ -72,11 +79,11 @@ export default function Login() {
         avatar: payload.user.avatar_url,
       });
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login error:", err);
 
       // 处理不同类型的错误
-      if (err.response) {
+      if (axios.isAxiosError<AuthErrorBody>(err) && err.response) {
         const { status, data } = err.response;
 
         switch (status) {
@@ -90,7 +97,7 @@ export default function Login() {
             // 验证错误
             if (data.errors && Array.isArray(data.errors)) {
               const errorMessages = data.errors
-                .map((err: any) => err.message || err.field)
+                .map((item) => item.message || item.field)
                 .join(", ");
               setLoginError(`数据验证失败: ${errorMessages}`);
             } else {
@@ -103,7 +110,7 @@ export default function Login() {
           default:
             setLoginError(data?.message || data?.error || "登录失败，请重试");
         }
-      } else if (err.request) {
+      } else if (axios.isAxiosError(err) && err.request) {
         // 网络错误
         setLoginError("网络连接失败，请检查网络设置");
       } else {

@@ -52,9 +52,11 @@ import { getStatusBadge } from "@/lib/status-utils";
 import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { ImportDialog } from "@/components/ui/import-dialog";
 import { getOptions } from "@/lib/options";
-import { PageHeader, createPageActions } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/ui/page-header";
+import { createPageActions } from "@/components/ui/page-header-actions";
 import { StatsGrid } from "@/components/ui/stats-grid";
-import { TableActions, createEditDeleteActions } from "@/components/ui/table-actions";
+import { TableActions } from "@/components/ui/table-actions";
+import { createEditDeleteActions } from "@/components/ui/table-actions-helpers";
 import { SearchFilterBar } from "@/components/ui/search-filter-bar";
 import { FilterCard } from "@/components/ui/filter-card";
 import apiClient from "@/lib/api";
@@ -147,6 +149,13 @@ export default function TeachersPage() {
     errorMessage: "获取教师列表失败",
     userType: "teacher"
   });
+  const {
+    fetchList,
+    handleSearchAndFilter,
+    searchQuery,
+    filterValue,
+    statusFilter,
+  } = listPage;
 
   // 使用用户管理hook
   const userManagement = useUserManagement({
@@ -169,42 +178,55 @@ export default function TeachersPage() {
 
   useEffect(() => {
     // 初始化数据
-    listPage.fetchList();
-    fetchTeacherStats();
+    fetchList();
     
     // 加载选项数据
     (async () => {
       try {
-        const opts = await getOptions();
+        const [statsResponse, opts] = await Promise.all([
+          apiClient.get("/users/stats/teachers"),
+          getOptions(),
+        ]);
+
+        if (statsResponse.data.code === 0) {
+          const data = statsResponse.data.data || {};
+          setTeacherStats({
+            total: data.total_teachers || 0,
+            active: data.active_teachers || 0,
+            departmentCount: Object.keys(data.teachers_by_department || {}).length,
+            titleCount: Object.keys(data.teachers_by_title || {}).length,
+          });
+        }
+
         setCollegeOptions(opts.colleges || []);
         setUserStatuses(opts.user_statuses || []);
         setTeacherTitles(opts.teacher_titles || []);
-      } catch (e) {
-        console.error("Failed to load options", e);
+      } catch (error) {
+        console.error("Failed to load teachers bootstrap data", error);
       }
     })();
-  }, []);
+  }, [fetchList]);
 
   // 防抖搜索：只在用户停止输入后触发搜索
   useEffect(() => {
     // 如果搜索框为空，不触发搜索（避免初始化时重复刷新）
-    if (!listPage.searchQuery.trim()) {
+    if (!searchQuery.trim()) {
       return;
     }
 
     const timeoutId = setTimeout(() => {
-      listPage.handleSearchAndFilter();
+      handleSearchAndFilter();
     }, 500);
 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [listPage.searchQuery]);
+  }, [searchQuery, handleSearchAndFilter]);
 
   // 筛选条件变化时立即触发（用户主动选择）
   useEffect(() => {
-    listPage.handleSearchAndFilter();
-  }, [listPage.filterValue, listPage.statusFilter]);
+    handleSearchAndFilter();
+  }, [filterValue, statusFilter, handleSearchAndFilter]);
 
   // 使用hook提供的handleDialogOpen
   const handleDialogOpen = userManagement.handleDialogOpen;

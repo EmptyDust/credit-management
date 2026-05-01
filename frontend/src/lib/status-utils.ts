@@ -88,7 +88,9 @@ export const getStatusStyle = (status: string): string => {
 };
 
 // 获取状态图标组件
-export const getStatusIcon = (status: string): ComponentType<any> => {
+export const getStatusIcon = (
+  status: string,
+): ComponentType<{ className?: string }> => {
   const config = STATUS_CONFIG[status as StatusType];
   return config?.icon || Clock;
 };
@@ -146,4 +148,4 @@ export const isRejectedStatus = (status: string): boolean => {
 // 检查状态是否为草稿状态
 export const isDraftStatus = (status: string): boolean => {
   return status === "draft" || status === "unsubmitted";
-}; 
+};

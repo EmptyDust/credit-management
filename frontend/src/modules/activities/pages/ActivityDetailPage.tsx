@@ -10,7 +10,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -434,7 +434,9 @@ export default function ActivityDetailPage() {
     if (!activity) {
       return;
     }
-    setFormState(createFormState(activity));
+    startTransition(() => {
+      setFormState(createFormState(activity));
+    });
   }, [activity]);
 
   const actorRole = user?.userType;

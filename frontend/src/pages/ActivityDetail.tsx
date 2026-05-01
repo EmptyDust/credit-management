@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import apiClient from "@/lib/api";
+import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Activity } from "@/types/activity";
@@ -55,6 +56,10 @@ export default function ActivityDetailPage() {
   const [reviewActions, setReviewActions] = useState<{ value: string; label: string }[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
+  type ApiErrorBody = {
+    message?: string;
+  };
+
   const fetchActivity = async (options?: { isInitial?: boolean }) => {
     if (!id) return;
     const isInitial = options?.isInitial ?? loading;
@@ -82,14 +87,21 @@ export default function ActivityDetailPage() {
   };
 
   useEffect(() => {
-    // 首次进入详情页时使用全屏 loading，后续通过 onRefresh 调用则为“静默刷新”
-    fetchActivity({ isInitial: true });
     (async () => {
       try {
-        const opts = await getActivityOptions();
+        const [activityResponse, opts] = await Promise.all([
+          apiClient.get(`/activities/${id}`),
+          getActivityOptions(),
+        ]);
+
+        const activityData = activityResponse.data.data || activityResponse.data;
+        setActivity(activityData);
         setReviewActions(opts.review_actions || []);
-      } catch (e) {
-        console.error("Failed to load review actions", e);
+      } catch (error) {
+        console.error("Failed to bootstrap activity detail", error);
+        toast.error("获取活动详情失败");
+      } finally {
+        setLoading(false);
       }
     })();
   }, [id]);
@@ -128,8 +140,10 @@ export default function ActivityDetailPage() {
       await apiClient.post(`/activities/${activity.id}/submit`);
       toast.success("活动提交审核成功");
       fetchActivity();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "提交审核失败";
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "提交审核失败"
+        : "提交审核失败";
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
@@ -144,8 +158,10 @@ export default function ActivityDetailPage() {
       await apiClient.post(`/activities/${activity.id}/withdraw`);
       toast.success("活动已撤回");
       fetchActivity();
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "撤回失败";
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "撤回失败"
+        : "撤回失败";
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
@@ -161,8 +177,10 @@ export default function ActivityDetailPage() {
       await apiClient.delete(`/activities/${activity.id}`);
       toast.success("活动删除成功");
       navigate("/activities");
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "删除失败";
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message || "删除失败"
+        : "删除失败";
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
@@ -192,10 +210,13 @@ export default function ActivityDetailPage() {
       setReviewComment("");
       setShowReviewDialog(false);
       fetchActivity();
-    } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.message ||
-        (activity.status === "pending_review" ? "审核失败" : "修改失败");
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorBody>(error)
+        ? error.response?.data?.message ||
+          (activity.status === "pending_review" ? "审核失败" : "修改失败")
+        : activity.status === "pending_review"
+        ? "审核失败"
+        : "修改失败";
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);

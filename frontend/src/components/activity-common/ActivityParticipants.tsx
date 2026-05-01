@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,18 @@ interface UserSearchResult {
   class?: string;
 }
 
+interface ParticipantStats {
+  total_participants: number;
+  total_credits: number;
+  average_credits?: number;
+  avg_credits?: number;
+  recent_participants?: number | string;
+}
+
+type SearchUserRecord = UserSearchResult & {
+  id?: string;
+};
+
 export default function ActivityParticipants({
   activity,
   onRefresh,
@@ -89,7 +101,7 @@ export default function ActivityParticipants({
   const [editingCredits, setEditingCredits] = useState<{
     [key: string]: number | "" | undefined;
   }>({});
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ParticipantStats | null>(null);
 
   const isOwner =
     user && (user.uuid === activity.owner_id || user.userType === "admin");
@@ -98,7 +110,7 @@ export default function ActivityParticipants({
   const canEditParticipants = isOwner && activity.status === "draft";
 
   // 获取参与者列表
-  const fetchParticipants = async () => {
+  const fetchParticipants = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.get(
@@ -107,7 +119,7 @@ export default function ActivityParticipants({
       // 调试：打印响应数据
       console.log("Participants API Response:", response.data);
       // 处理分页响应数据结构
-      let participantsData: any[] = [];
+      let participantsData: ParticipantWithUserInfo[] = [];
       if (response.data.code === 0 && response.data.data) {
         if (response.data.data.data && Array.isArray(response.data.data.data)) {
           // 分页数据结构
@@ -131,22 +143,22 @@ export default function ActivityParticipants({
     } finally {
       setLoading(false);
     }
-  };
+  }, [activity.id]);
 
   // 获取参与者统计信息
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await apiClient.get(
         `/activities/${activity.id}/participants/stats`
       );
-      setStats(response.data.data);
+      setStats(response.data.data as ParticipantStats);
     } catch (error) {
       console.error("Failed to fetch stats:", error);
     }
-  };
+  }, [activity.id]);
 
   // 搜索用户
-  const searchUsers = async (query: string) => {
+  const searchUsers = useCallback(async (query: string) => {
     if (!query.trim()) {
       setUserSearchResults([]);
       return;
@@ -168,10 +180,15 @@ export default function ActivityParticipants({
       const { data: usersData } = apiHelpers.processPaginatedResponse(response);
       
       // 直接使用 uuid
-      const users = (usersData || []).map((u: any) => ({
-        ...u,
-        uuid: u.uuid ?? u.id,
-      }));
+      const rawUsers = Array.isArray(usersData)
+        ? (usersData as SearchUserRecord[])
+        : [];
+      const users = rawUsers
+        .map((u) => ({
+          ...u,
+          uuid: u.uuid ?? u.id ?? "",
+        }))
+        .filter((u): u is UserSearchResult => Boolean(u.uuid));
       // 过滤掉已经是参与者的用户
       const filteredUsers = users.filter(
         (user: UserSearchResult) =>
@@ -186,10 +203,10 @@ export default function ActivityParticipants({
     } finally {
       setUserSearchLoading(false);
     }
-  };
+  }, [participants]);
 
   // 添加参与者
-  const addParticipants = async () => {
+  const addParticipants = useCallback(async () => {
     // 仅提交当前搜索结果中仍存在的选择，避免历史选择残留
     const validSet = new Set(userSearchResults.map((u) => u.uuid));
     const validSelected = selectedUsers.filter((id) => validSet.has(id));
@@ -227,7 +244,15 @@ export default function ActivityParticipants({
     } catch (error) {
       console.error("Failed to add participants:", error);
     }
-  };
+  }, [
+    activity.id,
+    addDialogCredits,
+    fetchParticipants,
+    fetchStats,
+    onRefresh,
+    selectedUsers,
+    userSearchResults,
+  ]);
 
   // 删除参与者
   const removeParticipant = async (userId: string) => {
@@ -294,7 +319,7 @@ export default function ActivityParticipants({
   };
 
   // 批量设置学分
-  const batchSetCredits = async () => {
+  const batchSetCredits = useCallback(async () => {
     if (batchDialogCredits < 0 || batchDialogCredits > 10) {
       toast.error("学分值必须在0-10之间");
       return;
@@ -320,6 +345,39 @@ export default function ActivityParticipants({
       onRefresh?.();
     } catch (error) {
       console.error("Failed to batch set credits:", error);
+    }
+  }, [
+    activity.id,
+    batchDialogCredits,
+    fetchParticipants,
+    fetchStats,
+    onRefresh,
+    selectedParticipants,
+  ]);
+
+  const handleAddDialogOpenChange = (open: boolean) => {
+    setShowAddDialog(open);
+    if (open) {
+      setAddDialogCredits(1.0);
+      return;
+    }
+    setUserSearchResults([]);
+    setSelectedUsers([]);
+    setUserSearchQuery("");
+    setAddDialogCredits(1.0);
+  };
+
+  const handleBatchDialogOpenChange = (open: boolean) => {
+    setShowBatchDialog(open);
+    if (open) {
+      setBatchDialogCredits(1.0);
+    }
+  };
+
+  const handleStatsDialogOpenChange = (open: boolean) => {
+    setShowStatsDialog(open);
+    if (open) {
+      void fetchStats();
     }
   };
 
@@ -383,54 +441,72 @@ export default function ActivityParticipants({
   });
 
   useEffect(() => {
-    fetchParticipants();
-    fetchStats();
-  }, []);
+    let active = true;
 
-  useEffect(() => {
-    if (showAddDialog) {
-      setAddDialogCredits(1.0);
-    }
-  }, [showAddDialog]);
+    const bootstrapParticipants = async () => {
+      try {
+        const [participantsResponse, statsResponse] = await Promise.all([
+          apiClient.get(`/activities/${activity.id}/participants`),
+          apiClient.get(`/activities/${activity.id}/participants/stats`),
+        ]);
 
-  useEffect(() => {
-    if (showBatchDialog) {
-      setBatchDialogCredits(1.0);
-    }
-  }, [showBatchDialog]);
+        let participantsData: ParticipantWithUserInfo[] = [];
+        if (
+          participantsResponse.data.code === 0 &&
+          participantsResponse.data.data
+        ) {
+          if (
+            participantsResponse.data.data.data &&
+            Array.isArray(participantsResponse.data.data.data)
+          ) {
+            participantsData = participantsResponse.data.data.data;
+          } else if (
+            participantsResponse.data.data.participants &&
+            Array.isArray(participantsResponse.data.data.participants)
+          ) {
+            participantsData = participantsResponse.data.data.participants;
+          }
+        }
 
-  // 当统计对话框打开时，刷新统计数据
-  useEffect(() => {
-    if (showStatsDialog) {
-      fetchStats();
-    }
-  }, [showStatsDialog]);
+        if (!active) {
+          return;
+        }
+
+        setParticipants(participantsData);
+        setStats(statsResponse.data.data as ParticipantStats);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        console.error("Failed to bootstrap participants:", error);
+        toast.error("获取参与者列表失败");
+        setParticipants([]);
+      }
+    };
+
+    void bootstrapParticipants();
+
+    return () => {
+      active = false;
+    };
+  }, [activity.id]);
 
   // 防抖搜索：只在用户停止输入后触发搜索
   useEffect(() => {
-    if (!showAddDialog) {
-      // 对话框关闭时清空搜索结果
-      setUserSearchResults([]);
-      setUserSearchQuery("");
-      return;
-    }
-
-    // 如果搜索框为空，清空结果
-    if (!userSearchQuery.trim()) {
-      setUserSearchResults([]);
+    if (!showAddDialog || !userSearchQuery.trim()) {
       return;
     }
 
     // 设置防抖定时器：500ms 后执行搜索
     const timeoutId = setTimeout(() => {
-      searchUsers(userSearchQuery);
+      void searchUsers(userSearchQuery);
     }, 500);
 
     // 清理函数：如果用户继续输入，取消之前的搜索
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [userSearchQuery, showAddDialog]);
+  }, [searchUsers, showAddDialog, userSearchQuery]);
 
   // 全局键盘快捷键
   useEffect(() => {
@@ -463,19 +539,19 @@ export default function ActivityParticipants({
       if (e.key === "Enter" && !e.ctrlKey) {
         e.preventDefault();
         if (showAddDialog && selectedUsers.length > 0) {
-          addParticipants();
+          void addParticipants();
         } else if (showBatchDialog && selectedParticipants.length > 0) {
           // 默认执行批量设置学分
-          batchSetCredits();
+          void batchSetCredits();
         }
       }
 
       // Escape: 关闭对话框
       if (e.key === "Escape") {
         if (showAddDialog) {
-          setShowAddDialog(false);
+          handleAddDialogOpenChange(false);
         } else if (showBatchDialog) {
-          setShowBatchDialog(false);
+          handleBatchDialogOpenChange(false);
         }
       }
 
@@ -520,6 +596,8 @@ export default function ActivityParticipants({
     selectedParticipants,
     userSearchResults,
     filteredParticipants,
+    addParticipants,
+    batchSetCredits,
   ]);
 
   if ((!Array.isArray(participants) || participants.length === 0) && !isOwner) {
@@ -559,7 +637,7 @@ export default function ActivityParticipants({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowStatsDialog(true)}
+                  onClick={() => handleStatsDialogOpenChange(true)}
                 >
                   <BarChart3 className="h-4 w-4 mr-1" />
                   统计
@@ -578,7 +656,7 @@ export default function ActivityParticipants({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddDialog(true)}
+                onClick={() => handleAddDialogOpenChange(true)}
               >
                 <Plus className="h-4 w-4 mr-1" />
                 添加
@@ -615,7 +693,7 @@ export default function ActivityParticipants({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowBatchDialog(true)}
+                  onClick={() => handleBatchDialogOpenChange(true)}
                   disabled={selectedParticipants.length === 0}
                 >
                   <MoreHorizontal className="h-4 w-4 mr-1" />
@@ -738,7 +816,7 @@ export default function ActivityParticipants({
 
           {/* 添加参与者对话框 */}
           {canEditParticipants && (
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <Dialog open={showAddDialog} onOpenChange={handleAddDialogOpenChange}>
               <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader>
                   <DialogTitle>添加参与者</DialogTitle>
@@ -753,7 +831,12 @@ export default function ActivityParticipants({
                       placeholder="输入姓名或用户名搜索..."
                       value={userSearchQuery}
                       onChange={(e) => {
-                        setUserSearchQuery(e.target.value);
+                        const value = e.target.value;
+                        setUserSearchQuery(value);
+                        if (!value.trim()) {
+                          setUserSearchResults([]);
+                          setSelectedUsers([]);
+                        }
                         // 移除立即搜索，改为通过 useEffect 防抖触发
                       }}
                       onKeyDown={(e) => {
@@ -861,7 +944,7 @@ export default function ActivityParticipants({
                   </div>
 
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                    <Button variant="outline" onClick={() => handleAddDialogOpenChange(false)}>
                       取消
                     </Button>
                     <Button onClick={addParticipants}>添加</Button>
@@ -874,7 +957,7 @@ export default function ActivityParticipants({
       </CardContent>
 
       {/* 批量操作对话框 */}
-      <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+      <Dialog open={showBatchDialog} onOpenChange={handleBatchDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>批量操作</DialogTitle>
@@ -901,7 +984,7 @@ export default function ActivityParticipants({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBatchDialog(false)}>
+            <Button variant="outline" onClick={() => handleBatchDialogOpenChange(false)}>
               取消
             </Button>
             <Button onClick={batchSetCredits}>设置学分</Button>
@@ -913,7 +996,7 @@ export default function ActivityParticipants({
       </Dialog>
 
       {/* 统计信息对话框 */}
-      <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
+      <Dialog open={showStatsDialog} onOpenChange={handleStatsDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>参与者统计</DialogTitle>
@@ -951,7 +1034,7 @@ export default function ActivityParticipants({
           )}
 
           <DialogFooter>
-            <Button onClick={() => setShowStatsDialog(false)}>关闭</Button>
+            <Button onClick={() => handleStatsDialogOpenChange(false)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

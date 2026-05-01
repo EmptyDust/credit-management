@@ -36,7 +36,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import * as z from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -101,9 +101,15 @@ export default function Register() {
     },
   });
 
-  const selectedCollege = form.watch("college");
+  const selectedCollege = useWatch({
+    control: form.control,
+    name: "college",
+  }) || "";
   const availableMajors = selectedCollege ? (majorOptions[selectedCollege] || []) : [];
-  const selectedMajor = form.watch("major");
+  const selectedMajor = useWatch({
+    control: form.control,
+    name: "major",
+  }) || "";
   const availableClasses = selectedMajor ? (classOptions[selectedMajor] || []) : [];
 
   useEffect(() => {

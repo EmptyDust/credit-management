@@ -1,9 +1,9 @@
-import type { Activity } from "@/types/activity";
+import type { Activity, ActivityDetails } from "@/types/activity";
 import GenericActivityDetail from "./GenericActivityDetail";
 
 interface ActivityDetailContainerProps {
   activity: Activity;
-  detail?: any;
+  detail?: ActivityDetails;
   onRefresh?: () => void;
 }
 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { type DefaultValues, type FieldValues, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import toast from "react-hot-toast";
@@ -10,21 +10,25 @@ import {
   handleExport as handleExportUtil
 } from "@/lib/common-utils";
 
-interface UserManagementOptions {
+interface UserManagementOptions<FormSchema extends z.ZodTypeAny, FormValues extends FieldValues> {
   userType: string;
-  formSchema: z.ZodSchema<any>;
-  defaultValues: any;
+  formSchema: FormSchema;
+  defaultValues: DefaultValues<FormValues>;
   fetchFunction: (page: number, size: number) => Promise<void>;
   onSuccess?: () => void;
 }
 
-export function useUserManagement<T extends { uuid?: string; real_name?: string }>({
+export function useUserManagement<
+  T extends { uuid?: string; real_name?: string },
+  FormSchema extends z.ZodTypeAny,
+  FormValues extends FieldValues,
+>({
   userType,
   formSchema,
   defaultValues,
   fetchFunction,
   onSuccess,
-}: UserManagementOptions) {
+}: UserManagementOptions<FormSchema, FormValues>) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,25 +44,25 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
 
   const getUserIdentifier = useCallback((item: T | null) => {
     if (!item) return undefined;
-    return typeof (item as any).uuid === "string" ? (item as any).uuid : undefined;
+    return typeof item.uuid === "string" ? item.uuid : undefined;
   }, []);
 
-  const form = useForm({
-    resolver: zodResolver(formSchema as any),
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues,
   });
 
   const handleDialogOpen = useCallback((item: T | null) => {
     setEditingItem(item);
     if (item) {
-      form.reset(item);
+      form.reset(item as unknown as FormValues);
     } else {
       form.reset(defaultValues);
     }
     setIsDialogOpen(true);
   }, [form, defaultValues]);
 
-  const onSubmit = useCallback(async (values: z.infer<typeof formSchema>) => {
+  const onSubmit = useCallback(async (values: FormValues) => {
     setIsSubmitting(true);
     try {
       if (editingItem) {
@@ -81,8 +85,19 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
       setIsDialogOpen(false);
       fetchFunction(1, 10);
       onSuccess?.();
-    } catch (err: any) {
-      if (!err.response || err.response.status !== 409) {
+    } catch (err: unknown) {
+      const status =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof err.response === "object" &&
+        err.response !== null &&
+        "status" in err.response &&
+        typeof err.response.status === "number"
+          ? err.response.status
+          : undefined;
+
+      if (status !== 409) {
         toast.error(`用户${editingItem ? "更新" : "创建"}失败`);
       }
       console.error(err);
@@ -178,4 +193,4 @@ export function useUserManagement<T extends { uuid?: string; real_name?: string 
     setItemToDelete,
     setIsImportDialogOpen,
   };
-} 
+}

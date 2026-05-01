@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   FileText,
   LogOut,
   User as UserIcon,
-  Menu,
   Award,
   Terminal,
   Zap,
@@ -68,12 +67,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
-  const [avatarError, setAvatarError] = useState(false);
-
-  // Reset avatar error when user changes
-  useEffect(() => {
-    setAvatarError(false);
-  }, [user?.avatar]);
+  const [avatarErrorSrc, setAvatarErrorSrc] = useState<string | null>(null);
+  const hasAvatarError = !!user?.avatar && avatarErrorSrc === user.avatar;
 
   const handleLogout = () => {
     logout();
@@ -182,12 +177,12 @@ export default function Layout() {
                   variant="ghost"
                   className="relative h-10 w-10 rounded-full overflow-hidden p-0"
                 >
-                  {user?.avatar && !avatarError ? (
+                  {user?.avatar && !hasAvatarError ? (
                     <img
                       src={user.avatar}
                       alt=""
                       className="w-full h-full object-cover"
-                      onError={() => setAvatarError(true)}
+                      onError={() => setAvatarErrorSrc(user.avatar ?? null)}
                     />
                   ) : (
                     <div className="rounded-full bg-muted w-full h-full flex items-center justify-center font-bold text-lg">

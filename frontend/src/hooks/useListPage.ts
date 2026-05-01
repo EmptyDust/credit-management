@@ -8,6 +8,8 @@ interface ListPageOptions<T> {
   userType?: "student" | "teacher"; // 添加用户类型参数
 }
 
+type ListQueryParams = Record<string, string | number>;
+
 export function useListPage<T>({ endpoint, setData, errorMessage, userType }: ListPageOptions<T>) {
   const pagination = usePagination(10);
   const {
@@ -33,7 +35,7 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
   const [gradeFilter, setGradeFilter] = useState<string>("all");
 
   const fetchList = useCallback(async (page = currentPage, size = pageSize) => {
-    const params: any = {
+    const params: ListQueryParams = {
       page,
       page_size: size,
     };
@@ -121,4 +123,4 @@ export function useListPage<T>({ endpoint, setData, errorMessage, userType }: Li
     setGradeFilter,
     handleSearchAndFilter,
   };
-} 
+}

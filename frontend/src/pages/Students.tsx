@@ -45,10 +45,12 @@ import { DeleteConfirmDialog } from "@/components/ui/delete-confirm-dialog";
 import { useUserManagement } from "@/hooks/useUserManagement";
 import { useListPage } from "@/hooks/useListPage";
 import { SearchFilterBar } from "@/components/ui/search-filter-bar";
-import { TableActions, createEditDeleteActions } from "@/components/ui/table-actions";
+import { TableActions } from "@/components/ui/table-actions";
+import { createEditDeleteActions } from "@/components/ui/table-actions-helpers";
 import { DataTable } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
-import { PageHeader, createPageActions } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/ui/page-header";
+import { createPageActions } from "@/components/ui/page-header-actions";
 import { StatsGrid } from "@/components/ui/stats-grid";
 import { FilterCard } from "@/components/ui/filter-card";
 
@@ -178,6 +180,14 @@ export default function StudentsPage() {
     errorMessage: "获取学生列表失败",
     userType: "student" // 添加用户类型参数
   });
+  const {
+    fetchList,
+    handleSearchAndFilter,
+    searchQuery,
+    filterValue,
+    statusFilter,
+    gradeFilter,
+  } = listPage;
 
   // 使用用户管理hook
   const userManagement = useUserManagement({
@@ -189,41 +199,55 @@ export default function StudentsPage() {
   });
 
   useEffect(() => {
-    listPage.fetchList();
-    fetchStats();
+    fetchList();
     (async () => {
       try {
-        const opts = await getOptions();
+        const [statsResponse, opts] = await Promise.all([
+          apiClient.get("/users/stats/students"),
+          getOptions(),
+        ]);
+
+        if (statsResponse.data.code === 0) {
+          const data = statsResponse.data.data || {};
+          setStudentStats({
+            total: data.total_students || 0,
+            active: data.active_students || 0,
+            collegeCount: Object.keys(data.students_by_college || {}).length,
+            majorCount: Object.keys(data.students_by_major || {}).length,
+            gradeCount: Object.keys(data.students_by_grade || {}).length,
+          });
+        }
+
         setCollegeOptions(opts.colleges);
         setMajorOptions(opts.majors || {});
         setClassOptions(opts.classes || {});
         setGradeOptions(opts.grades || []);
-      } catch (e) {
-        console.error("Failed to load options", e);
+      } catch (error) {
+        console.error("Failed to load students bootstrap data", error);
       }
     })();
-  }, []);
+  }, [fetchList]);
 
   // 防抖搜索：只在用户停止输入后触发搜索
   useEffect(() => {
     // 如果搜索框为空，不触发搜索（避免初始化时重复刷新）
-    if (!listPage.searchQuery.trim()) {
+    if (!searchQuery.trim()) {
       return;
     }
 
     const timeoutId = setTimeout(() => {
-      listPage.handleSearchAndFilter();
+      handleSearchAndFilter();
     }, 500);
 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [listPage.searchQuery]);
+  }, [searchQuery, handleSearchAndFilter]);
 
   // 筛选条件变化时立即触发（用户主动选择）
   useEffect(() => {
-    listPage.handleSearchAndFilter();
-  }, [listPage.filterValue, listPage.statusFilter, listPage.gradeFilter]);
+    handleSearchAndFilter();
+  }, [filterValue, statusFilter, gradeFilter, handleSearchAndFilter]);
 
   // 处理分页变化
   const handlePageChange = (page: number) => {

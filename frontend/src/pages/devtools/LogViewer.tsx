@@ -88,7 +88,7 @@ export default function LogViewer() {
   const [filter, setFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("ALL");
   const [serviceStatus, setServiceStatus] = useState<Record<string, string>>({});
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("disconnected");
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("connecting");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -132,7 +132,6 @@ export default function LogViewer() {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
-      setConnectionStatus("disconnected");
       return;
     }
 
@@ -140,9 +139,6 @@ export default function LogViewer() {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-
-    setConnectionStatus("connecting");
-    setErrorMessage("");
 
     // 创建新的 SSE 连接
     const token = getToken();
@@ -220,8 +216,24 @@ export default function LogViewer() {
 
   const reconnect = () => {
     setIsPaused(false);
+    setConnectionStatus("connecting");
+    setErrorMessage("");
     // 触发重新连接
     setLogs([]);
+  };
+
+  const togglePause = () => {
+    setIsPaused((prev) => {
+      const next = !prev;
+      if (next) {
+        setConnectionStatus("disconnected");
+        setErrorMessage("");
+      } else {
+        setConnectionStatus("connecting");
+        setErrorMessage("");
+      }
+      return next;
+    });
   };
 
   const filteredLogs = logs.filter((log) => {
@@ -270,6 +282,8 @@ export default function LogViewer() {
                   key={service.id}
                   onClick={() => {
                     setSelectedService(service.id);
+                    setConnectionStatus("connecting");
+                    setErrorMessage("");
                     setLogs([]);
                   }}
                   className={`w-full px-4 py-2.5 flex items-center gap-3 transition-colors ${
@@ -336,7 +350,7 @@ export default function LogViewer() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setIsPaused(!isPaused)}
+                onClick={togglePause}
                 className={`h-8 px-3 ${isPaused ? "text-amber-400" : "text-gray-400"} hover:text-gray-200`}
               >
                 {isPaused ? (

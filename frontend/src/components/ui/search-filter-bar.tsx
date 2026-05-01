@@ -1,4 +1,4 @@
-import { Search, Filter, RefreshCw } from "lucide-react";
+import { Search, RefreshCw } from "lucide-react";
 import { Input } from "./input";
 import { Button } from "./button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
@@ -75,4 +75,4 @@ export function SearchFilterBar({
       )}
     </div>
   );
-} 
+}

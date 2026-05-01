@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Award } from "lucide-react";
 import type { Activity } from "@/types/activity";
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
   Select,
   SelectContent,
@@ -20,8 +21,16 @@ interface ActivityBasicInfoProps {
   isEditing?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
   onRefresh?: () => void;
-  basicInfo?: any;
-  setBasicInfo?: React.Dispatch<React.SetStateAction<any>>;
+  basicInfo?: ActivityBasicFormState;
+  setBasicInfo?: Dispatch<SetStateAction<ActivityBasicFormState>>;
+}
+
+interface ActivityBasicFormState {
+  title: string;
+  category: string;
+  description: string;
+  start_date: string;
+  end_date: string;
 }
 
 export default function ActivityBasicInfo({
@@ -30,17 +39,10 @@ export default function ActivityBasicInfo({
   basicInfo,
   setBasicInfo,
 }: ActivityBasicInfoProps) {
-  // 在编辑模式下，basicInfo 和 setBasicInfo 是必需的
-  if (isEditing && (!basicInfo || !setBasicInfo)) {
-    console.error("ActivityBasicInfo: basicInfo and setBasicInfo are required when isEditing is true");
-    return null;
-  }
-
   // 计算总学分
   const participants = activity.participants || [];
   const totalCredits = participants.reduce((sum, p) => sum + p.credits, 0);
-
-  const StatusIcon = getStatusIcon(activity.status);
+  const hasEditBindings = Boolean(basicInfo && setBasicInfo);
 
   const [activityCategories, setActivityCategories] = useState<{ value: string; label: string }[]>([]);
 
@@ -49,11 +51,17 @@ export default function ActivityBasicInfo({
       try {
         const opts = await getActivityOptions();
         setActivityCategories(opts.categories || []);
-      } catch (e) {
+      } catch {
         // ignore
       }
     })();
   }, []);
+
+  // 在编辑模式下，basicInfo 和 setBasicInfo 是必需的
+  if (isEditing && !hasEditBindings) {
+    console.error("ActivityBasicInfo: basicInfo and setBasicInfo are required when isEditing is true");
+    return null;
+  }
 
   return (
     <Card className="rounded-xl shadow-lg bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -123,7 +131,9 @@ export default function ActivityBasicInfo({
                         activity.status
                       )} rounded-lg px-2 py-1`}
                     >
-                      <StatusIcon className="w-3 h-3 mr-1 inline" />
+                      {createElement(getStatusIcon(activity.status), {
+                        className: "w-3 h-3 mr-1 inline",
+                      })}
                       {getStatusText(activity.status)}
                     </Badge>
                   </div>

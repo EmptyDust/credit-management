@@ -64,7 +64,7 @@ export default function ActivityApplications({
 }: ActivityApplicationsProps) {
   const { user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
-  const [, setLoading] = useState(false);
+  const [, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -222,7 +222,41 @@ export default function ActivityApplications({
   };
 
   useEffect(() => {
-    fetchApplications();
+    let active = true;
+
+    const loadApplications = async () => {
+      try {
+        const response = await apiClient.get(
+          `/applications?activity_id=${activity.id}`
+        );
+        const raw =
+          response.data?.data?.applications ?? response.data?.data ?? [];
+        const appsArray = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === "object"
+          ? Object.values(raw)
+          : [];
+
+        if (active) {
+          setApplications(appsArray as Application[]);
+        }
+      } catch (error) {
+        if (active) {
+          console.error("Failed to fetch applications:", error);
+          toast.error("获取申请列表失败");
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadApplications();
+
+    return () => {
+      active = false;
+    };
   }, [activity.id]);
 
   if (applications.length === 0 && !isOwner) {
