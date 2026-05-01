@@ -1,0 +1,54 @@
+package health
+
+import (
+	"context"
+	"errors"
+	"testing"
+)
+
+func TestCheckerSummaryReportsHealthyWhenDependenciesPass(t *testing.T) {
+	checker := NewChecker("1.2.3", map[string]CheckFunc{
+		"database": func(context.Context) error { return nil },
+		"redis":    func(context.Context) error { return nil },
+	})
+
+	summary := checker.Summary(context.Background())
+	if summary.Status != StatusOK {
+		t.Fatalf("expected summary status %s, got %s", StatusOK, summary.Status)
+	}
+	if summary.Version != "1.2.3" {
+		t.Fatalf("expected summary version 1.2.3, got %s", summary.Version)
+	}
+}
+
+func TestCheckerDetailedReportsDependencyFailures(t *testing.T) {
+	checker := NewChecker("dev", map[string]CheckFunc{
+		"database": func(context.Context) error { return nil },
+		"redis":    func(context.Context) error { return errors.New("dial tcp timeout") },
+		"storage":  func(context.Context) error { return nil },
+	})
+
+	detailed := checker.Detailed(context.Background())
+	if detailed.Status != StatusDegraded {
+		t.Fatalf("expected detailed status %s, got %s", StatusDegraded, detailed.Status)
+	}
+	if detailed.Version != "dev" {
+		t.Fatalf("expected detailed version dev, got %s", detailed.Version)
+	}
+
+	redis := detailed.Dependencies["redis"]
+	if redis.Status != StatusError {
+		t.Fatalf("expected redis status %s, got %s", StatusError, redis.Status)
+	}
+	if redis.Error != "dial tcp timeout" {
+		t.Fatalf("expected redis error dial tcp timeout, got %s", redis.Error)
+	}
+
+	database := detailed.Dependencies["database"]
+	if database.Status != StatusOK {
+		t.Fatalf("expected database status %s, got %s", StatusOK, database.Status)
+	}
+	if database.Error != "" {
+		t.Fatalf("expected empty database error, got %s", database.Error)
+	}
+}

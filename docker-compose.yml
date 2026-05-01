@@ -29,6 +29,16 @@ services:
     environment:
       - BACKEND_HTTP_PORT=8082
       - GIN_MODE=release
+      - DATABASE_DSN=postgres://postgres:password@postgres:5432/credit_management?sslmode=disable
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=password
+      - REDIS_DB=0
+      - STORAGE_BACKEND=local
+      - STORAGE_LOCAL_ROOT=/app/tmp/storage
+      - STORAGE_PUBLIC_URL=http://localhost:8082/uploads
+      - BUILD_VERSION=dev
+    volumes:
+      - backend_storage:/app/tmp/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,6 +88,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  backend_storage:
     driver: local
 
 networks:
