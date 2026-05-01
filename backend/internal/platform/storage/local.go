@@ -39,16 +39,31 @@ func (s *LocalStore) Put(ctx context.Context, req PutRequest) (Object, error) {
 		return Object{}, fmt.Errorf("create local storage directory: %w", err)
 	}
 
-	file, err := os.Create(s.pathForKey(req.Key))
+	targetPath := s.pathForKey(req.Key)
+	file, err := os.CreateTemp(filepath.Dir(targetPath), ".tmp-*")
 	if err != nil {
-		return Object{}, fmt.Errorf("create local storage object: %w", err)
+		return Object{}, fmt.Errorf("create local storage temp object: %w", err)
 	}
-	defer file.Close()
+	tempPath := file.Name()
+	renamed := false
+	defer func() {
+		if !renamed {
+			_ = os.Remove(tempPath)
+		}
+	}()
 
 	written, err := io.Copy(file, req.Body)
 	if err != nil {
+		_ = file.Close()
 		return Object{}, fmt.Errorf("write local storage object: %w", err)
 	}
+	if err := file.Close(); err != nil {
+		return Object{}, fmt.Errorf("close local storage temp object: %w", err)
+	}
+	if err := os.Rename(tempPath, targetPath); err != nil {
+		return Object{}, fmt.Errorf("commit local storage object: %w", err)
+	}
+	renamed = true
 
 	size := req.Size
 	if size <= 0 {

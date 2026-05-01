@@ -35,7 +35,7 @@ services:
       - REDIS_DB=0
       - STORAGE_BACKEND=local
       - STORAGE_LOCAL_ROOT=/app/tmp/storage
-      - STORAGE_PUBLIC_URL=http://localhost:8082/uploads
+      - STORAGE_PUBLIC_URL=
       - BUILD_VERSION=dev
     volumes:
       - backend_storage:/app/tmp/storage

@@ -14,6 +14,11 @@ type Options struct {
 	DB       int
 }
 
+var (
+	pingClient  = defaultPingClient
+	closeClient = defaultCloseClient
+)
+
 func Open(ctx context.Context, opts Options) (*goredis.Client, error) {
 	if opts.Addr == "" {
 		return nil, errors.New("redis addr is required")
@@ -26,11 +31,19 @@ func Open(ctx context.Context, opts Options) (*goredis.Client, error) {
 	})
 
 	if ctx != nil {
-		if err := client.Ping(ctx).Err(); err != nil {
-			_ = client.Close()
+		if err := pingClient(ctx, client); err != nil {
+			_ = closeClient(client)
 			return nil, fmt.Errorf("ping redis: %w", err)
 		}
 	}
 
 	return client, nil
+}
+
+func defaultPingClient(ctx context.Context, client *goredis.Client) error {
+	return client.Ping(ctx).Err()
+}
+
+func defaultCloseClient(client *goredis.Client) error {
+	return client.Close()
 }

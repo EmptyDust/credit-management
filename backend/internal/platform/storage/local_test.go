@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,4 +72,38 @@ func TestLocalStoreHealthCheck(t *testing.T) {
 	if err := store.HealthCheck(context.Background()); err != nil {
 		t.Fatalf("expected health check to succeed, got %v", err)
 	}
+}
+
+func TestLocalStorePutDoesNotLeaveObjectOnCopyFailure(t *testing.T) {
+	root := t.TempDir()
+	store := NewLocalStore(root, "")
+
+	_, err := store.Put(context.Background(), PutRequest{
+		Key:  "avatars/broken.txt",
+		Body: errReader{err: errors.New("copy failed")},
+	})
+	if err == nil {
+		t.Fatal("expected put to fail on copy error")
+	}
+
+	finalPath := filepath.Join(root, "avatars", "broken.txt")
+	if _, statErr := os.Stat(finalPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected no final object after copy failure, got err=%v", statErr)
+	}
+
+	entries, readErr := os.ReadDir(filepath.Join(root, "avatars"))
+	if readErr != nil {
+		t.Fatalf("expected parent directory to remain readable, got %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected no temp files to remain, got %d entries", len(entries))
+	}
+}
+
+type errReader struct {
+	err error
+}
+
+func (r errReader) Read(_ []byte) (int, error) {
+	return 0, r.err
 }
