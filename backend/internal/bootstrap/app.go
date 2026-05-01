@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	"credit-management/backend/internal/httpapi/router"
@@ -24,6 +25,8 @@ import (
 	importhttp "credit-management/backend/internal/modules/imports/http"
 	importservice "credit-management/backend/internal/modules/imports/service"
 	optionshttp "credit-management/backend/internal/modules/options/http"
+	optionsrepo "credit-management/backend/internal/modules/options/repo"
+	optionsservice "credit-management/backend/internal/modules/options/service"
 	participanthttp "credit-management/backend/internal/modules/participants/http"
 	participantservice "credit-management/backend/internal/modules/participants/service"
 	usershttp "credit-management/backend/internal/modules/users/http"
@@ -31,7 +34,10 @@ import (
 	userservice "credit-management/backend/internal/modules/users/service"
 	"credit-management/backend/internal/platform/auditlog"
 	"credit-management/backend/internal/platform/config"
+	"credit-management/backend/internal/platform/database"
 	platformlogger "credit-management/backend/internal/platform/logger"
+	platformredis "credit-management/backend/internal/platform/redis"
+	"credit-management/backend/internal/platform/storage"
 
 	"log/slog"
 
@@ -47,6 +53,57 @@ type App struct {
 func NewApp() (*App, error) {
 	cfg := config.Load()
 	logger := platformlogger.New(cfg)
+
+	ctx := context.Background()
+	db, err := database.Open(ctx, database.Options{DSN: cfg.DatabaseDSN})
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	if err := database.NewMigrator(resolveMigrationsDir()).Apply(ctx, sqlDB); err != nil {
+		return nil, err
+	}
+	if err := database.NewSeeder().Run(ctx, db); err != nil {
+		return nil, err
+	}
+
+	if _, err := platformredis.Open(ctx, platformredis.Options{
+		Addr:     cfg.RedisAddr,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
+	}); err != nil {
+		return nil, err
+	}
+
+	localStore := storage.NewLocalStore(cfg.StorageLocalRoot, cfg.StoragePublicURL)
+	if err := localStore.HealthCheck(ctx); err != nil {
+		return nil, err
+	}
+
+	optionHandler := optionshttp.NewHandler(
+		optionsservice.NewService(optionsrepo.NewGorm(db)),
+	)
+
+	return newMemoryBackedApp(cfg, logger, optionHandler)
+}
+
+func NewTestApp() (*App, error) {
+	cfg := config.Load()
+	cfg.GinMode = gin.TestMode
+	logger := platformlogger.New(cfg)
+
+	optionHandler := optionshttp.NewHandler(
+		optionsservice.NewService(memoryOptionRepo{}),
+	)
+
+	return newMemoryBackedApp(cfg, logger, optionHandler)
+}
+
+func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionsHandler *optionshttp.Handler) (*App, error) {
 	store, err := authservice.NewMemoryStore()
 	if err != nil {
 		return nil, err
@@ -86,7 +143,6 @@ func NewApp() (*App, error) {
 	devtoolsHandler := devtoolshttp.NewHandler(auditSvc)
 	fileHandler := filehttp.NewHandler(fileSvc)
 	importHandler := importhttp.NewUserImportHandler(importSvc)
-	optionsHandler := optionshttp.NewHandler()
 	participantHandler := participanthttp.NewHandler(participantSvc)
 
 	gin.SetMode(cfg.GinMode)
@@ -114,6 +170,58 @@ func NewApp() (*App, error) {
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}, nil
+}
+
+func resolveMigrationsDir() string {
+	for _, candidate := range []string{"./migrations", "../migrations", "../../migrations"} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	return "./migrations"
+}
+
+type memoryOptionRepo struct{}
+
+func (memoryOptionRepo) ListOrganization(context.Context) ([]optionsservice.OrganizationNode, error) {
+	return []optionsservice.OrganizationNode{
+		{ID: "school-01", Name: "Demo University", NodeType: "school", Path: "school-01", Level: 1, SortOrder: 1},
+		{ID: "college-01", ParentID: "school-01", Name: "Engineering College", NodeType: "college", Path: "school-01/college-01", Level: 2, SortOrder: 1},
+		{ID: "major-01", ParentID: "college-01", Name: "Software Engineering", NodeType: "major", Path: "school-01/college-01/major-01", Level: 3, SortOrder: 1},
+		{ID: "class-01", ParentID: "major-01", Name: "2024 Class 1", NodeType: "class", Path: "school-01/college-01/major-01/class-01", Level: 4, SortOrder: 1},
+	}, nil
+}
+
+func (memoryOptionRepo) ListOptionItems(_ context.Context, groupKey string) ([]optionsservice.OptionItem, error) {
+	switch groupKey {
+	case "grades":
+		return []optionsservice.OptionItem{
+			{Value: "2024", Label: "2024"},
+			{Value: "2025", Label: "2025"},
+			{Value: "2026", Label: "2026"},
+		}, nil
+	case "academic_years":
+		return []optionsservice.OptionItem{
+			{Value: "2024-2025", Label: "2024-2025"},
+			{Value: "2025-2026", Label: "2025-2026"},
+			{Value: "2026-2027", Label: "2026-2027"},
+		}, nil
+	case "semesters":
+		return []optionsservice.OptionItem{
+			{Value: "spring", Label: "Spring"},
+			{Value: "autumn", Label: "Autumn"},
+		}, nil
+	case "teacher_titles":
+		return []optionsservice.OptionItem{
+			{Value: "assistant", Label: "Assistant"},
+			{Value: "lecturer", Label: "Lecturer"},
+			{Value: "associate_professor", Label: "Associate Professor"},
+			{Value: "professor", Label: "Professor"},
+		}, nil
+	default:
+		return []optionsservice.OptionItem{}, nil
+	}
 }
 
 func (a *App) Run() error {

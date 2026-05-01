@@ -58,6 +58,13 @@ make logs-refactor
 make dev-backend
 ```
 
+初始化数据库：
+
+```bash
+make migrate-backend
+make seed-backend
+```
+
 前端：
 
 ```bash
@@ -88,6 +95,7 @@ make test-frontend
 - 后端 acceptance e2e 位于 `backend/tests/e2e`
 - 活动审核通过后会自动生成只读申请
 - 默认 compose 直接运行新 backend；前端 Nginx 代理也已指向 `backend:8082`
+- `make migrate-backend` 和 `make seed-backend` 分别对应 `backend/cmd/migrate` 与 `backend/cmd/seed`
 
 ## Core Docs
 

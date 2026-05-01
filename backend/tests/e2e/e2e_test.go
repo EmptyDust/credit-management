@@ -35,7 +35,7 @@ type authPayload struct {
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 
-	app, err := bootstrap.NewApp()
+	app, err := bootstrap.NewTestApp()
 	if err != nil {
 		t.Fatalf("bootstrap app: %v", err)
 	}

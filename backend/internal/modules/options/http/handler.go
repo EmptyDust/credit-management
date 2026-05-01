@@ -4,85 +4,51 @@ import (
 	"net/http"
 
 	"credit-management/backend/internal/httpapi/response"
+	optionsservice "credit-management/backend/internal/modules/options/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-type Handler struct{}
+type Handler struct {
+	service *optionsservice.Service
+}
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(service *optionsservice.Service) *Handler {
+	return &Handler{service: service}
 }
 
 func (h *Handler) GetOrganizationTree(c *gin.Context) {
-	response.Success(c, http.StatusOK, gin.H{
-		"items": []gin.H{
-			{
-				"id":        "school-01",
-				"name":      "Demo University",
-				"node_type": "school",
-				"children": []gin.H{
-					{
-						"id":        "college-01",
-						"name":      "Engineering College",
-						"node_type": "college",
-						"children": []gin.H{
-							{
-								"id":        "major-01",
-								"name":      "Software Engineering",
-								"node_type": "major",
-								"children": []gin.H{
-									{
-										"id":        "class-01",
-										"name":      "2024 Class 1",
-										"node_type": "class",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
+	items, err := h.service.OrganizationTree(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load organization tree failed", nil)
+		return
+	}
+
+	response.Success(c, http.StatusOK, gin.H{"items": items})
 }
 
 func (h *Handler) GetGrades(c *gin.Context) {
-	response.OK(c, gin.H{
-		"items": []gin.H{
-			{"value": "2024", "label": "2024"},
-			{"value": "2025", "label": "2025"},
-			{"value": "2026", "label": "2026"},
-		},
-	})
+	h.getOptionList(c, "grades")
 }
 
 func (h *Handler) GetAcademicYears(c *gin.Context) {
-	response.OK(c, gin.H{
-		"items": []gin.H{
-			{"value": "2024-2025", "label": "2024-2025"},
-			{"value": "2025-2026", "label": "2025-2026"},
-			{"value": "2026-2027", "label": "2026-2027"},
-		},
-	})
+	h.getOptionList(c, "academic_years")
 }
 
 func (h *Handler) GetSemesters(c *gin.Context) {
-	response.OK(c, gin.H{
-		"items": []gin.H{
-			{"value": "spring", "label": "Spring"},
-			{"value": "autumn", "label": "Autumn"},
-		},
-	})
+	h.getOptionList(c, "semesters")
 }
 
 func (h *Handler) GetTeacherTitles(c *gin.Context) {
-	response.OK(c, gin.H{
-		"items": []gin.H{
-			{"value": "assistant", "label": "Assistant"},
-			{"value": "lecturer", "label": "Lecturer"},
-			{"value": "associate_professor", "label": "Associate Professor"},
-			{"value": "professor", "label": "Professor"},
-		},
-	})
+	h.getOptionList(c, "teacher_titles")
+}
+
+func (h *Handler) getOptionList(c *gin.Context, groupKey string) {
+	items, err := h.service.OptionList(c.Request.Context(), groupKey)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load options failed", nil)
+		return
+	}
+
+	response.OK(c, gin.H{"items": items})
 }

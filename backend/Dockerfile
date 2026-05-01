@@ -15,6 +15,7 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 COPY --from=builder /out/backend /usr/local/bin/backend
+COPY migrations /app/migrations
 
 ENV BACKEND_HTTP_PORT=8082
 ENV GIN_MODE=release
