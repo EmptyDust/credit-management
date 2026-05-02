@@ -2,9 +2,12 @@ package database
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	authservice "credit-management/backend/internal/modules/auth/service"
+
+	"gorm.io/gorm"
 )
 
 func TestSeederRejectsNilDatabase(t *testing.T) {
@@ -106,5 +109,50 @@ func TestSeedActivityCategoryTemplatesProvideMinimalDefault(t *testing.T) {
 	}
 	if rows[0].Key != "general" || !rows[0].Enabled {
 		t.Fatalf("unexpected activity category seed: %#v", rows[0])
+	}
+}
+
+func TestSeederRunIsIdempotentAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_DSN is not set")
+	}
+
+	ctx := context.Background()
+	db, err := Open(ctx, Options{DSN: dsn})
+	if err != nil {
+		t.Skipf("test database unavailable: %v", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("get sql db: %v", err)
+	}
+	if err := NewMigrator("../../../migrations").Apply(ctx, sqlDB); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	seeder := NewSeeder()
+	if err := seeder.Run(ctx, db); err != nil {
+		t.Fatalf("first seed run: %v", err)
+	}
+	if err := seeder.Run(ctx, db); err != nil {
+		t.Fatalf("second seed run: %v", err)
+	}
+
+	assertCount(t, db, `select count(*) from users where username = 'admin01' and user_type = 'admin'`, 1)
+	assertCount(t, db, `select count(*) from option_groups where key in ('grades','academic_years','semesters','teacher_titles')`, 4)
+	assertCount(t, db, `select count(*) from option_items oi join option_groups og on og.id = oi.group_id where og.key = 'teacher_titles'`, 4)
+}
+
+func assertCount(t *testing.T, db *gorm.DB, query string, expected int64) {
+	t.Helper()
+
+	var count int64
+	if err := db.Raw(query).Scan(&count).Error; err != nil {
+		t.Fatalf("count query failed: %v", err)
+	}
+	if count != expected {
+		t.Fatalf("expected count %d, got %d for query %q", expected, count, query)
 	}
 }
