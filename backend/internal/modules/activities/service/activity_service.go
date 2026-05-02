@@ -13,6 +13,7 @@ import (
 
 type ApplicationHooks interface {
 	SyncApprovedActivity(ctx context.Context, activityID string) error
+	RevokeApprovedActivity(ctx context.Context, activityID string) error
 }
 
 type Service struct {
@@ -61,6 +62,10 @@ func NewMemoryRepository() *MemoryRepository {
 }
 
 func (noopHooks) SyncApprovedActivity(_ context.Context, _ string) error {
+	return nil
+}
+
+func (noopHooks) RevokeApprovedActivity(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -190,6 +195,11 @@ func (s *Service) Review(ctx context.Context, actorID string, actorRole string, 
 	}
 	if activity.Status == activitydomain.StatusApproved {
 		if err := s.hooks.SyncApprovedActivity(ctx, activity.ID); err != nil {
+			return nil, err
+		}
+	}
+	if activity.Status == activitydomain.StatusRejected {
+		if err := s.hooks.RevokeApprovedActivity(ctx, activity.ID); err != nil {
 			return nil, err
 		}
 	}

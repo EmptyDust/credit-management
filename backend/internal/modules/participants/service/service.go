@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
@@ -31,15 +30,18 @@ type Participant struct {
 type Service struct {
 	activities activityrepo.Repository
 	users      usersrepo.UserRepository
-	mu         sync.RWMutex
-	byActivity map[string]map[string]*Participant
+	repo       Repository
 }
 
 func New(activities activityrepo.Repository, users usersrepo.UserRepository) *Service {
+	return NewWithRepository(activities, users, newMemoryRepository())
+}
+
+func NewWithRepository(activities activityrepo.Repository, users usersrepo.UserRepository, repo Repository) *Service {
 	return &Service{
 		activities: activities,
 		users:      users,
-		byActivity: make(map[string]map[string]*Participant),
+		repo:       repo,
 	}
 }
 
@@ -52,16 +54,7 @@ func (s *Service) List(ctx context.Context, actorID string, actorRole string, ac
 		return nil, ErrParticipantVisibilityDenied
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	rows := s.byActivity[activityID]
-	items := make([]Participant, 0, len(rows))
-	for _, participant := range rows {
-		items = append(items, *participant)
-	}
-
-	return items, nil
+	return s.repo.ListByActivity(ctx, activityID)
 }
 
 func (s *Service) Add(ctx context.Context, actorID string, actorRole string, activityID string, userIDs []string, credits float64) ([]Participant, error) {
@@ -76,13 +69,6 @@ func (s *Service) Add(ctx context.Context, actorID string, actorRole string, act
 		return nil, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.byActivity[activityID] == nil {
-		s.byActivity[activityID] = make(map[string]*Participant)
-	}
-
 	added := make([]Participant, 0, len(userIDs))
 	for _, userID := range userIDs {
 		user, err := s.users.GetUser(ctx, userID)
@@ -92,21 +78,25 @@ func (s *Service) Add(ctx context.Context, actorID string, actorRole string, act
 		if user.UserType != authz.RoleStudent {
 			return nil, ErrParticipantOnlyStudent
 		}
-		if _, exists := s.byActivity[activityID][userID]; exists {
+		if _, err := s.repo.GetActiveByActivityUser(ctx, activityID, userID); err == nil {
 			return nil, ErrParticipantDuplicate
+		} else if !errors.Is(err, ErrParticipantNotFound) {
+			return nil, err
 		}
 
-		participant := &Participant{
+		participant := Participant{
 			ID:         idgen.New(),
 			ActivityID: activityID,
 			UserID:     userID,
 			Credits:    credits,
 			JoinedAt:   time.Now().UTC(),
 		}
-		s.byActivity[activityID][userID] = participant
-		added = append(added, *participant)
+		added = append(added, participant)
 	}
 
+	if err := s.repo.AddBatch(ctx, activityID, added); err != nil {
+		return nil, err
+	}
 	return added, nil
 }
 
@@ -123,30 +113,9 @@ func (s *Service) Leave(ctx context.Context, actorID string, actorRole string, a
 		return err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	rows := s.byActivity[activityID]
-	if rows == nil {
-		return ErrParticipantNotFound
-	}
-	if _, ok := rows[actorID]; !ok {
-		return ErrParticipantNotFound
-	}
-
-	delete(rows, actorID)
-	return nil
+	return s.repo.SoftDeleteByActivityUser(ctx, activityID, actorID)
 }
 
-func (s *Service) SnapshotByActivity(_ context.Context, activityID string) ([]Participant, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	rows := s.byActivity[activityID]
-	items := make([]Participant, 0, len(rows))
-	for _, participant := range rows {
-		items = append(items, *participant)
-	}
-
-	return items, nil
+func (s *Service) SnapshotByActivity(ctx context.Context, activityID string) ([]Participant, error) {
+	return s.repo.ListByActivity(ctx, activityID)
 }

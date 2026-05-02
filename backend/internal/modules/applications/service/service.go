@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"strconv"
-	"sync"
 
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	fileservice "credit-management/backend/internal/modules/files/service"
@@ -31,8 +30,7 @@ type SyncEffect struct {
 }
 
 type Service struct {
-	mu           sync.Mutex
-	applications map[string]*Application
+	repo         Repository
 	activities   activityrepo.Repository
 	files        *fileservice.Service
 	participants *participantservice.Service
@@ -40,8 +38,12 @@ type Service struct {
 
 func New() *Service {
 	return &Service{
-		applications: make(map[string]*Application),
+		repo: newMemoryRepository(),
 	}
+}
+
+func NewWithRepository(repo Repository) *Service {
+	return &Service{repo: repo}
 }
 
 type Stats struct {
@@ -86,33 +88,17 @@ func (s *Service) SyncApprovedActivity(activityID string, userIDs []string) Sync
 }
 
 func (s *Service) syncApprovedParticipants(participants []participantservice.Participant) SyncEffect {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	affected := 0
 	for _, participant := range participants {
-		key := participant.ActivityID + ":" + participant.UserID
-		existing, ok := s.applications[key]
-		if ok {
-			if existing.Deleted {
-				existing.Deleted = false
-				existing.Status = "approved"
-			}
-			existing.AppliedCredits = participant.Credits
-			existing.AwardedCredits = participant.Credits
-			affected++
-			continue
-		}
-
-		s.applications[key] = &Application{
-			ID:             key,
+		if err := s.repo.UpsertApproved(context.Background(), Application{
 			ActivityID:     participant.ActivityID,
 			UserID:         participant.UserID,
 			Status:         "approved",
 			AppliedCredits: participant.Credits,
 			AwardedCredits: participant.Credits,
+		}); err == nil {
+			affected++
 		}
-		affected++
 	}
 
 	return SyncEffect{
@@ -131,7 +117,17 @@ func (s *Service) SyncApprovedActivityContext(ctx context.Context, activityID st
 		return err
 	}
 
-	s.syncApprovedParticipants(participants)
+	for _, participant := range participants {
+		if err := s.repo.UpsertApproved(ctx, Application{
+			ActivityID:     participant.ActivityID,
+			UserID:         participant.UserID,
+			Status:         "approved",
+			AppliedCredits: participant.Credits,
+			AwardedCredits: participant.Credits,
+		}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -147,23 +143,26 @@ func (h Hook) SyncApprovedActivity(ctx context.Context, activityID string) error
 	return h.service.SyncApprovedActivityContext(ctx, activityID)
 }
 
+func (h Hook) RevokeApprovedActivity(ctx context.Context, activityID string) error {
+	return h.service.RevokeApprovedActivityContext(ctx, activityID)
+}
+
+func (s *Service) RevokeApprovedActivityContext(ctx context.Context, activityID string) error {
+	return s.repo.SoftDeleteByActivity(ctx, activityID)
+}
+
 func (s *Service) List(actorID string, actorRole string) []ApplicationView {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	items := make([]ApplicationView, 0, len(s.applications))
-	for _, application := range s.applications {
-		if application.Deleted {
-			continue
-		}
-		if actorRole == "student" && application.UserID != actorID {
-			continue
-		}
-
-		items = append(items, s.buildView(application))
+	items, err := s.repo.List(context.Background(), actorID, actorRole)
+	if err != nil {
+		return []ApplicationView{}
 	}
 
-	return items
+	views := make([]ApplicationView, 0, len(items))
+	for i := range items {
+		application := items[i]
+		views = append(views, s.buildView(&application))
+	}
+	return views
 }
 
 func (s *Service) Stats(actorID string, actorRole string) Stats {
@@ -180,20 +179,11 @@ func (s *Service) Stats(actorID string, actorRole string) Stats {
 }
 
 func (s *Service) Get(actorID string, actorRole string, applicationID string) (ApplicationView, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, application := range s.applications {
-		if application.ID != applicationID || application.Deleted {
-			continue
-		}
-		if actorRole == "student" && application.UserID != actorID {
-			break
-		}
-		return s.buildView(application), nil
+	application, err := s.repo.Get(context.Background(), actorID, actorRole, applicationID)
+	if err != nil {
+		return ApplicationView{}, err
 	}
-
-	return ApplicationView{}, ErrApplicationNotFound
+	return s.buildView(application), nil
 }
 
 func (s *Service) Export(actorID string, actorRole string) ([]byte, error) {
@@ -228,14 +218,9 @@ func (s *Service) Export(actorID string, actorRole string) ([]byte, error) {
 }
 
 func (s *Service) Count() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	count := 0
-	for _, application := range s.applications {
-		if !application.Deleted {
-			count++
-		}
+	count, err := s.repo.Count(context.Background())
+	if err != nil {
+		return 0
 	}
 	return count
 }

@@ -106,6 +106,9 @@ func NewApp() (*App, error) {
 		exportSvc:      exportSvc,
 		importSvc:      importSvc,
 		optionsHandler: optionHandler,
+		activityRepo:   activityrepo.NewGorm(db),
+		participantRepo: participantservice.NewGormRepository(db),
+		applicationRepo: appservice.NewGormRepository(db),
 		userRepo:       userRepo,
 		userCount: func() int {
 			users, _ := userRepo.ListUsers(context.Background(), usersrepo.ListFilter{})
@@ -159,15 +162,27 @@ type configuredAppDeps struct {
 	exportSvc      *exportservice.UserExportService
 	importSvc      *importservice.UserImportService
 	optionsHandler *optionshttp.Handler
+	activityRepo   activityrepo.Repository
+	participantRepo participantservice.Repository
+	applicationRepo appservice.Repository
 	userRepo       usersrepo.UserRepository
 	userCount      func() int
 }
 
 func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredAppDeps) (*App, error) {
-	activityRepo := activityservice.NewMemoryRepository()
+	activityRepo := deps.activityRepo
+	if activityRepo == nil {
+		activityRepo = activityservice.NewMemoryRepository()
+	}
 	participantSvc := participantservice.New(activityRepo, deps.userRepo)
+	if deps.participantRepo != nil {
+		participantSvc = participantservice.NewWithRepository(activityRepo, deps.userRepo, deps.participantRepo)
+	}
 	fileSvc := fileservice.New(activityRepo)
 	appSvc := appservice.New()
+	if deps.applicationRepo != nil {
+		appSvc = appservice.NewWithRepository(deps.applicationRepo)
+	}
 	appSvc.SetActivityRepository(activityRepo)
 	appSvc.SetFileService(fileSvc)
 	appSvc.SetParticipantService(participantSvc)
