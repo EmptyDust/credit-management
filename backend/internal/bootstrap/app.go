@@ -14,6 +14,7 @@ import (
 	apphttp "credit-management/backend/internal/modules/applications/http"
 	appservice "credit-management/backend/internal/modules/applications/service"
 	auditservice "credit-management/backend/internal/modules/audit/service"
+	authrepo "credit-management/backend/internal/modules/auth/repo"
 	authhttp "credit-management/backend/internal/modules/auth/http"
 	authservice "credit-management/backend/internal/modules/auth/service"
 	dashboard "credit-management/backend/internal/modules/dashboard"
@@ -71,11 +72,12 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	if _, err := platformredis.Open(ctx, platformredis.Options{
+	redisClient, err := platformredis.Open(ctx, platformredis.Options{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 
@@ -88,7 +90,28 @@ func NewApp() (*App, error) {
 		optionsservice.NewService(optionsrepo.NewGorm(db)),
 	)
 
-	return newMemoryBackedApp(cfg, logger, optionHandler)
+	userRepo := usersrepo.NewGorm(db)
+	sessionRepo := authrepo.NewGorm(db, redisClient)
+
+	authSvc := authservice.New(userRepo, sessionRepo)
+	profileSvc := userservice.NewProfileService(userRepo, sessionRepo)
+	adminSvc := userservice.NewAdminService(userRepo, sessionRepo)
+	exportSvc := exportservice.NewUserExportService(userRepo)
+	importSvc := importservice.NewUserImportService(userRepo)
+
+	return newConfiguredApp(cfg, logger, configuredAppDeps{
+		authSvc:        authSvc,
+		profileSvc:     profileSvc,
+		adminSvc:       adminSvc,
+		exportSvc:      exportSvc,
+		importSvc:      importSvc,
+		optionsHandler: optionHandler,
+		userRepo:       userRepo,
+		userCount: func() int {
+			users, _ := userRepo.ListUsers(context.Background(), usersrepo.ListFilter{})
+			return len(users)
+		},
+	})
 }
 
 func NewTestApp() (*App, error) {

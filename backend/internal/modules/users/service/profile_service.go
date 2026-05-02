@@ -151,5 +151,5 @@ func avatarURL(fileID string) string {
 		return ""
 	}
 
-	return "https://example.invalid/avatars/" + fileID
+	return "/api/v1/files/" + fileID + "/download"
 }

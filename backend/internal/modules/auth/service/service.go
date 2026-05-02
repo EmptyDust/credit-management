@@ -13,6 +13,7 @@ import (
 	authdomain "credit-management/backend/internal/modules/auth/domain"
 	usersdomain "credit-management/backend/internal/modules/users/domain"
 	usersrepo "credit-management/backend/internal/modules/users/repo"
+	"credit-management/backend/internal/platform/apperrors"
 	"credit-management/backend/internal/platform/authn"
 	"credit-management/backend/internal/platform/authz"
 	"credit-management/backend/internal/platform/idgen"
@@ -24,14 +25,14 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAccountInactive    = errors.New("account inactive")
 	ErrRefreshInvalid     = errors.New("refresh token invalid")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrConflict           = errors.New("resource conflict")
+	ErrUserNotFound       = apperrors.ErrUserNotFound
+	ErrConflict           = apperrors.ErrConflict
 )
 
 type UserStore interface {
 	FindByLoginID(ctx context.Context, loginID string) (*usersdomain.User, error)
 	FindByID(ctx context.Context, userID string) (*usersdomain.User, error)
-	CreateStudent(ctx context.Context, input RegisterStudentInput) (*usersdomain.User, error)
+	CreateStudent(ctx context.Context, input usersdomain.RegisterStudentInput) (*usersdomain.User, error)
 	UpdateProfile(ctx context.Context, userID string, patch usersdomain.ProfilePatch) (*usersdomain.User, error)
 	UpdatePassword(ctx context.Context, userID string, passwordHash string, refreshTokenVersion int64) error
 	UpdateAvatar(ctx context.Context, userID string, fileID string) (*usersdomain.User, error)
@@ -169,7 +170,16 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (AuthResult, erro
 }
 
 func (s *Service) RegisterStudent(ctx context.Context, input RegisterStudentInput) (*usersdomain.User, error) {
-	user, err := s.users.CreateStudent(ctx, input)
+	user, err := s.users.CreateStudent(ctx, usersdomain.RegisterStudentInput{
+		Username:     input.Username,
+		Password:     input.Password,
+		RealName:     input.RealName,
+		Email:        input.Email,
+		Phone:        input.Phone,
+		StudentID:    input.StudentID,
+		Grade:        input.Grade,
+		DepartmentID: input.DepartmentID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +317,7 @@ func avatarURL(fileID string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("https://example.invalid/avatars/%s", fileID)
+	return fmt.Sprintf("/api/v1/files/%s/download", fileID)
 }
 
 func (s *MemoryStore) FindByLoginID(_ context.Context, loginID string) (*usersdomain.User, error) {
@@ -338,7 +348,7 @@ func (s *MemoryStore) FindByID(_ context.Context, userID string) (*usersdomain.U
 	return cloneUser(user), nil
 }
 
-func (s *MemoryStore) CreateStudent(_ context.Context, input RegisterStudentInput) (*usersdomain.User, error) {
+func (s *MemoryStore) CreateStudent(_ context.Context, input usersdomain.RegisterStudentInput) (*usersdomain.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -46,5 +47,40 @@ func TestLoginReturnsTokensForActiveUser(t *testing.T) {
 
 	if claims.UserID != result.User.ID {
 		t.Fatalf("expected access token user_id %s, got %s", result.User.ID, claims.UserID)
+	}
+}
+
+func TestRefreshFailsAfterPasswordVersionBump(t *testing.T) {
+	authn.Configure(authn.Config{
+		AccessSecret:  "access-secret",
+		RefreshSecret: "refresh-secret",
+		AccessTTL:     24 * time.Hour,
+		RefreshTTL:    7 * 24 * time.Hour,
+	})
+
+	store, err := NewMemoryStore()
+	if err != nil {
+		t.Fatalf("expected in-memory store setup to succeed, got %v", err)
+	}
+
+	svc := New(store, store)
+	result, err := svc.Login(context.Background(), LoginInput{
+		LoginID:  "student01",
+		Password: "Passw0rd!",
+	})
+	if err != nil {
+		t.Fatalf("expected login to succeed, got %v", err)
+	}
+
+	nextHash, err := HashPassword("NextPassw0rd!")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if err := store.UpdatePassword(context.Background(), "01JSTUDENT0000000000000000", nextHash, 2); err != nil {
+		t.Fatalf("update password: %v", err)
+	}
+
+	if _, err := svc.Refresh(context.Background(), result.RefreshToken); !errors.Is(err, ErrRefreshInvalid) {
+		t.Fatalf("expected refresh invalid after version bump, got %v", err)
 	}
 }

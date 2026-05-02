@@ -22,6 +22,17 @@ type User struct {
 	DeletedAt           *time.Time
 }
 
+type RegisterStudentInput struct {
+	Username     string
+	Password     string
+	RealName     string
+	Email        string
+	Phone        string
+	StudentID    string
+	Grade        string
+	DepartmentID string
+}
+
 type ProfilePatch struct {
 	Email        string
 	Phone        string
