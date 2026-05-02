@@ -289,19 +289,22 @@ func seedOptionItemDefinitions() []optionItemSeedDefinition {
 
 func loadOptionGroupIDs(tx *gorm.DB) (map[string]string, error) {
 	type optionGroupLookupRow struct {
-		ID  string
-		Key string
+		ID    string
+		Key   string
+		Scope string
 	}
 
 	keys := make([]string, 0, len(seedOptionGroupDefinitions()))
+	scopesByKey := make(map[string]string, len(seedOptionGroupDefinitions()))
 	for _, item := range seedOptionGroupDefinitions() {
 		keys = append(keys, item.Key)
+		scopesByKey[item.Key] = item.Scope
 	}
 
 	rows := make([]optionGroupLookupRow, 0, len(keys))
 	if err := tx.Table("option_groups").
-		Select("id", "key").
-		Where("deleted_at is null and key in ?", keys).
+		Select("id", "key", "scope").
+		Where("deleted_at is null and scope = ? and key in ?", "system", keys).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -312,6 +315,9 @@ func loadOptionGroupIDs(tx *gorm.DB) (map[string]string, error) {
 	}
 
 	for _, key := range keys {
+		if scopesByKey[key] != "system" {
+			return nil, fmt.Errorf("unsupported option group scope for key %s", key)
+		}
 		if _, ok := result[key]; !ok {
 			return nil, fmt.Errorf("missing option group id for key %s", key)
 		}
