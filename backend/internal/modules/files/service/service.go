@@ -1,16 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
-	"sync"
 	"time"
 
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	"credit-management/backend/internal/platform/authz"
 	"credit-management/backend/internal/platform/idgen"
+	"credit-management/backend/internal/platform/storage"
 )
 
 var (
@@ -33,25 +35,36 @@ type Download struct {
 	File        File
 	Content     []byte
 	ContentType string
+	SignedURL   string
 }
 
 type Service struct {
 	activities activityrepo.Repository
-	mu         sync.RWMutex
-	files      map[string]*storedFile
-	byActivity map[string][]string
+	repo       MetadataRepository
+	store      storage.Store
 }
 
 type storedFile struct {
-	meta    File
-	content []byte
+	meta           File
+	content        []byte
+	storageKey     string
+	storageBackend string
 }
 
 func New(activities activityrepo.Repository) *Service {
+	files := make(map[string]*storedFile)
+	byActivity := make(map[string][]string)
 	return &Service{
 		activities: activities,
-		files:      make(map[string]*storedFile),
-		byActivity: make(map[string][]string),
+		repo:       newMemoryMetadataRepository(files, byActivity),
+	}
+}
+
+func NewWithStore(activities activityrepo.Repository, repo MetadataRepository, store storage.Store) *Service {
+	return &Service{
+		activities: activities,
+		repo:       repo,
+		store:      store,
 	}
 }
 
@@ -64,18 +77,7 @@ func (s *Service) List(ctx context.Context, actorID string, actorRole string, ac
 		return nil, ErrFileAccessDenied
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	ids := s.byActivity[activityID]
-	items := make([]File, 0, len(ids))
-	for _, id := range ids {
-		if file, ok := s.files[id]; ok {
-			items = append(items, file.meta)
-		}
-	}
-
-	return items, nil
+	return s.repo.ListByActivity(ctx, activityID)
 }
 
 func (s *Service) Upload(ctx context.Context, actorID string, actorRole string, activityID string, fileHeader *multipart.FileHeader) (*File, error) {
@@ -111,14 +113,41 @@ func (s *Service) Upload(ctx context.Context, actorID string, actorRole string, 
 		CreatedAt:   time.Now().UTC(),
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.files[file.ID] = &storedFile{
-		meta:    file,
-		content: buf,
+	record := MetadataRecord{
+		File:           file,
+		StorageBackend: "memory",
 	}
-	s.byActivity[activityID] = append(s.byActivity[activityID], file.ID)
+	if memoryRepo, ok := s.repo.(*memoryMetadataRepository); ok {
+		memoryRepo.files[file.ID] = &storedFile{
+			meta:           file,
+			content:        append([]byte(nil), buf...),
+			storageBackend: "memory",
+		}
+	}
+	if s.store != nil {
+		key := fmt.Sprintf("activities/%s/%s-%s", activityID, idgen.New(), fileHeader.Filename)
+		object, err := s.store.Put(ctx, storage.PutRequest{
+			Key:         key,
+			Body:        bytes.NewReader(buf),
+			Size:        int64(len(buf)),
+			ContentType: file.ContentType,
+		})
+		if err != nil {
+			return nil, err
+		}
+		record.StorageKey = object.Key
+		record.StorageBackend = string(object.Backend)
+		if memoryRepo, ok := s.repo.(*memoryMetadataRepository); ok {
+			memoryRepo.files[file.ID].storageKey = object.Key
+			memoryRepo.files[file.ID].storageBackend = string(object.Backend)
+		}
+	}
+	if err := s.repo.SaveUpload(ctx, record); err != nil {
+		if s.store != nil && record.StorageKey != "" {
+			_ = s.store.Delete(ctx, record.StorageKey)
+		}
+		return nil, err
+	}
 
 	return &file, nil
 }
@@ -135,35 +164,27 @@ func (s *Service) Delete(ctx context.Context, actorID string, actorRole string, 
 		return err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.files[fileID]; !ok {
-		return ErrFileNotFound
+	meta, err := s.repo.Get(ctx, fileID)
+	if err != nil {
+		return err
 	}
-	delete(s.files, fileID)
-
-	ids := s.byActivity[activityID]
-	filtered := ids[:0]
-	for _, id := range ids {
-		if id != fileID {
-			filtered = append(filtered, id)
-		}
+	if err := s.repo.SoftDelete(ctx, activityID, fileID); err != nil {
+		return err
 	}
-	s.byActivity[activityID] = filtered
+	if s.store != nil && meta.StorageKey != "" {
+		return s.store.Delete(ctx, meta.StorageKey)
+	}
 
 	return nil
 }
 
 func (s *Service) Download(ctx context.Context, actorID string, actorRole string, fileID string) (*Download, error) {
-	s.mu.RLock()
-	file, ok := s.files[fileID]
-	s.mu.RUnlock()
-	if !ok {
-		return nil, ErrFileNotFound
+	meta, err := s.repo.Get(ctx, fileID)
+	if err != nil {
+		return nil, err
 	}
 
-	activity, err := s.activities.Get(ctx, file.meta.ActivityID)
+	activity, err := s.activities.Get(ctx, meta.ActivityID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,9 +192,27 @@ func (s *Service) Download(ctx context.Context, actorID string, actorRole string
 		return nil, ErrFileAccessDenied
 	}
 
+	if s.store != nil {
+		url, err := s.store.SignGetURL(ctx, meta.StorageKey, storage.SignedURLOptions{ExpiresIn: time.Hour})
+		if err == nil {
+			return &Download{
+				File:        meta.File,
+				ContentType: meta.ContentType,
+				Content:     nil,
+				SignedURL:   url,
+			}, nil
+		}
+	}
+
+	var content []byte
+	if memoryRepo, ok := s.repo.(*memoryMetadataRepository); ok {
+		if file, exists := memoryRepo.files[fileID]; exists {
+			content = append([]byte(nil), file.content...)
+		}
+	}
 	return &Download{
-		File:        file.meta,
-		Content:     append([]byte(nil), file.content...),
-		ContentType: file.meta.ContentType,
+		File:        meta.File,
+		Content:     content,
+		ContentType: meta.ContentType,
 	}, nil
 }

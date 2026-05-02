@@ -36,6 +36,7 @@ import (
 	"credit-management/backend/internal/platform/auditlog"
 	"credit-management/backend/internal/platform/config"
 	"credit-management/backend/internal/platform/database"
+	"credit-management/backend/internal/platform/health"
 	platformlogger "credit-management/backend/internal/platform/logger"
 	platformredis "credit-management/backend/internal/platform/redis"
 	"credit-management/backend/internal/platform/storage"
@@ -43,6 +44,7 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type App struct {
@@ -105,6 +107,18 @@ func NewApp() (*App, error) {
 		adminSvc:       adminSvc,
 		exportSvc:      exportSvc,
 		importSvc:      importSvc,
+		db:             db,
+		auditWriter:    auditlog.NewGormWriter(db),
+		healthChecker: health.NewChecker("dev", map[string]health.CheckFunc{
+			"database": func(context.Context) error {
+				return sqlDB.PingContext(ctx)
+			},
+			"redis": func(context.Context) error {
+				return redisClient.Ping(ctx).Err()
+			},
+			"storage": localStore.HealthCheck,
+		}),
+		storageStore:   localStore,
 		optionsHandler: optionHandler,
 		activityRepo:   activityrepo.NewGorm(db),
 		participantRepo: participantservice.NewGormRepository(db),
@@ -162,6 +176,10 @@ type configuredAppDeps struct {
 	exportSvc      *exportservice.UserExportService
 	importSvc      *importservice.UserImportService
 	optionsHandler *optionshttp.Handler
+	db             *gorm.DB
+	auditWriter    *auditlog.Writer
+	healthChecker  *health.Checker
+	storageStore   storage.Store
 	activityRepo   activityrepo.Repository
 	participantRepo participantservice.Repository
 	applicationRepo appservice.Repository
@@ -179,6 +197,9 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 		participantSvc = participantservice.NewWithRepository(activityRepo, deps.userRepo, deps.participantRepo)
 	}
 	fileSvc := fileservice.New(activityRepo)
+	if deps.storageStore != nil && deps.db != nil {
+		fileSvc = fileservice.NewWithStore(activityRepo, fileservice.NewGormMetadataRepository(deps.db), deps.storageStore)
+	}
 	appSvc := appservice.New()
 	if deps.applicationRepo != nil {
 		appSvc = appservice.NewWithRepository(deps.applicationRepo)
@@ -187,7 +208,10 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	appSvc.SetFileService(fileSvc)
 	appSvc.SetParticipantService(participantSvc)
 	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc))
-	auditWriter := auditlog.NewWriter()
+	auditWriter := deps.auditWriter
+	if auditWriter == nil {
+		auditWriter = auditlog.NewWriter()
+	}
 	auditSvc := auditservice.New(auditWriter)
 	dashboardSvc := dashboard.NewService(
 		deps.userCount,
@@ -203,7 +227,7 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	meHandler := usershttp.NewMeHandler(deps.profileSvc)
 	adminHandler := usershttp.NewAdminHandler(deps.adminSvc, deps.exportSvc)
 	dashboardHandler := dashboardhttp.NewHandler(dashboardSvc)
-	devtoolsHandler := devtoolshttp.NewHandler(auditSvc)
+	devtoolsHandler := devtoolshttp.NewHandlerWithHealth(auditSvc, logger, deps.healthChecker)
 	fileHandler := filehttp.NewHandler(fileSvc)
 	importHandler := importhttp.NewUserImportHandler(deps.importSvc)
 	participantHandler := participanthttp.NewHandler(participantSvc)

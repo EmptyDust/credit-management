@@ -1,6 +1,9 @@
 package dashboard
 
 type Counter func() int
+type CounterRepository interface {
+	Count() int
+}
 
 type Service struct {
 	users        Counter
@@ -14,11 +17,26 @@ type Overview struct {
 	ApplicationCount int `json:"application_count"`
 }
 
-func NewService(users Counter, activities Counter, applications Counter) *Service {
+func NewService(users any, activities any, applications any) *Service {
 	return &Service{
-		users:        users,
-		activities:   activities,
-		applications: applications,
+		users:        normalizeCounter(users),
+		activities:   normalizeCounter(activities),
+		applications: normalizeCounter(applications),
+	}
+}
+
+func normalizeCounter(source any) Counter {
+	switch v := source.(type) {
+	case nil:
+		return nil
+	case Counter:
+		return v
+	case func() int:
+		return Counter(v)
+	case CounterRepository:
+		return v.Count
+	default:
+		return nil
 	}
 }
 

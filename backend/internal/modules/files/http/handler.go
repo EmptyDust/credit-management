@@ -91,6 +91,10 @@ func (h *Handler) Download(c *gin.Context) {
 		handleFileError(c, err, "download file failed")
 		return
 	}
+	if file.SignedURL != "" {
+		c.Redirect(http.StatusFound, file.SignedURL)
+		return
+	}
 
 	contentType := file.ContentType
 	if contentType == "" {
