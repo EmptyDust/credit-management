@@ -103,18 +103,46 @@ func NewTestApp() (*App, error) {
 	return newMemoryBackedApp(cfg, logger, optionHandler)
 }
 
-func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionsHandler *optionshttp.Handler) (*App, error) {
-	store, err := authservice.NewMemoryStore()
+func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionHandler *optionshttp.Handler) (*App, error) {
+	authStore, err := authservice.NewMemoryStore()
 	if err != nil {
 		return nil, err
 	}
-	authSvc := authservice.New(store, store)
-	profileSvc := userservice.NewProfileService(store, store)
-	adminSvc := userservice.NewAdminService(store, store)
-	exportSvc := exportservice.NewUserExportService(store)
-	importSvc := importservice.NewUserImportService(store)
+	authSvc := authservice.New(authStore, authStore)
+	profileSvc := userservice.NewProfileService(authStore, authStore)
+	adminSvc := userservice.NewAdminService(authStore, authStore)
+	exportSvc := exportservice.NewUserExportService(authStore)
+	importSvc := importservice.NewUserImportService(authStore)
+
+	return newConfiguredApp(cfg, logger, configuredAppDeps{
+		authSvc:        authSvc,
+		profileSvc:     profileSvc,
+		adminSvc:       adminSvc,
+		exportSvc:      exportSvc,
+		importSvc:      importSvc,
+		optionsHandler: optionHandler,
+		userRepo:       authStore,
+		userCount: func() int {
+			users, _ := authStore.ListUsers(context.Background(), usersrepo.ListFilter{})
+			return len(users)
+		},
+	})
+}
+
+type configuredAppDeps struct {
+	authSvc        *authservice.Service
+	profileSvc     *userservice.Service
+	adminSvc       *userservice.AdminService
+	exportSvc      *exportservice.UserExportService
+	importSvc      *importservice.UserImportService
+	optionsHandler *optionshttp.Handler
+	userRepo       usersrepo.UserRepository
+	userCount      func() int
+}
+
+func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredAppDeps) (*App, error) {
 	activityRepo := activityservice.NewMemoryRepository()
-	participantSvc := participantservice.New(activityRepo, store)
+	participantSvc := participantservice.New(activityRepo, deps.userRepo)
 	fileSvc := fileservice.New(activityRepo)
 	appSvc := appservice.New()
 	appSvc.SetActivityRepository(activityRepo)
@@ -124,25 +152,22 @@ func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionsHandler *
 	auditWriter := auditlog.NewWriter()
 	auditSvc := auditservice.New(auditWriter)
 	dashboardSvc := dashboard.NewService(
-		func() int {
-			users, _ := store.ListUsers(context.Background(), usersrepo.ListFilter{})
-			return len(users)
-		},
+		deps.userCount,
 		func() int {
 			activities, _ := activityRepo.List(context.Background(), activityrepo.ListFilter{})
 			return len(activities)
 		},
 		appSvc.Count,
 	)
-	authHandler := authhttp.NewHandler(authSvc)
+	authHandler := authhttp.NewHandler(deps.authSvc)
 	activityHandler := activityhttp.NewHandler(activitySvc)
 	appHandler := apphttp.NewHandler(appSvc)
-	meHandler := usershttp.NewMeHandler(profileSvc)
-	adminHandler := usershttp.NewAdminHandler(adminSvc, exportSvc)
+	meHandler := usershttp.NewMeHandler(deps.profileSvc)
+	adminHandler := usershttp.NewAdminHandler(deps.adminSvc, deps.exportSvc)
 	dashboardHandler := dashboardhttp.NewHandler(dashboardSvc)
 	devtoolsHandler := devtoolshttp.NewHandler(auditSvc)
 	fileHandler := filehttp.NewHandler(fileSvc)
-	importHandler := importhttp.NewUserImportHandler(importSvc)
+	importHandler := importhttp.NewUserImportHandler(deps.importSvc)
 	participantHandler := participanthttp.NewHandler(participantSvc)
 
 	gin.SetMode(cfg.GinMode)
@@ -157,7 +182,7 @@ func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionsHandler *
 		FileHandler:        fileHandler,
 		ImportHandler:      importHandler,
 		MeHandler:          meHandler,
-		OptionsHandler:     optionsHandler,
+		OptionsHandler:     deps.optionsHandler,
 		ParticipantHandler: participantHandler,
 	})
 
