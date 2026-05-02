@@ -69,7 +69,7 @@ func (r *GormOptionRepo) ListOptionItems(ctx context.Context, groupKey string) (
 		Table("option_items").
 		Select("option_items.value", "option_items.label").
 		Joins("join option_groups on option_groups.id = option_items.group_id").
-		Where("option_groups.key = ? and option_groups.deleted_at is null and option_items.deleted_at is null and option_items.enabled = ?", groupKey, true).
+		Where("option_groups.key = ? and option_groups.scope = ? and option_groups.deleted_at is null and option_items.deleted_at is null and option_items.enabled = ?", groupKey, "system", true).
 		Order("option_items.sort_order asc, option_items.value asc").
 		Find(&rows).Error
 	if err != nil {
