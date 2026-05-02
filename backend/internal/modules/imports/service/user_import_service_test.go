@@ -15,7 +15,7 @@ func TestStudentImportPrecheckRejectsDuplicateStudentID(t *testing.T) {
 
 	svc := NewUserImportService(store)
 
-	result, err := svc.PrecheckStudents(context.Background(), "01JADMIN0000000000000000000", "students.csv", "hash-1", []UserRow{
+	result, err := svc.PrecheckStudents(context.Background(), "01JADMIN000000000000000000", "students.csv", "hash-1", []UserRow{
 		{
 			Username:     "student-a",
 			Password:     "Passw0rd!",

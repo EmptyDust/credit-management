@@ -60,7 +60,12 @@ func TestSeedOptionDefinitionsCoverRequiredGroupsAndTitles(t *testing.T) {
 		t.Fatalf("expected 4 option groups, got %d", len(groups))
 	}
 
-	items := seedOptionItems()
+	items := seedOptionItems(map[string]string{
+		"grades":         "optgrp-grades-01",
+		"academic_years": "optgrp-acyears-01",
+		"semesters":      "optgrp-semesters01",
+		"teacher_titles": "optgrp-ttitles-01",
+	})
 	titleCount := 0
 	for _, item := range items {
 		if item.GroupID == "optgrp-ttitles-01" {
@@ -69,6 +74,28 @@ func TestSeedOptionDefinitionsCoverRequiredGroupsAndTitles(t *testing.T) {
 	}
 	if titleCount != 4 {
 		t.Fatalf("expected 4 teacher title items, got %d", titleCount)
+	}
+}
+
+func TestSeedOptionItemsUsesResolvedGroupIDs(t *testing.T) {
+	items := seedOptionItems(map[string]string{
+		"grades":         "db-grades-id",
+		"academic_years": "db-academic-id",
+		"semesters":      "db-semesters-id",
+		"teacher_titles": "db-teacher-id",
+	})
+
+	for _, item := range items {
+		switch item.Value {
+		case "2024":
+			if item.GroupID != "db-grades-id" {
+				t.Fatalf("expected grades item to use resolved group id, got %s", item.GroupID)
+			}
+		case "associate_professor":
+			if item.GroupID != "db-teacher-id" {
+				t.Fatalf("expected teacher title item to use resolved group id, got %s", item.GroupID)
+			}
+		}
 	}
 }
 

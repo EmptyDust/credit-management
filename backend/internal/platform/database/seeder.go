@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultAdminID       = "01JADMIN0000000000000000000"
+	defaultAdminID       = "01JADMIN000000000000000000"
 	defaultAdminUsername = "admin01"
 	defaultAdminPassword = "Passw0rd!"
 )
@@ -38,7 +38,11 @@ func (Seeder) Run(ctx context.Context, db *gorm.DB) error {
 		if err := insertSeedRows(tx, seedOptionGroups()); err != nil {
 			return fmt.Errorf("seed option groups: %w", err)
 		}
-		if err := insertSeedRows(tx, seedOptionItems()); err != nil {
+		optionGroupIDs, err := loadOptionGroupIDs(tx)
+		if err != nil {
+			return fmt.Errorf("load option group ids: %w", err)
+		}
+		if err := insertSeedRows(tx, seedOptionItems(optionGroupIDs)); err != nil {
 			return fmt.Errorf("seed option items: %w", err)
 		}
 		if err := insertSeedRows(tx, seedActivityCategoryTemplates()); err != nil {
@@ -190,29 +194,38 @@ func seedOrganizationNodes() []organizationNodeSeedRow {
 }
 
 func seedOptionGroups() []optionGroupSeedRow {
-	return []optionGroupSeedRow{
-		{ID: "optgrp-grades-01", Key: "grades", Label: "Grades", Scope: "system", Version: 1},
-		{ID: "optgrp-acyears-01", Key: "academic_years", Label: "Academic Years", Scope: "system", Version: 1},
-		{ID: "optgrp-semesters01", Key: "semesters", Label: "Semesters", Scope: "system", Version: 1},
-		{ID: "optgrp-ttitles-01", Key: "teacher_titles", Label: "Teacher Titles", Scope: "system", Version: 1},
+	rows := make([]optionGroupSeedRow, 0, len(seedOptionGroupDefinitions()))
+	for _, item := range seedOptionGroupDefinitions() {
+		rows = append(rows, optionGroupSeedRow{
+			ID:      item.ID,
+			Key:     item.Key,
+			Label:   item.Label,
+			Scope:   item.Scope,
+			Version: item.Version,
+		})
 	}
+
+	return rows
 }
 
-func seedOptionItems() []optionItemSeedRow {
-	return []optionItemSeedRow{
-		{ID: "grade-2024", GroupID: "optgrp-grades-01", Value: "2024", Label: "2024", SortOrder: 1, Enabled: true},
-		{ID: "grade-2025", GroupID: "optgrp-grades-01", Value: "2025", Label: "2025", SortOrder: 2, Enabled: true},
-		{ID: "grade-2026", GroupID: "optgrp-grades-01", Value: "2026", Label: "2026", SortOrder: 3, Enabled: true},
-		{ID: "acyear-2024-2025", GroupID: "optgrp-acyears-01", Value: "2024-2025", Label: "2024-2025", SortOrder: 1, Enabled: true},
-		{ID: "acyear-2025-2026", GroupID: "optgrp-acyears-01", Value: "2025-2026", Label: "2025-2026", SortOrder: 2, Enabled: true},
-		{ID: "acyear-2026-2027", GroupID: "optgrp-acyears-01", Value: "2026-2027", Label: "2026-2027", SortOrder: 3, Enabled: true},
-		{ID: "semester-spring", GroupID: "optgrp-semesters01", Value: "spring", Label: "Spring", SortOrder: 1, Enabled: true},
-		{ID: "semester-autumn", GroupID: "optgrp-semesters01", Value: "autumn", Label: "Autumn", SortOrder: 2, Enabled: true},
-		{ID: "ttitle-assistant", GroupID: "optgrp-ttitles-01", Value: "assistant", Label: "Assistant", SortOrder: 1, Enabled: true},
-		{ID: "ttitle-lecturer", GroupID: "optgrp-ttitles-01", Value: "lecturer", Label: "Lecturer", SortOrder: 2, Enabled: true},
-		{ID: "ttitle-assoc-prof", GroupID: "optgrp-ttitles-01", Value: "associate_professor", Label: "Associate Professor", SortOrder: 3, Enabled: true},
-		{ID: "ttitle-professor", GroupID: "optgrp-ttitles-01", Value: "professor", Label: "Professor", SortOrder: 4, Enabled: true},
+func seedOptionItems(groupIDs map[string]string) []optionItemSeedRow {
+	rows := make([]optionItemSeedRow, 0, len(seedOptionItemDefinitions()))
+	for _, item := range seedOptionItemDefinitions() {
+		groupID, ok := groupIDs[item.GroupKey]
+		if !ok {
+			continue
+		}
+		rows = append(rows, optionItemSeedRow{
+			ID:        item.ID,
+			GroupID:   groupID,
+			Value:     item.Value,
+			Label:     item.Label,
+			SortOrder: item.SortOrder,
+			Enabled:   item.Enabled,
+		})
 	}
+
+	return rows
 }
 
 func seedActivityCategoryTemplates() []activityCategoryTemplateSeedRow {
@@ -229,4 +242,80 @@ func seedActivityCategoryTemplates() []activityCategoryTemplateSeedRow {
 
 func stringPtr(value string) *string {
 	return &value
+}
+
+type optionGroupSeedDefinition struct {
+	ID      string
+	Key     string
+	Label   string
+	Scope   string
+	Version int
+}
+
+type optionItemSeedDefinition struct {
+	ID        string
+	GroupKey  string
+	Value     string
+	Label     string
+	SortOrder int
+	Enabled   bool
+}
+
+func seedOptionGroupDefinitions() []optionGroupSeedDefinition {
+	return []optionGroupSeedDefinition{
+		{ID: "optgrp-grades-01", Key: "grades", Label: "Grades", Scope: "system", Version: 1},
+		{ID: "optgrp-acyears-01", Key: "academic_years", Label: "Academic Years", Scope: "system", Version: 1},
+		{ID: "optgrp-semesters01", Key: "semesters", Label: "Semesters", Scope: "system", Version: 1},
+		{ID: "optgrp-ttitles-01", Key: "teacher_titles", Label: "Teacher Titles", Scope: "system", Version: 1},
+	}
+}
+
+func seedOptionItemDefinitions() []optionItemSeedDefinition {
+	return []optionItemSeedDefinition{
+		{ID: "grade-2024", GroupKey: "grades", Value: "2024", Label: "2024", SortOrder: 1, Enabled: true},
+		{ID: "grade-2025", GroupKey: "grades", Value: "2025", Label: "2025", SortOrder: 2, Enabled: true},
+		{ID: "grade-2026", GroupKey: "grades", Value: "2026", Label: "2026", SortOrder: 3, Enabled: true},
+		{ID: "acyear-2024-2025", GroupKey: "academic_years", Value: "2024-2025", Label: "2024-2025", SortOrder: 1, Enabled: true},
+		{ID: "acyear-2025-2026", GroupKey: "academic_years", Value: "2025-2026", Label: "2025-2026", SortOrder: 2, Enabled: true},
+		{ID: "acyear-2026-2027", GroupKey: "academic_years", Value: "2026-2027", Label: "2026-2027", SortOrder: 3, Enabled: true},
+		{ID: "semester-spring", GroupKey: "semesters", Value: "spring", Label: "Spring", SortOrder: 1, Enabled: true},
+		{ID: "semester-autumn", GroupKey: "semesters", Value: "autumn", Label: "Autumn", SortOrder: 2, Enabled: true},
+		{ID: "ttitle-assistant", GroupKey: "teacher_titles", Value: "assistant", Label: "Assistant", SortOrder: 1, Enabled: true},
+		{ID: "ttitle-lecturer", GroupKey: "teacher_titles", Value: "lecturer", Label: "Lecturer", SortOrder: 2, Enabled: true},
+		{ID: "ttitle-assoc-prof", GroupKey: "teacher_titles", Value: "associate_professor", Label: "Associate Professor", SortOrder: 3, Enabled: true},
+		{ID: "ttitle-professor", GroupKey: "teacher_titles", Value: "professor", Label: "Professor", SortOrder: 4, Enabled: true},
+	}
+}
+
+func loadOptionGroupIDs(tx *gorm.DB) (map[string]string, error) {
+	type optionGroupLookupRow struct {
+		ID  string
+		Key string
+	}
+
+	keys := make([]string, 0, len(seedOptionGroupDefinitions()))
+	for _, item := range seedOptionGroupDefinitions() {
+		keys = append(keys, item.Key)
+	}
+
+	rows := make([]optionGroupLookupRow, 0, len(keys))
+	if err := tx.Table("option_groups").
+		Select("id", "key").
+		Where("deleted_at is null and key in ?", keys).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(rows))
+	for _, row := range rows {
+		result[row.Key] = row.ID
+	}
+
+	for _, key := range keys {
+		if _, ok := result[key]; !ok {
+			return nil, fmt.Errorf("missing option group id for key %s", key)
+		}
+	}
+
+	return result, nil
 }

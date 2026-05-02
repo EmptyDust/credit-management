@@ -109,8 +109,8 @@ func NewMemoryStore() (*MemoryStore, error) {
 
 	return &MemoryStore{
 		users: map[string]*usersdomain.User{
-			"01JSTUDENT00000000000000000": {
-				ID:                  "01JSTUDENT00000000000000000",
+			"01JSTUDENT0000000000000000": {
+				ID:                  "01JSTUDENT0000000000000000",
 				Username:            "student01",
 				PasswordHash:        passwordHash,
 				Email:               "student01@example.com",
@@ -123,8 +123,8 @@ func NewMemoryStore() (*MemoryStore, error) {
 				Grade:               "2024",
 				RefreshTokenVersion: 1,
 			},
-			"01JTEACHER00000000000000000": {
-				ID:                  "01JTEACHER00000000000000000",
+			"01JTEACHER0000000000000000": {
+				ID:                  "01JTEACHER0000000000000000",
 				Username:            "teacher01",
 				PasswordHash:        passwordHash,
 				Email:               "teacher01@example.com",
@@ -137,8 +137,8 @@ func NewMemoryStore() (*MemoryStore, error) {
 				Title:               "lecturer",
 				RefreshTokenVersion: 1,
 			},
-			"01JADMIN0000000000000000000": {
-				ID:                  "01JADMIN0000000000000000000",
+			"01JADMIN000000000000000000": {
+				ID:                  "01JADMIN000000000000000000",
 				Username:            "admin01",
 				PasswordHash:        passwordHash,
 				Email:               "admin01@example.com",

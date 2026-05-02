@@ -55,6 +55,7 @@ make logs-refactor
 后端：
 
 ```bash
+docker compose up -d postgres redis
 make dev-backend
 ```
 
