@@ -8,6 +8,12 @@
 
 当前 `v2` 分支只保留重构后的新系统实现，不再包含旧微服务运行入口。
 
+当前默认运行时基于持久化依赖：
+
+- `postgres`: 持久化业务数据
+- `redis`: 缓存、会话与运行时辅助状态
+- `backend`: 默认以 Postgres + Redis 作为运行时后端，不再以内存存储作为本地默认形态
+
 ## Branch Model
 
 - `v2`: 当前默认分支，也是新系统唯一开发主线
@@ -81,13 +87,39 @@ npm exec --yes pnpm -- dev
 make test-refactor
 ```
 
+持久化运行时验证：
+
+```bash
+make migrate-backend
+make seed-backend
+make test-integration
+```
+
+`make test-integration` 会在本地默认端点不可用时拉起 `postgres` 和 `redis`，然后以本地 compose 默认值运行：
+
+- `TEST_DATABASE_DSN=postgres://postgres:password@localhost:5433/credit_management?sslmode=disable`
+- `TEST_DATABASE_SCHEMA=integration_runtime`
+- `TEST_REDIS_ADDR=localhost:6379`
+- `TEST_REDIS_DB=15`
+
+这个目标会重建 `TEST_DATABASE_SCHEMA` 对应的 schema，并清空 `TEST_REDIS_DB` 对应的 Redis DB。它只适合一次性验证环境，不应指向生产、共享开发库，或你正在手工使用的 Redis DB。
+
+如需改连其他测试实例，可在执行前覆盖这些环境变量，但仍要保证目标库和目标 Redis DB 是可销毁的测试隔离环境。
+
 单独运行：
 
 ```bash
 make test-backend
 make test-e2e
+make test-integration
 make test-frontend
 ```
+
+验证预期：
+
+- `make test-refactor` 仍是快速基线检查，覆盖后端单测、后端 e2e 与前端构建
+- 持久化基础是否真实接入 Postgres + Redis，以及应用重建后的状态是否可继续读取，需要看 `make test-integration`
+- 运行时冒烟检查仍应包含 `http://localhost:3000`、`http://localhost:8082/healthz` 与 `http://localhost:8082/api/v1/healthz`
 
 ## Current Implementation Notes
 
