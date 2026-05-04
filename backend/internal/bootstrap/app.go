@@ -322,24 +322,43 @@ func (memoryOptionRepo) ListOptionItems(_ context.Context, groupKey string) ([]o
 func (memoryCategorySchemaRepo) ListCategories(context.Context) ([]activityrepo.CategorySummary, error) {
 	return []activityrepo.CategorySummary{
 		{Key: "general", Label: "General", SortOrder: 1},
+		{Key: "innovation", Label: "Innovation", SortOrder: 2},
 	}, nil
 }
 
 func (memoryCategorySchemaRepo) GetCategorySchema(_ context.Context, key string) (*activityrepo.CategorySchemaEnvelope, error) {
-	if key != "general" {
+	switch key {
+	case "general":
+		return &activityrepo.CategorySchemaEnvelope{
+			Category: activityrepo.CategoryDescriptor{
+				Key:   "general",
+				Label: "General",
+			},
+			Schema: activityrepo.CategorySchema{
+				Version: 1,
+				Fields:  []activityrepo.SchemaField{},
+			},
+		}, nil
+	case "innovation":
+		return &activityrepo.CategorySchemaEnvelope{
+			Category: activityrepo.CategoryDescriptor{
+				Key:   "innovation",
+				Label: "Innovation",
+			},
+			Schema: activityrepo.CategorySchema{
+				Version: 1,
+				Fields: []activityrepo.SchemaField{
+					{
+						Key:   "location",
+						Label: "Location",
+						Type:  "text",
+					},
+				},
+			},
+		}, nil
+	default:
 		return nil, activityrepo.ErrCategorySchemaNotFound
 	}
-
-	return &activityrepo.CategorySchemaEnvelope{
-		Category: activityrepo.CategoryDescriptor{
-			Key:   "general",
-			Label: "General",
-		},
-		Schema: activityrepo.CategorySchema{
-			Version: 1,
-			Fields:  []activityrepo.SchemaField{},
-		},
-	}, nil
 }
 
 func (a *App) Run() error {
