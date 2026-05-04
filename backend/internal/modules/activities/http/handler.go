@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -9,6 +10,7 @@ import (
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	activityservice "credit-management/backend/internal/modules/activities/service"
+	"credit-management/backend/internal/modules/dashboard"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,6 +18,16 @@ import (
 type Handler struct {
 	service    *activityservice.Service
 	schemaRepo activityrepo.CategorySchemaReader
+	stats      activityStatsService
+	exporter   activityExportService
+}
+
+type activityStatsService interface {
+	Stats(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter) (dashboard.ActivityStats, error)
+}
+
+type activityExportService interface {
+	Export(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter) ([]byte, error)
 }
 
 type activityResponse struct {
@@ -45,6 +57,16 @@ func NewHandler(service *activityservice.Service, schemaRepo activityrepo.Catego
 	}
 
 	return &Handler{service: service, schemaRepo: schemaRepo}
+}
+
+func (h *Handler) UseStatsService(service activityStatsService) *Handler {
+	h.stats = service
+	return h
+}
+
+func (h *Handler) UseExportService(service activityExportService) *Handler {
+	h.exporter = service
+	return h
 }
 
 func (h *Handler) ListCategories(c *gin.Context) {
@@ -82,14 +104,7 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.List(c.Request.Context(), claims.UserID, claims.UserType, activityrepo.ListFilter{
-		Keyword:      c.Query("keyword"),
-		Status:       c.Query("status"),
-		Category:     c.Query("category"),
-		AcademicYear: c.Query("academic_year"),
-		Semester:     c.Query("semester"),
-		OwnerID:      c.Query("owner_id"),
-	})
+	items, err := h.service.List(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "list activities failed", nil)
 		return
@@ -102,6 +117,48 @@ func (h *Handler) List(c *gin.Context) {
 		"total":       len(items),
 		"total_pages": 1,
 	})
+}
+
+func (h *Handler) Stats(c *gin.Context) {
+	claims, ok := middleware.ClaimsFromContext(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "AUTH_TOKEN_INVALID", "access token is invalid", nil)
+		return
+	}
+	if h.stats == nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "activity stats service unavailable", nil)
+		return
+	}
+
+	stats, err := h.stats.Stats(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load activity stats failed", nil)
+		return
+	}
+
+	response.OK(c, stats)
+}
+
+func (h *Handler) Export(c *gin.Context) {
+	claims, ok := middleware.ClaimsFromContext(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "AUTH_TOKEN_INVALID", "access token is invalid", nil)
+		return
+	}
+	if h.exporter == nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "activity export service unavailable", nil)
+		return
+	}
+
+	content, err := h.exporter.Export(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "export activities failed", nil)
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="activities.csv"`)
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -277,6 +334,17 @@ func mapActivities(items []activitydomain.Activity) []activityResponse {
 		mapped = append(mapped, mapActivity(item))
 	}
 	return mapped
+}
+
+func queryFilter(c *gin.Context) activityrepo.ListFilter {
+	return activityrepo.ListFilter{
+		Keyword:      c.Query("keyword"),
+		Status:       c.Query("status"),
+		Category:     c.Query("category"),
+		AcademicYear: c.Query("academic_year"),
+		Semester:     c.Query("semester"),
+		OwnerID:      c.Query("owner_id"),
+	}
 }
 
 func mapActivity(activity activitydomain.Activity) activityResponse {

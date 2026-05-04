@@ -213,6 +213,8 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	appSvc.SetActivityRepository(activityRepo)
 	appSvc.SetFileService(fileSvc)
 	appSvc.SetParticipantService(participantSvc)
+	activityStatsSvc := dashboard.NewActivityStatsService(activityRepo, activityCategoryRepo, participantSvc)
+	activityExportSvc := exportservice.NewActivityExportService(activityRepo)
 	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc))
 	auditWriter := deps.auditWriter
 	if auditWriter == nil {
@@ -228,7 +230,9 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 		appSvc.Count,
 	)
 	authHandler := authhttp.NewHandler(deps.authSvc)
-	activityHandler := activityhttp.NewHandler(activitySvc, activityCategoryRepo)
+	activityHandler := activityhttp.NewHandler(activitySvc, activityCategoryRepo).
+		UseStatsService(activityStatsSvc).
+		UseExportService(activityExportSvc)
 	appHandler := apphttp.NewHandler(appSvc)
 	meHandler := usershttp.NewMeHandler(deps.profileSvc)
 	adminHandler := usershttp.NewAdminHandler(deps.adminSvc, deps.exportSvc)

@@ -13,6 +13,7 @@ import (
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	activityservice "credit-management/backend/internal/modules/activities/service"
+	"credit-management/backend/internal/modules/dashboard"
 	"credit-management/backend/internal/platform/authn"
 
 	"github.com/gin-gonic/gin"
@@ -467,6 +468,96 @@ func TestUpdateReturnsSchemaInvalidForUnsupportedFieldType(t *testing.T) {
 	}
 }
 
+func TestStatsReturnsActivityStatsPayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewHandler(nil, fakeCategorySchemaRepo{}).
+		UseStatsService(fakeActivityStatsService{
+			stats: dashboard.ActivityStats{
+				StatusCounts: map[string]int{
+					activitydomain.StatusDraft:    2,
+					activitydomain.StatusApproved: 3,
+				},
+				CategoryCounts: []dashboard.KeyLabelCount{
+					{Key: "innovation", Label: "Innovation", Count: 3},
+				},
+				AcademicYearCounts: []dashboard.ValueCount{
+					{Value: "2025-2026", Count: 3},
+				},
+				SemesterCounts: []dashboard.ValueCount{
+					{Value: "autumn", Count: 3},
+				},
+				MineCount:         1,
+				ParticipatedCount: 2,
+			},
+		})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "teacher-01",
+		Username: "teacher01",
+		UserType: "teacher",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/activities/stats?category=innovation", nil)
+
+	handler.Stats(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Code string                  `json:"code"`
+		Data dashboard.ActivityStats `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v\nbody=%s", err, recorder.Body.String())
+	}
+	if payload.Code != "OK" {
+		t.Fatalf("unexpected code: %s", payload.Code)
+	}
+	if payload.Data.MineCount != 1 || payload.Data.ParticipatedCount != 2 {
+		t.Fatalf("unexpected stats payload: %#v", payload.Data)
+	}
+	if payload.Data.StatusCounts[activitydomain.StatusApproved] != 3 {
+		t.Fatalf("unexpected status counts: %#v", payload.Data.StatusCounts)
+	}
+}
+
+func TestExportReturnsCSVAttachment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewHandler(nil, fakeCategorySchemaRepo{}).
+		UseExportService(fakeActivityExportService{
+			content: []byte("title,category\nExpo,innovation\n"),
+		})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "teacher-01",
+		Username: "teacher01",
+		UserType: "teacher",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/activities/export?category=innovation", nil)
+
+	handler.Export(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != "text/csv; charset=utf-8" {
+		t.Fatalf("unexpected content type: %s", got)
+	}
+	if got := recorder.Header().Get("Content-Disposition"); got != `attachment; filename="activities.csv"` {
+		t.Fatalf("unexpected content disposition: %s", got)
+	}
+	if recorder.Body.String() != "title,category\nExpo,innovation\n" {
+		t.Fatalf("unexpected csv body: %q", recorder.Body.String())
+	}
+}
+
 type fakeCategorySchemaRepo struct {
 	categories []activityrepo.CategorySummary
 	schemas    map[string]*activityrepo.CategorySchemaEnvelope
@@ -491,6 +582,24 @@ func (f fakeCategorySchemaRepo) GetCategorySchema(_ context.Context, key string)
 type fakeActivityRepository struct {
 	activity *activitydomain.Activity
 	saveErr  error
+}
+
+type fakeActivityStatsService struct {
+	stats dashboard.ActivityStats
+	err   error
+}
+
+func (f fakeActivityStatsService) Stats(context.Context, string, string, activityrepo.ListFilter) (dashboard.ActivityStats, error) {
+	return f.stats, f.err
+}
+
+type fakeActivityExportService struct {
+	content []byte
+	err     error
+}
+
+func (f fakeActivityExportService) Export(context.Context, string, string, activityrepo.ListFilter) ([]byte, error) {
+	return f.content, f.err
 }
 
 func (f fakeActivityRepository) List(context.Context, activityrepo.ListFilter) ([]activitydomain.Activity, error) {

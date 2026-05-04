@@ -92,6 +92,8 @@ func New(deps Dependencies) *gin.Engine {
 		protected.GET("/activity-categories", deps.ActivityHandler.ListCategories)
 		protected.GET("/activity-categories/:category/schema", deps.ActivityHandler.GetCategorySchema)
 		protected.GET("/activities", deps.ActivityHandler.List)
+		protected.GET("/activities/stats", deps.ActivityHandler.Stats)
+		protected.GET("/activities/export", deps.ActivityHandler.Export)
 		protected.POST("/activities", deps.ActivityHandler.Create)
 		protected.GET("/activities/:id", deps.ActivityHandler.Get)
 		protected.PATCH("/activities/:id", deps.ActivityHandler.Update)
