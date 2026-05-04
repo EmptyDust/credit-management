@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -159,6 +160,74 @@ func TestActivityImportConfirmIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestActivityImportConfirmRollsBackPartialCreatesBeforeRetry(t *testing.T) {
+	activityRepo := &flakyActivityImportRepo{
+		MemoryRepository: activityservice.NewMemoryRepository(),
+		failAtCall:       2,
+	}
+	schemaRepo := activityImportSchemaRepo{
+		schemas: map[string]*activityrepo.CategorySchemaEnvelope{
+			"innovation": activityImportInnovationSchema(t),
+		},
+	}
+
+	svc := NewActivityImportService(activityRepo, schemaRepo)
+	precheck, err := svc.Precheck(context.Background(), "admin-01", "activities.csv", "hash-1", []ActivityImportRow{
+		{
+			Title:        "Innovation Week 1",
+			Category:     "innovation",
+			AcademicYear: "2025-2026",
+			Semester:     "spring",
+			Details: map[string]any{
+				"activity_mode": "offline",
+				"location":      "Room 101",
+			},
+		},
+		{
+			Title:        "Innovation Week 2",
+			Category:     "innovation",
+			AcademicYear: "2025-2026",
+			Semester:     "spring",
+			Details: map[string]any{
+				"activity_mode": "offline",
+				"location":      "Room 102",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("precheck: %v", err)
+	}
+
+	if _, err := svc.Confirm(context.Background(), "admin-01", precheck.JobID, precheck.FileHash); !errors.Is(err, errFlakyActivityImportSave) {
+		t.Fatalf("expected flaky save error, got %v", err)
+	}
+
+	items, err := activityRepo.List(context.Background(), activityrepo.ListFilter{})
+	if err != nil {
+		t.Fatalf("list after rollback: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected rollback to leave no persisted activities, got %d", len(items))
+	}
+
+	activityRepo.failAtCall = 0
+	second, err := svc.Confirm(context.Background(), "admin-01", precheck.JobID, precheck.FileHash)
+	if err != nil {
+		t.Fatalf("second confirm: %v", err)
+	}
+	if len(second.CreatedActivityIDs) != 2 {
+		t.Fatalf("expected 2 created activity ids after retry, got %+v", second.CreatedActivityIDs)
+	}
+
+	items, err = activityRepo.List(context.Background(), activityrepo.ListFilter{})
+	if err != nil {
+		t.Fatalf("list after retry: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 persisted activities after retry, got %d", len(items))
+	}
+}
+
 func assertActivityImportError(t *testing.T, errs []ValidationError, field string, code string) {
 	t.Helper()
 
@@ -223,6 +292,14 @@ type activityImportSchemaRepo struct {
 	schemas map[string]*activityrepo.CategorySchemaEnvelope
 }
 
+var errFlakyActivityImportSave = errors.New("flaky activity import save")
+
+type flakyActivityImportRepo struct {
+	*activityservice.MemoryRepository
+	saveCalls  int
+	failAtCall int
+}
+
 func (r activityImportSchemaRepo) ListCategories(context.Context) ([]activityrepo.CategorySummary, error) {
 	return nil, nil
 }
@@ -239,4 +316,12 @@ func (r activityImportSchemaRepo) GetCategorySchema(_ context.Context, key strin
 		Fields:  append([]activityrepo.SchemaField(nil), schema.Schema.Fields...),
 	}
 	return &clone, nil
+}
+
+func (r *flakyActivityImportRepo) Save(ctx context.Context, activity *activitydomain.Activity) error {
+	r.saveCalls++
+	if r.failAtCall > 0 && r.saveCalls == r.failAtCall {
+		return errFlakyActivityImportSave
+	}
+	return r.MemoryRepository.Save(ctx, activity)
 }

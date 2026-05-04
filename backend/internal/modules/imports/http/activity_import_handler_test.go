@@ -151,6 +151,46 @@ func TestActivityConfirmReturnsConflictForInvalidPrecheck(t *testing.T) {
 	}
 }
 
+func TestActivityConfirmRejectsMissingJobFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	service := importservice.NewActivityImportService(
+		activityservice.NewMemoryRepository(),
+		handlerActivitySchemaRepo{
+			schemas: map[string]*activityrepo.CategorySchemaEnvelope{
+				"innovation": handlerInnovationSchema(t),
+			},
+		},
+	)
+	handler := NewActivityImportHandler(service)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "admin-01",
+		Username: "admin01",
+		UserType: "admin",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/imports/activities/confirm", strings.NewReader(`{}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Confirm(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v\nbody=%s", err, recorder.Body.String())
+	}
+	if payload.Code != "VALIDATION_FAILED" {
+		t.Fatalf("unexpected response code: %s", payload.Code)
+	}
+}
+
 func hasHandlerActivityError(errs []struct {
 	Field string `json:"field"`
 	Code  string `json:"code"`

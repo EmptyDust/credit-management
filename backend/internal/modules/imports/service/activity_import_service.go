@@ -59,10 +59,11 @@ type activityImportJob struct {
 }
 
 type ActivityImportService struct {
+	activities activityrepo.Repository
 	schemas activityrepo.CategorySchemaReader
-	creator *activityservice.Service
-	mu      sync.Mutex
-	jobs    map[string]*activityImportJob
+	creator    *activityservice.Service
+	mu         sync.Mutex
+	jobs       map[string]*activityImportJob
 }
 
 func NewActivityImportService(activities activityrepo.Repository, schemas activityrepo.CategorySchemaReader) *ActivityImportService {
@@ -70,9 +71,10 @@ func NewActivityImportService(activities activityrepo.Repository, schemas activi
 	creator.UseCategorySchemaReader(schemas)
 
 	return &ActivityImportService{
-		schemas: schemas,
-		creator: creator,
-		jobs:    make(map[string]*activityImportJob),
+		activities: activities,
+		schemas:    schemas,
+		creator:    creator,
+		jobs:       make(map[string]*activityImportJob),
 	}
 }
 
@@ -148,7 +150,7 @@ func (s *ActivityImportService) Confirm(ctx context.Context, actorID string, job
 		return ActivityConfirmResult{}, ErrImportHasInvalidRows
 	}
 
-	createdIDs := make([]string, 0, len(job.Rows))
+	inputs := make([]activityservice.Input, 0, len(job.Rows))
 	for _, row := range job.Rows {
 		input, errs, err := s.validateRow(ctx, row)
 		if err != nil {
@@ -157,9 +159,16 @@ func (s *ActivityImportService) Confirm(ctx context.Context, actorID string, job
 		if len(errs) > 0 {
 			return ActivityConfirmResult{}, ErrImportHasInvalidRows
 		}
+		inputs = append(inputs, input)
+	}
 
+	createdIDs := make([]string, 0, len(inputs))
+	for _, input := range inputs {
 		activity, err := s.creator.Create(ctx, actorID, "", input)
 		if err != nil {
+			if rollbackErr := s.rollbackCreatedActivities(ctx, createdIDs); rollbackErr != nil {
+				return ActivityConfirmResult{}, rollbackErr
+			}
 			if errors.Is(err, activityrepo.ErrCategorySchemaNotFound) ||
 				errors.Is(err, activityservice.ErrActivitySchemaInvalid) ||
 				errors.Is(err, activityservice.ErrActivityDetailsInvalid) {
@@ -178,6 +187,15 @@ func (s *ActivityImportService) Confirm(ctx context.Context, actorID string, job
 	}
 	job.ConfirmResult = result
 	return result, nil
+}
+
+func (s *ActivityImportService) rollbackCreatedActivities(ctx context.Context, activityIDs []string) error {
+	for i := len(activityIDs) - 1; i >= 0; i-- {
+		if err := s.activities.Delete(ctx, activityIDs[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *ActivityImportService) validateRow(ctx context.Context, row ActivityImportRow) (activityservice.Input, []ValidationError, error) {

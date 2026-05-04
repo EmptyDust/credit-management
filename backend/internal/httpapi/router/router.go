@@ -150,14 +150,15 @@ func New(deps Dependencies) *gin.Engine {
 	}
 
 	if deps.ImportHandler != nil {
+		protected.POST("/imports/activities/precheck", deps.ImportHandler.ActivityPrecheck)
+		protected.POST("/imports/activities/confirm", deps.ImportHandler.ActivityConfirm)
+
 		adminOnly.GET("/imports/templates/students", deps.ImportHandler.StudentTemplate)
 		adminOnly.GET("/imports/templates/teachers", deps.ImportHandler.TeacherTemplate)
 		adminOnly.POST("/imports/students/precheck", deps.ImportHandler.PrecheckStudents)
 		adminOnly.POST("/imports/students/confirm", deps.ImportHandler.ConfirmStudents)
 		adminOnly.POST("/imports/teachers/precheck", deps.ImportHandler.PrecheckTeachers)
 		adminOnly.POST("/imports/teachers/confirm", deps.ImportHandler.ConfirmTeachers)
-		adminOnly.POST("/imports/activities/precheck", deps.ImportHandler.ActivityPrecheck)
-		adminOnly.POST("/imports/activities/confirm", deps.ImportHandler.ActivityConfirm)
 	}
 
 	if deps.DevtoolsHandler != nil {

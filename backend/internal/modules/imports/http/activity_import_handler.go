@@ -103,6 +103,10 @@ func (h *ActivityImportHandler) Confirm(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_FAILED", "invalid confirm payload", nil)
 		return
 	}
+	if strings.TrimSpace(payload.JobID) == "" || strings.TrimSpace(payload.FileHash) == "" {
+		response.Error(c, http.StatusBadRequest, "VALIDATION_FAILED", "invalid confirm payload", nil)
+		return
+	}
 
 	result, err := h.service.Confirm(c.Request.Context(), actorID, payload.JobID, payload.FileHash)
 	if err != nil {
