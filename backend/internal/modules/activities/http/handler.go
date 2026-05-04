@@ -40,6 +40,10 @@ type transferOwnerRequest struct {
 }
 
 func NewHandler(service *activityservice.Service, schemaRepo activityrepo.CategorySchemaReader) *Handler {
+	if service != nil {
+		service.UseCategorySchemaReader(schemaRepo)
+	}
+
 	return &Handler{service: service, schemaRepo: schemaRepo}
 }
 
@@ -298,6 +302,10 @@ func handleActivityError(c *gin.Context, err error, fallback string) {
 	switch {
 	case errors.Is(err, activityrepo.ErrCategorySchemaNotFound):
 		response.Error(c, http.StatusNotFound, "ACTIVITY_CATEGORY_NOT_FOUND", "activity category not found", nil)
+	case errors.Is(err, activityservice.ErrActivityDetailsInvalid):
+		response.Error(c, http.StatusBadRequest, "ACTIVITY_DETAILS_INVALID", "activity details are invalid", nil)
+	case errors.Is(err, activityservice.ErrActivitySchemaInvalid):
+		response.Error(c, http.StatusInternalServerError, "ACTIVITY_SCHEMA_INVALID", "activity schema is invalid", nil)
 	case errors.Is(err, activitydomain.ErrActivityNotFound):
 		response.Error(c, http.StatusNotFound, "RESOURCE_NOT_FOUND", "activity not found", nil)
 	case errors.Is(err, activitydomain.ErrActivityForbidden):

@@ -205,6 +205,125 @@ func TestCreateReturnsCategoryNotFoundWhenWriteCategoryIsUnknown(t *testing.T) {
 	}
 }
 
+func TestCreateReturnsDetailsInvalidForSchemaValidationFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaRepo := fakeCategorySchemaRepo{
+		schemas: map[string]*activityrepo.CategorySchemaEnvelope{
+			"innovation": {
+				Category: activityrepo.CategoryDescriptor{Key: "innovation", Label: "Innovation"},
+				Schema: activityrepo.CategorySchema{
+					Fields: []activityrepo.SchemaField{
+						{
+							Key:      "location",
+							Type:     "text",
+							Required: true,
+						},
+					},
+				},
+			},
+		},
+	}
+	service := activityservice.New(fakeActivityRepository{}, nil)
+	service.UseCategorySchemaReader(schemaRepo)
+	handler := NewHandler(service, schemaRepo)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "student-01",
+		Username: "student01",
+		UserType: "student",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/activities", strings.NewReader(`{
+		"title":"Test Activity",
+		"category":"innovation",
+		"academic_year":"2024-2025",
+		"semester":"spring",
+		"details":{}
+	}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Create(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v\nbody=%s", err, recorder.Body.String())
+	}
+	if payload.Code != "ACTIVITY_DETAILS_INVALID" {
+		t.Fatalf("unexpected code: %s", payload.Code)
+	}
+	if payload.Message != "activity details are invalid" {
+		t.Fatalf("unexpected message: %s", payload.Message)
+	}
+}
+
+func TestCreateReturnsSchemaInvalidForUnsupportedFieldType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	schemaRepo := fakeCategorySchemaRepo{
+		schemas: map[string]*activityrepo.CategorySchemaEnvelope{
+			"innovation": {
+				Category: activityrepo.CategoryDescriptor{Key: "innovation", Label: "Innovation"},
+				Schema: activityrepo.CategorySchema{
+					Fields: []activityrepo.SchemaField{
+						{
+							Key:  "attachment",
+							Type: "file",
+						},
+					},
+				},
+			},
+		},
+	}
+	service := activityservice.New(fakeActivityRepository{}, nil)
+	service.UseCategorySchemaReader(schemaRepo)
+	handler := NewHandler(service, schemaRepo)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "student-01",
+		Username: "student01",
+		UserType: "student",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/activities", strings.NewReader(`{
+		"title":"Test Activity",
+		"category":"innovation",
+		"academic_year":"2024-2025",
+		"semester":"spring",
+		"details":{"attachment":"proof.pdf"}
+	}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Create(ctx)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v\nbody=%s", err, recorder.Body.String())
+	}
+	if payload.Code != "ACTIVITY_SCHEMA_INVALID" {
+		t.Fatalf("unexpected code: %s", payload.Code)
+	}
+	if payload.Message != "activity schema is invalid" {
+		t.Fatalf("unexpected message: %s", payload.Message)
+	}
+}
+
 type fakeCategorySchemaRepo struct {
 	categories []activityrepo.CategorySummary
 	schemas    map[string]*activityrepo.CategorySchemaEnvelope

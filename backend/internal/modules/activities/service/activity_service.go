@@ -17,8 +17,9 @@ type ApplicationHooks interface {
 }
 
 type Service struct {
-	repo  activityrepo.Repository
-	hooks ApplicationHooks
+	repo           activityrepo.Repository
+	hooks          ApplicationHooks
+	schemaResolver activityCategorySchemaResolver
 }
 
 type Input struct {
@@ -49,10 +50,16 @@ func New(repo activityrepo.Repository, hooks ApplicationHooks) *Service {
 		hooks = noopHooks{}
 	}
 
-	return &Service{
+	service := &Service{
 		repo:  repo,
 		hooks: hooks,
 	}
+
+	if resolver, ok := repo.(activityCategorySchemaResolver); ok {
+		service.schemaResolver = resolver
+	}
+
+	return service
 }
 
 func NewMemoryRepository() *MemoryRepository {
@@ -90,6 +97,11 @@ func (s *Service) Get(ctx context.Context, actorID string, actorRole string, act
 }
 
 func (s *Service) Create(ctx context.Context, actorID string, _ string, input Input) (*activitydomain.Activity, error) {
+	normalizedDetails, err := s.validateAndNormalizeDetails(ctx, "", input)
+	if err != nil {
+		return nil, err
+	}
+
 	activity := &activitydomain.Activity{
 		ID:           idgen.New(),
 		Title:        input.Title,
@@ -101,7 +113,7 @@ func (s *Service) Create(ctx context.Context, actorID string, _ string, input In
 		EndDate:      input.EndDate,
 		Status:       activitydomain.StatusDraft,
 		OwnerID:      actorID,
-		Details:      cloneDetails(input.Details),
+		Details:      normalizedDetails,
 	}
 
 	if err := s.repo.Save(ctx, activity); err != nil {
@@ -123,6 +135,11 @@ func (s *Service) Update(ctx context.Context, actorID string, actorRole string, 
 		return nil, err
 	}
 
+	normalizedDetails, err := s.validateAndNormalizeDetails(ctx, activityID, input)
+	if err != nil {
+		return nil, err
+	}
+
 	activity.Title = input.Title
 	activity.Description = input.Description
 	activity.Category = input.Category
@@ -130,7 +147,7 @@ func (s *Service) Update(ctx context.Context, actorID string, actorRole string, 
 	activity.Semester = input.Semester
 	activity.StartDate = input.StartDate
 	activity.EndDate = input.EndDate
-	activity.Details = cloneDetails(input.Details)
+	activity.Details = normalizedDetails
 
 	if err := s.repo.Save(ctx, activity); err != nil {
 		return nil, err
