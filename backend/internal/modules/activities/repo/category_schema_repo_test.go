@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	repo "credit-management/backend/internal/modules/activities/repo"
@@ -166,6 +167,91 @@ func TestGormRepositorySaveReturnsCategoryNotFoundForUnknownCategory(t *testing.
 	}
 }
 
+func TestGormRepositorySavePreservesExistingDisabledCategoryBinding(t *testing.T) {
+	activityRepo, tx := newTestActivityRepo(t)
+	defer func() { _ = tx.Rollback().Error }()
+
+	const (
+		legacyCategoryID  = "actcat-legacy-0000000000001"
+		legacyCategoryKey = "legacy"
+		disabledSwitchID  = "actcat-switch-0000000000002"
+		disabledSwitchKey = "disabled-switch"
+		activityID        = "act-existing-disabled-000001"
+	)
+
+	insertCategoryTemplate(t, tx, categoryTemplateSeed{
+		ID:        legacyCategoryID,
+		Key:       legacyCategoryKey,
+		Label:     "Legacy",
+		SortOrder: 30,
+		Enabled:   true,
+	})
+	insertCategoryTemplate(t, tx, categoryTemplateSeed{
+		ID:        disabledSwitchID,
+		Key:       disabledSwitchKey,
+		Label:     "Disabled Switch",
+		SortOrder: 40,
+		Enabled:   false,
+	})
+
+	if err := activityRepo.Save(context.Background(), &activitydomain.Activity{
+		ID:           activityID,
+		Title:        "Existing Activity",
+		Category:     legacyCategoryKey,
+		AcademicYear: "2024-2025",
+		Semester:     "spring",
+		Status:       activitydomain.StatusDraft,
+		OwnerID:      "01JADMIN000000000000000000",
+		Details:      map[string]any{"source": "initial"},
+	}); err != nil {
+		t.Fatalf("save initial activity: %v", err)
+	}
+
+	if err := tx.Model(&categoryTemplateSeed{}).Where("id = ?", legacyCategoryID).Update("enabled", false).Error; err != nil {
+		t.Fatalf("disable legacy category: %v", err)
+	}
+
+	if err := activityRepo.Save(context.Background(), &activitydomain.Activity{
+		ID:           activityID,
+		Title:        "Updated Activity",
+		Category:     legacyCategoryKey,
+		AcademicYear: "2024-2025",
+		Semester:     "spring",
+		Status:       activitydomain.StatusDraft,
+		OwnerID:      "01JADMIN000000000000000000",
+		Details:      map[string]any{"source": "updated"},
+	}); err != nil {
+		t.Fatalf("save with existing disabled binding: %v", err)
+	}
+
+	stored := lookupStoredActivity(t, tx, activityID)
+	if stored.CategoryID != legacyCategoryID {
+		t.Fatalf("expected category_id %s to be preserved, got %s", legacyCategoryID, stored.CategoryID)
+	}
+	if stored.Title != "Updated Activity" {
+		t.Fatalf("expected title update to persist, got %s", stored.Title)
+	}
+
+	err := activityRepo.Save(context.Background(), &activitydomain.Activity{
+		ID:           activityID,
+		Title:        "Updated Activity",
+		Category:     disabledSwitchKey,
+		AcademicYear: "2024-2025",
+		Semester:     "spring",
+		Status:       activitydomain.StatusDraft,
+		OwnerID:      "01JADMIN000000000000000000",
+		Details:      map[string]any{"source": "switch"},
+	})
+	if !errors.Is(err, repo.ErrCategorySchemaNotFound) {
+		t.Fatalf("expected ErrCategorySchemaNotFound when switching to disabled category, got %v", err)
+	}
+
+	stored = lookupStoredActivity(t, tx, activityID)
+	if stored.CategoryID != legacyCategoryID {
+		t.Fatalf("expected failed switch to keep category_id %s, got %s", legacyCategoryID, stored.CategoryID)
+	}
+}
+
 type categoryTemplateSeed struct {
 	ID        string `gorm:"column:id"`
 	Key       string `gorm:"column:key"`
@@ -242,6 +328,18 @@ func newTestActivityDB(t *testing.T) *gorm.DB {
 	return tx
 }
 
+type storedActivityRow struct {
+	ID         string    `gorm:"column:id"`
+	Title      string    `gorm:"column:title"`
+	CategoryID string    `gorm:"column:category_id"`
+	StartDate  time.Time `gorm:"column:start_date"`
+	EndDate    time.Time `gorm:"column:end_date"`
+}
+
+func (storedActivityRow) TableName() string {
+	return "activities"
+}
+
 func insertCategoryTemplate(t *testing.T, db *gorm.DB, row categoryTemplateSeed) {
 	t.Helper()
 
@@ -256,6 +354,16 @@ func insertFieldSchema(t *testing.T, db *gorm.DB, row fieldSchemaSeed) {
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatalf("insert field schema: %v", err)
 	}
+}
+
+func lookupStoredActivity(t *testing.T, db *gorm.DB, activityID string) storedActivityRow {
+	t.Helper()
+
+	var row storedActivityRow
+	if err := db.First(&row, "id = ?", activityID).Error; err != nil {
+		t.Fatalf("load stored activity: %v", err)
+	}
+	return row
 }
 
 func containsCategoryKey(items []repo.CategorySummary, key string) bool {

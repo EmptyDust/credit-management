@@ -47,6 +47,11 @@ type categoryRow struct {
 	Del   *string `gorm:"column:deleted_at"`
 }
 
+type activityCategoryBindingRow struct {
+	CategoryID  string `gorm:"column:category_id"`
+	CategoryKey string `gorm:"column:category_key"`
+}
+
 func (activityRow) TableName() string {
 	return "activities"
 }
@@ -107,7 +112,7 @@ func (r *GormRepository) Get(ctx context.Context, activityID string) (*activityd
 }
 
 func (r *GormRepository) Save(ctx context.Context, activity *activitydomain.Activity) error {
-	categoryID, err := r.resolveCategoryID(ctx, activity.Category)
+	categoryID, err := r.resolveCategoryID(ctx, activity.ID, activity.Category)
 	if err != nil {
 		return err
 	}
@@ -163,10 +168,17 @@ func (r *GormRepository) baseQuery(ctx context.Context) *gorm.DB {
 		Where("activities.deleted_at IS NULL")
 }
 
-func (r *GormRepository) resolveCategoryID(ctx context.Context, key string) (string, error) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		key = "general"
+func (r *GormRepository) resolveCategoryID(ctx context.Context, activityID string, key string) (string, error) {
+	key = normalizeCategoryKey(key)
+
+	if activityID != "" {
+		binding, found, err := r.findExistingCategoryBinding(ctx, activityID)
+		if err != nil {
+			return "", err
+		}
+		if found && binding.CategoryKey == key {
+			return binding.CategoryID, nil
+		}
 	}
 
 	var row categoryRow
@@ -179,6 +191,31 @@ func (r *GormRepository) resolveCategoryID(ctx context.Context, key string) (str
 	}
 
 	return "", ErrCategorySchemaNotFound
+}
+
+func (r *GormRepository) findExistingCategoryBinding(ctx context.Context, activityID string) (activityCategoryBindingRow, bool, error) {
+	var row activityCategoryBindingRow
+	err := r.db.WithContext(ctx).
+		Table("activities").
+		Select("activities.category_id", "activity_category_templates.key AS category_key").
+		Joins("JOIN activity_category_templates ON activity_category_templates.id = activities.category_id").
+		Where("activities.id = ? AND activities.deleted_at IS NULL AND activity_category_templates.deleted_at IS NULL", activityID).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return activityCategoryBindingRow{}, false, nil
+	}
+	if err != nil {
+		return activityCategoryBindingRow{}, false, err
+	}
+	return row, true, nil
+}
+
+func normalizeCategoryKey(key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "general"
+	}
+	return key
 }
 
 func (r activityRow) toDomain() activitydomain.Activity {
