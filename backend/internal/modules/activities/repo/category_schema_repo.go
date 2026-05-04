@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -90,8 +91,14 @@ type fieldSchemaRow struct {
 	FieldType       string          `gorm:"column:field_type"`
 	Required        bool            `gorm:"column:required"`
 	DefaultValue    json.RawMessage `gorm:"column:default_value"`
+	OptionsSource   *string         `gorm:"column:options_source"`
 	ValidationRules json.RawMessage `gorm:"column:validation_rules"`
 	DisplayOrder    int             `gorm:"column:display_order"`
+}
+
+type optionItemRow struct {
+	Value string `gorm:"column:value"`
+	Label string `gorm:"column:label"`
 }
 
 func (categorySummaryRow) TableName() string {
@@ -155,6 +162,10 @@ func (r *CategorySchemaRepo) GetCategorySchema(ctx context.Context, key string) 
 		if err != nil {
 			return nil, err
 		}
+		options, err := r.loadSchemaOptions(ctx, row.OptionsSource)
+		if err != nil {
+			return nil, err
+		}
 
 		fields = append(fields, SchemaField{
 			Key:          row.FieldKey,
@@ -162,8 +173,8 @@ func (r *CategorySchemaRepo) GetCategorySchema(ctx context.Context, key string) 
 			Type:         row.FieldType,
 			Required:     row.Required,
 			DefaultValue: cloneRawMessage(row.DefaultValue),
-			Placeholder:  "",
-			Options:      []SchemaOption{},
+			Placeholder:  placeholderForField(row),
+			Options:      options,
 			Rules:        rules,
 			DisplayOrder: row.DisplayOrder,
 		})
@@ -203,6 +214,45 @@ func decodeFieldRules(payload json.RawMessage) (FieldRules, error) {
 		rules.Validate = []ValidateRule{}
 	}
 	return rules, nil
+}
+
+func (r *CategorySchemaRepo) loadSchemaOptions(ctx context.Context, optionsSource *string) ([]SchemaOption, error) {
+	if optionsSource == nil {
+		return []SchemaOption{}, nil
+	}
+
+	groupKey := strings.TrimSpace(*optionsSource)
+	if groupKey == "" {
+		return []SchemaOption{}, nil
+	}
+
+	rows := make([]optionItemRow, 0)
+	err := r.db.WithContext(ctx).
+		Table("option_items").
+		Select("option_items.value", "option_items.label").
+		Joins("JOIN option_groups ON option_groups.id = option_items.group_id").
+		Where("option_groups.key = ? AND option_groups.scope = ? AND option_groups.deleted_at IS NULL AND option_items.deleted_at IS NULL AND option_items.enabled = ?", groupKey, "system", true).
+		Order("option_items.sort_order ASC, option_items.value ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]SchemaOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, SchemaOption{
+			Value: row.Value,
+			Label: row.Label,
+		})
+	}
+
+	return options, nil
+}
+
+func placeholderForField(fieldSchemaRow) string {
+	// The stored schema model has no placeholder column yet, so the supported
+	// backend behavior is to return an empty placeholder until persistence exists.
+	return ""
 }
 
 func cloneRawMessage(payload json.RawMessage) json.RawMessage {

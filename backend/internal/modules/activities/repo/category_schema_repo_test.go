@@ -52,8 +52,21 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 		}`),
 		DisplayOrder: 20,
 	})
+	optionSource := "teacher_titles"
 	insertFieldSchema(t, tx, fieldSchemaSeed{
 		ID:              "actfld-innov-000000000000002",
+		CategoryID:      innovationCategoryID,
+		FieldKey:        "mentor_title",
+		FieldLabel:      "Mentor Title",
+		FieldType:       "select",
+		Required:        true,
+		DefaultValue:    []byte(`"assistant"`),
+		OptionsSource:   &optionSource,
+		ValidationRules: []byte(`{}`),
+		DisplayOrder:    10,
+	})
+	insertFieldSchema(t, tx, fieldSchemaSeed{
+		ID:              "actfld-innov-000000000000003",
 		CategoryID:      innovationCategoryID,
 		FieldKey:        "location",
 		FieldLabel:      "Location",
@@ -61,7 +74,7 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 		Required:        true,
 		DefaultValue:    []byte(`""`),
 		ValidationRules: []byte(`{}`),
-		DisplayOrder:    10,
+		DisplayOrder:    15,
 	})
 
 	categories, err := categoryRepo.ListCategories(context.Background())
@@ -84,16 +97,33 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 	if schema.Category.Key != "innovation" || schema.Category.Label != "Innovation" {
 		t.Fatalf("unexpected category metadata: %#v", schema.Category)
 	}
-	if len(schema.Schema.Fields) != 2 {
-		t.Fatalf("expected 2 schema fields, got %d", len(schema.Schema.Fields))
+	if len(schema.Schema.Fields) != 3 {
+		t.Fatalf("expected 3 schema fields, got %d", len(schema.Schema.Fields))
 	}
-	if schema.Schema.Fields[0].Key != "location" || schema.Schema.Fields[1].Key != "outcome" {
+	if schema.Schema.Fields[0].Key != "mentor_title" || schema.Schema.Fields[1].Key != "location" || schema.Schema.Fields[2].Key != "outcome" {
 		t.Fatalf("expected fields sorted by display_order, got %#v", schema.Schema.Fields)
 	}
 
-	field := schema.Schema.Fields[1]
+	optionField := schema.Schema.Fields[0]
+	if optionField.Placeholder != "" {
+		t.Fatalf("expected empty placeholder because schema storage has no placeholder column, got %q", optionField.Placeholder)
+	}
+	if len(optionField.Options) != 4 {
+		t.Fatalf("expected teacher title options from options_source, got %#v", optionField.Options)
+	}
+	if optionField.Options[0].Value != "assistant" || optionField.Options[0].Label != "Assistant" {
+		t.Fatalf("unexpected first option: %#v", optionField.Options[0])
+	}
+	if optionField.Options[3].Value != "professor" || optionField.Options[3].Label != "Professor" {
+		t.Fatalf("unexpected last option: %#v", optionField.Options[3])
+	}
+
+	field := schema.Schema.Fields[2]
 	if got := string(field.DefaultValue); got != `"pending"` {
 		t.Fatalf("expected default value to be preserved, got %s", got)
+	}
+	if field.Placeholder != "" {
+		t.Fatalf("expected empty placeholder because schema storage has no placeholder column, got %q", field.Placeholder)
 	}
 	if len(field.Rules.VisibleWhen) != 1 || field.Rules.VisibleWhen[0].Field != "activity_mode" || string(field.Rules.VisibleWhen[0].Value) != `"offline"` {
 		t.Fatalf("expected visible_when to decode, got %#v", field.Rules.VisibleWhen)
