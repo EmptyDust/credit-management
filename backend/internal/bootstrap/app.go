@@ -14,8 +14,8 @@ import (
 	apphttp "credit-management/backend/internal/modules/applications/http"
 	appservice "credit-management/backend/internal/modules/applications/service"
 	auditservice "credit-management/backend/internal/modules/audit/service"
-	authrepo "credit-management/backend/internal/modules/auth/repo"
 	authhttp "credit-management/backend/internal/modules/auth/http"
+	authrepo "credit-management/backend/internal/modules/auth/repo"
 	authservice "credit-management/backend/internal/modules/auth/service"
 	dashboard "credit-management/backend/internal/modules/dashboard"
 	dashboardhttp "credit-management/backend/internal/modules/dashboard/http"
@@ -102,13 +102,13 @@ func NewApp() (*App, error) {
 	importSvc := importservice.NewUserImportService(userRepo)
 
 	return newConfiguredApp(cfg, logger, configuredAppDeps{
-		authSvc:        authSvc,
-		profileSvc:     profileSvc,
-		adminSvc:       adminSvc,
-		exportSvc:      exportSvc,
-		importSvc:      importSvc,
-		db:             db,
-		auditWriter:    auditlog.NewGormWriter(db),
+		authSvc:     authSvc,
+		profileSvc:  profileSvc,
+		adminSvc:    adminSvc,
+		exportSvc:   exportSvc,
+		importSvc:   importSvc,
+		db:          db,
+		auditWriter: auditlog.NewGormWriter(db),
 		healthChecker: health.NewChecker("dev", map[string]health.CheckFunc{
 			"database": func(context.Context) error {
 				return sqlDB.PingContext(ctx)
@@ -118,12 +118,13 @@ func NewApp() (*App, error) {
 			},
 			"storage": localStore.HealthCheck,
 		}),
-		storageStore:   localStore,
-		optionsHandler: optionHandler,
-		activityRepo:   activityrepo.NewGorm(db),
-		participantRepo: participantservice.NewGormRepository(db),
-		applicationRepo: appservice.NewGormRepository(db),
-		userRepo:       userRepo,
+		storageStore:         localStore,
+		optionsHandler:       optionHandler,
+		activityRepo:         activityrepo.NewGorm(db),
+		activityCategoryRepo: activityrepo.NewCategorySchemaGorm(db),
+		participantRepo:      participantservice.NewGormRepository(db),
+		applicationRepo:      appservice.NewGormRepository(db),
+		userRepo:             userRepo,
 		userCount: func() int {
 			users, _ := userRepo.ListUsers(context.Background(), usersrepo.ListFilter{})
 			return len(users)
@@ -170,27 +171,32 @@ func newMemoryBackedApp(cfg config.Config, logger *slog.Logger, optionHandler *o
 }
 
 type configuredAppDeps struct {
-	authSvc        *authservice.Service
-	profileSvc     *userservice.Service
-	adminSvc       *userservice.AdminService
-	exportSvc      *exportservice.UserExportService
-	importSvc      *importservice.UserImportService
-	optionsHandler *optionshttp.Handler
-	db             *gorm.DB
-	auditWriter    *auditlog.Writer
-	healthChecker  *health.Checker
-	storageStore   storage.Store
-	activityRepo   activityrepo.Repository
-	participantRepo participantservice.Repository
-	applicationRepo appservice.Repository
-	userRepo       usersrepo.UserRepository
-	userCount      func() int
+	authSvc              *authservice.Service
+	profileSvc           *userservice.Service
+	adminSvc             *userservice.AdminService
+	exportSvc            *exportservice.UserExportService
+	importSvc            *importservice.UserImportService
+	optionsHandler       *optionshttp.Handler
+	db                   *gorm.DB
+	auditWriter          *auditlog.Writer
+	healthChecker        *health.Checker
+	storageStore         storage.Store
+	activityRepo         activityrepo.Repository
+	activityCategoryRepo activityrepo.CategorySchemaReader
+	participantRepo      participantservice.Repository
+	applicationRepo      appservice.Repository
+	userRepo             usersrepo.UserRepository
+	userCount            func() int
 }
 
 func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredAppDeps) (*App, error) {
 	activityRepo := deps.activityRepo
 	if activityRepo == nil {
 		activityRepo = activityservice.NewMemoryRepository()
+	}
+	activityCategoryRepo := deps.activityCategoryRepo
+	if activityCategoryRepo == nil {
+		activityCategoryRepo = memoryCategorySchemaRepo{}
 	}
 	participantSvc := participantservice.New(activityRepo, deps.userRepo)
 	if deps.participantRepo != nil {
@@ -222,7 +228,7 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 		appSvc.Count,
 	)
 	authHandler := authhttp.NewHandler(deps.authSvc)
-	activityHandler := activityhttp.NewHandler(activitySvc)
+	activityHandler := activityhttp.NewHandler(activitySvc, activityCategoryRepo)
 	appHandler := apphttp.NewHandler(appSvc)
 	meHandler := usershttp.NewMeHandler(deps.profileSvc)
 	adminHandler := usershttp.NewAdminHandler(deps.adminSvc, deps.exportSvc)
@@ -271,6 +277,8 @@ func resolveMigrationsDir() string {
 
 type memoryOptionRepo struct{}
 
+type memoryCategorySchemaRepo struct{}
+
 func (memoryOptionRepo) ListOrganization(context.Context) ([]optionsservice.OrganizationNode, error) {
 	return []optionsservice.OrganizationNode{
 		{ID: "school-01", Name: "Demo University", NodeType: "school", Path: "school-01", Level: 1, SortOrder: 1},
@@ -309,6 +317,29 @@ func (memoryOptionRepo) ListOptionItems(_ context.Context, groupKey string) ([]o
 	default:
 		return []optionsservice.OptionItem{}, nil
 	}
+}
+
+func (memoryCategorySchemaRepo) ListCategories(context.Context) ([]activityrepo.CategorySummary, error) {
+	return []activityrepo.CategorySummary{
+		{Key: "general", Label: "General", SortOrder: 1},
+	}, nil
+}
+
+func (memoryCategorySchemaRepo) GetCategorySchema(_ context.Context, key string) (*activityrepo.CategorySchemaEnvelope, error) {
+	if key != "general" {
+		return nil, activityrepo.ErrCategorySchemaNotFound
+	}
+
+	return &activityrepo.CategorySchemaEnvelope{
+		Category: activityrepo.CategoryDescriptor{
+			Key:   "general",
+			Label: "General",
+		},
+		Schema: activityrepo.CategorySchema{
+			Version: 1,
+			Fields:  []activityrepo.SchemaField{},
+		},
+	}, nil
 }
 
 func (a *App) Run() error {

@@ -14,7 +14,8 @@ import (
 )
 
 type Handler struct {
-	service *activityservice.Service
+	service    *activityservice.Service
+	schemaRepo activityrepo.CategorySchemaReader
 }
 
 type activityResponse struct {
@@ -38,8 +39,36 @@ type transferOwnerRequest struct {
 	NewOwnerID string `json:"new_owner_id"`
 }
 
-func NewHandler(service *activityservice.Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *activityservice.Service, schemaRepo activityrepo.CategorySchemaReader) *Handler {
+	return &Handler{service: service, schemaRepo: schemaRepo}
+}
+
+func (h *Handler) ListCategories(c *gin.Context) {
+	items, err := h.schemaRepo.ListCategories(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load activity categories failed", nil)
+		return
+	}
+
+	response.OK(c, gin.H{"items": items})
+}
+
+func (h *Handler) GetCategorySchema(c *gin.Context) {
+	schema, err := h.schemaRepo.GetCategorySchema(c.Request.Context(), c.Param("category"))
+	if err != nil {
+		switch {
+		case errors.Is(err, activityrepo.ErrCategorySchemaNotFound):
+			response.Error(c, http.StatusNotFound, "ACTIVITY_CATEGORY_NOT_FOUND", "activity category not found", nil)
+		default:
+			response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load activity category schema failed", nil)
+		}
+		return
+	}
+
+	response.OK(c, gin.H{
+		"category": schema.Category,
+		"schema":   schema.Schema,
+	})
 }
 
 func (h *Handler) List(c *gin.Context) {
