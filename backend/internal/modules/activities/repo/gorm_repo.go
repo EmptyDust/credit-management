@@ -8,7 +8,6 @@ import (
 	"time"
 
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
-	"credit-management/backend/internal/platform/idgen"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -172,24 +171,14 @@ func (r *GormRepository) resolveCategoryID(ctx context.Context, key string) (str
 
 	var row categoryRow
 	if err := r.db.WithContext(ctx).
-		Where("key = ? AND deleted_at IS NULL", key).
+		Where("key = ? AND enabled = ? AND deleted_at IS NULL", key, true).
 		First(&row).Error; err == nil {
 		return row.ID, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", err
 	}
 
-	row = categoryRow{
-		ID:    idgen.New(),
-		Key:   key,
-		Label: key,
-		Sort:  0,
-		On:    true,
-	}
-	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return "", err
-	}
-	return row.ID, nil
+	return "", ErrCategorySchemaNotFound
 }
 
 func (r activityRow) toDomain() activitydomain.Activity {

@@ -3,9 +3,11 @@ package repo_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 
+	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	repo "credit-management/backend/internal/modules/activities/repo"
 	"credit-management/backend/internal/platform/database"
 
@@ -136,6 +138,34 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 	}
 }
 
+func TestGormRepositorySaveReturnsCategoryNotFoundForUnknownCategory(t *testing.T) {
+	activityRepo, tx := newTestActivityRepo(t)
+	defer func() { _ = tx.Rollback().Error }()
+
+	const missingCategoryKey = "not-a-real-category"
+	err := activityRepo.Save(context.Background(), &activitydomain.Activity{
+		ID:           "act-missing-category-000001",
+		Title:        "Test Activity",
+		Category:     missingCategoryKey,
+		AcademicYear: "2024-2025",
+		Semester:     "spring",
+		Status:       activitydomain.StatusDraft,
+		OwnerID:      "01JADMIN000000000000000000",
+		Details:      map[string]any{},
+	})
+	if !errors.Is(err, repo.ErrCategorySchemaNotFound) {
+		t.Fatalf("expected ErrCategorySchemaNotFound, got %v", err)
+	}
+
+	var count int64
+	if err := tx.Table("activity_category_templates").Where("key = ?", missingCategoryKey).Count(&count).Error; err != nil {
+		t.Fatalf("count category templates: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected no category template to be created, got %d", count)
+	}
+}
+
 type categoryTemplateSeed struct {
 	ID        string `gorm:"column:id"`
 	Key       string `gorm:"column:key"`
@@ -168,6 +198,20 @@ func (fieldSchemaSeed) TableName() string {
 func newTestCategorySchemaRepo(t *testing.T) (*repo.CategorySchemaRepo, *gorm.DB) {
 	t.Helper()
 
+	tx := newTestActivityDB(t)
+	return repo.NewCategorySchemaGorm(tx), tx
+}
+
+func newTestActivityRepo(t *testing.T) (*repo.GormRepository, *gorm.DB) {
+	t.Helper()
+
+	tx := newTestActivityDB(t)
+	return repo.NewGorm(tx), tx
+}
+
+func newTestActivityDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
 	dsn := os.Getenv("TEST_DATABASE_DSN")
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_DSN is not set")
@@ -195,7 +239,7 @@ func newTestCategorySchemaRepo(t *testing.T) (*repo.CategorySchemaRepo, *gorm.DB
 		t.Fatalf("begin transaction: %v", tx.Error)
 	}
 
-	return repo.NewCategorySchemaGorm(tx), tx
+	return tx
 }
 
 func insertCategoryTemplate(t *testing.T, db *gorm.DB, row categoryTemplateSeed) {

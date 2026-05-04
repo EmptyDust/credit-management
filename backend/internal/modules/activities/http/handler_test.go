@@ -3,11 +3,17 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"credit-management/backend/internal/httpapi/middleware"
+	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
+	activityservice "credit-management/backend/internal/modules/activities/service"
+	"credit-management/backend/internal/platform/authn"
 
 	"github.com/gin-gonic/gin"
 )
@@ -154,6 +160,51 @@ func TestGetCategorySchemaReturnsNotFoundForMissingCategory(t *testing.T) {
 	}
 }
 
+func TestCreateReturnsCategoryNotFoundWhenWriteCategoryIsUnknown(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	service := activityservice.New(fakeActivityRepository{
+		saveErr: activityrepo.ErrCategorySchemaNotFound,
+	}, nil)
+	handler := NewHandler(service, fakeCategorySchemaRepo{})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "student-01",
+		Username: "student01",
+		UserType: "student",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/activities", strings.NewReader(`{
+		"title":"Test Activity",
+		"category":"missing-category",
+		"academic_year":"2024-2025",
+		"semester":"spring",
+		"details":{}
+	}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.Create(ctx)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v\nbody=%s", err, recorder.Body.String())
+	}
+	if payload.Code != "ACTIVITY_CATEGORY_NOT_FOUND" {
+		t.Fatalf("unexpected code: %s", payload.Code)
+	}
+	if payload.Message != "activity category not found" {
+		t.Fatalf("unexpected message: %s", payload.Message)
+	}
+}
+
 type fakeCategorySchemaRepo struct {
 	categories []activityrepo.CategorySummary
 	schemas    map[string]*activityrepo.CategorySchemaEnvelope
@@ -173,4 +224,24 @@ func (f fakeCategorySchemaRepo) GetCategorySchema(_ context.Context, key string)
 		return nil, f.schemaErr
 	}
 	return f.schemas[key], nil
+}
+
+type fakeActivityRepository struct {
+	saveErr error
+}
+
+func (f fakeActivityRepository) List(context.Context, activityrepo.ListFilter) ([]activitydomain.Activity, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (f fakeActivityRepository) Get(context.Context, string) (*activitydomain.Activity, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (f fakeActivityRepository) Save(context.Context, *activitydomain.Activity) error {
+	return f.saveErr
+}
+
+func (f fakeActivityRepository) Delete(context.Context, string) error {
+	return errors.New("not implemented")
 }

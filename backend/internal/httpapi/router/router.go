@@ -89,9 +89,8 @@ func New(deps Dependencies) *gin.Engine {
 	}
 
 	if deps.ActivityHandler != nil {
-		api.GET("/activity-categories", deps.ActivityHandler.ListCategories)
-		api.GET("/activity-categories/:category/schema", deps.ActivityHandler.GetCategorySchema)
-
+		protected.GET("/activity-categories", deps.ActivityHandler.ListCategories)
+		protected.GET("/activity-categories/:category/schema", deps.ActivityHandler.GetCategorySchema)
 		protected.GET("/activities", deps.ActivityHandler.List)
 		protected.POST("/activities", deps.ActivityHandler.Create)
 		protected.GET("/activities/:id", deps.ActivityHandler.Get)
