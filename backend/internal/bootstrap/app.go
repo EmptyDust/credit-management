@@ -239,7 +239,7 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	dashboardHandler := dashboardhttp.NewHandler(dashboardSvc)
 	devtoolsHandler := devtoolshttp.NewHandlerWithHealth(auditSvc, logger, deps.healthChecker)
 	fileHandler := filehttp.NewHandler(fileSvc)
-	importHandler := importhttp.NewUserImportHandler(deps.importSvc)
+	importHandler := importhttp.NewHandler(deps.importSvc, importservice.NewActivityImportService(activityRepo, activityCategoryRepo))
 	participantHandler := participanthttp.NewHandler(participantSvc)
 
 	gin.SetMode(cfg.GinMode)

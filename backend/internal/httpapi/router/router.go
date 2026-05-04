@@ -29,7 +29,7 @@ type Dependencies struct {
 	DashboardHandler   *dashboardhttp.Handler
 	DevtoolsHandler    *devtoolshttp.Handler
 	FileHandler        *filehttp.Handler
-	ImportHandler      *importhttp.UserImportHandler
+	ImportHandler      *importhttp.Handler
 	MeHandler          *usershttp.MeHandler
 	OptionsHandler     *optionshttp.Handler
 	ParticipantHandler *participanthttp.Handler
@@ -156,6 +156,8 @@ func New(deps Dependencies) *gin.Engine {
 		adminOnly.POST("/imports/students/confirm", deps.ImportHandler.ConfirmStudents)
 		adminOnly.POST("/imports/teachers/precheck", deps.ImportHandler.PrecheckTeachers)
 		adminOnly.POST("/imports/teachers/confirm", deps.ImportHandler.ConfirmTeachers)
+		adminOnly.POST("/imports/activities/precheck", deps.ImportHandler.ActivityPrecheck)
+		adminOnly.POST("/imports/activities/confirm", deps.ImportHandler.ActivityConfirm)
 	}
 
 	if deps.DevtoolsHandler != nil {
