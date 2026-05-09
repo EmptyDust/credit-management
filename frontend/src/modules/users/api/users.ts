@@ -22,6 +22,19 @@ export interface UserListResponse {
   total_pages: number;
 }
 
+export interface UserMutationInput {
+  username?: string;
+  password?: string;
+  real_name?: string;
+  email?: string;
+  phone?: string;
+  department_id?: string;
+  student_id?: string;
+  teacher_id?: string;
+  grade?: string;
+  title?: string;
+}
+
 export interface Profile {
   id: string;
   username: string;
@@ -58,6 +71,41 @@ export async function listTeachers(filters: { keyword?: string; status?: string 
   );
 
   return response.data.data;
+}
+
+export async function createStudent(input: UserMutationInput) {
+  const response = await apiClient.post<ApiSuccessResponse<{ user: AdminUser }>>(
+    "/students",
+    input
+  );
+
+  return response.data.data.user;
+}
+
+export async function updateStudent(id: string, input: UserMutationInput) {
+  const response = await apiClient.patch<ApiSuccessResponse<{ user: AdminUser }>>(
+    `/students/${id}`,
+    input
+  );
+
+  return response.data.data.user;
+}
+
+export async function deleteStudent(id: string) {
+  await apiClient.delete(`/students/${id}`);
+}
+
+export async function updateUserStatus(id: string, status: string) {
+  const response = await apiClient.patch<ApiSuccessResponse<{ user: AdminUser }>>(
+    `/users/${id}/status`,
+    { status }
+  );
+
+  return response.data.data.user;
+}
+
+export async function resetUserPassword(id: string, newPassword: string) {
+  await apiClient.post(`/users/${id}/reset-password`, { new_password: newPassword });
 }
 
 export async function getProfile() {
