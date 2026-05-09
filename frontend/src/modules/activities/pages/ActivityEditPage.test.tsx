@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ActivityEditPage from "@/modules/activities/pages/ActivityEditPage";
 
@@ -115,6 +115,20 @@ describe("ActivityEditPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetActivityDetail.mockResolvedValue(draftActivity);
+    mockSubmitActivity.mockResolvedValue({
+      ...draftActivity,
+      status: "pending_review",
+    });
+    mockUpdateActivity.mockResolvedValue({
+      ...draftActivity,
+      details: {
+        location: "B202",
+      },
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("hydrates fixed and schema-driven fields, saves the draft, and can submit for review", async () => {
@@ -157,6 +171,10 @@ describe("ActivityEditPage", () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/activities/activity-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "提交审核" })).toBeNull();
     });
   });
 

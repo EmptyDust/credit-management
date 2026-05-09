@@ -124,8 +124,10 @@ make test-frontend
 ## Current Implementation Notes
 
 - 前端 API 统一走 `/api/v1`
-- 登录、注册、活动列表、活动详情、申请列表、用户页、导入向导、Devtools 已迁入 `frontend/src/modules/**`
+- 登录、注册、活动工作台、活动详情、申请列表、用户页、导入向导、Devtools 已迁入 `frontend/src/modules/**`
+- 活动工作台包含 `/activities`、`/activities/new`、`/activities/:id/edit`，支持分类 schema 驱动草稿创建/编辑、统计卡、筛选、CSV 导入预校验/确认与 CSV 导出
 - 后端 acceptance e2e 位于 `backend/tests/e2e`
+- 活动工作台端到端契约覆盖位于 `backend/tests/e2e/activity_workspace_flow_test.go`
 - 活动审核通过后会自动生成只读申请
 - 默认 compose 直接运行新 backend；前端 Nginx 代理也已指向 `backend:8082`
 - `make migrate-backend` 和 `make seed-backend` 分别对应 `backend/cmd/migrate` 与 `backend/cmd/seed`

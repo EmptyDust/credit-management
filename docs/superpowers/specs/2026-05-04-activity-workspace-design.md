@@ -352,16 +352,12 @@ Persistent storage model remains:
 - category binding via `category_id`
 - schema-driven values in `details_json`
 
-This slice adds one persistence refinement:
+Delivered implementation note:
 
-- store `schema_version` with the activity record
-
-Reason:
-
-- preserve the version of the schema used when the activity was last saved
-- create room for future schema evolution without needing another storage rewrite
-
-If the column does not exist yet, it should be introduced by migration in the implementation phase.
+- this slice does not add an `activities.schema_version` column
+- category schema responses still expose `schema.version`
+- create and edit validation use the current category schema as the backend authority
+- future schema-version snapshotting remains a separate migration if schema evolution becomes a product requirement
 
 ### 6.4 Validation Model
 
@@ -409,9 +405,8 @@ First-screen queries:
 
 - `GET /activities`
 - `GET /activities/stats`
-- `GET /activity-categories`
-- `GET /options/academic-years`
-- `GET /options/semesters`
+
+The delivered list page derives category, academic year, and semester filter options from the stats buckets. `/activities/new` remains responsible for loading the full enabled category list before draft creation.
 
 Page areas:
 
@@ -460,10 +455,10 @@ Flow:
 4. allow:
   - save draft
   - submit for review
-  - participant management
-  - file upload
 
 Edit page remains structurally writable only for `draft`.
+
+Participant management and file upload remain on the activity detail page in the delivered slice. This keeps the schema-driven edit workspace focused on structural draft editing.
 
 ### 7.4 Frontend Activity Schema Runtime
 
@@ -487,13 +482,14 @@ Implementation shape:
 
 Flow:
 
-1. download template
-2. upload file
-3. call `POST /imports/activities/precheck`
-4. display errors and summary
-5. explicit confirm
-6. call `POST /imports/activities/confirm`
-7. refresh list + stats
+1. upload CSV file
+2. call `POST /imports/activities/precheck`
+3. display errors and summary
+4. explicit confirm
+5. call `POST /imports/activities/confirm`
+6. refresh list + stats
+
+The delivered backend supports CSV upload and does not expose an activity import template endpoint in this slice.
 
 ### 7.6 Export
 
@@ -562,6 +558,10 @@ Add or extend end-to-end coverage for:
 - submit draft after passing schema validation
 - export activities
 - import activities through precheck + confirm
+
+Delivered coverage:
+
+- `backend/tests/e2e/activity_workspace_flow_test.go` covers category schema lookup, schema-aware draft create/update, stats, export, submit, import precheck/confirm, and repeated confirm idempotence.
 
 ## 11. Risks and Controls
 
