@@ -469,3 +469,108 @@ func TestParticipantManagementStatsAndExport(t *testing.T) {
 		t.Fatalf("expected no participants after delete, got %+v", empty.Items)
 	}
 }
+
+func TestActivityFileManagementMetadataStatsPreviewAndDownloadCount(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "File management activity",
+		"description":   "file contract",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Archive Room",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	uploadRecorder := h.requestMultipartFiles(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/files", student.AccessToken, []multipartUploadFile{
+		{FieldName: "files[]", Filename: "proof-a.txt", Content: []byte("alpha proof")},
+		{FieldName: "files[]", Filename: "proof-b.txt", Content: []byte("beta proof")},
+	}, map[string]string{
+		"file_category": "proof",
+		"description":   "evidence bundle",
+	})
+	if uploadRecorder.Code != http.StatusCreated {
+		t.Fatalf("batch upload failed: status=%d body=%s", uploadRecorder.Code, uploadRecorder.Body.String())
+	}
+	uploaded := decodeData[struct {
+		Items []struct {
+			ID           string `json:"id"`
+			OriginalName string `json:"original_name"`
+			FileCategory string `json:"file_category"`
+			Description  string `json:"description"`
+			MD5Hash      string `json:"md5_hash"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, uploadRecorder))
+	if len(uploaded.Items) != 2 {
+		t.Fatalf("expected two uploaded files, got %+v", uploaded.Items)
+	}
+	if uploaded.Items[0].OriginalName != "proof-a.txt" || uploaded.Items[0].FileCategory != "proof" || uploaded.Items[0].Description != "evidence bundle" || uploaded.Items[0].MD5Hash == "" {
+		t.Fatalf("unexpected uploaded metadata: %+v", uploaded.Items[0])
+	}
+
+	listRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/files", student.AccessToken, nil, "")
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list files failed: status=%d body=%s", listRecorder.Code, listRecorder.Body.String())
+	}
+	listed := decodeData[struct {
+		Items []struct {
+			ID            string `json:"id"`
+			DownloadCount int64  `json:"download_count"`
+		} `json:"items"`
+		Total          int   `json:"total"`
+		TotalSize      int64 `json:"total_size"`
+		CategoryCounts []struct {
+			Value string `json:"value"`
+			Count int    `json:"count"`
+		} `json:"category_counts"`
+		TypeCounts []struct {
+			Value string `json:"value"`
+			Count int    `json:"count"`
+		} `json:"type_counts"`
+	}](t, decodeEnvelope(t, listRecorder))
+	if listed.Total != 2 || listed.TotalSize != int64(len("alpha proof")+len("beta proof")) || len(listed.CategoryCounts) != 1 || listed.CategoryCounts[0].Value != "proof" || listed.CategoryCounts[0].Count != 2 || len(listed.TypeCounts) == 0 {
+		t.Fatalf("unexpected file list stats: %+v", listed)
+	}
+
+	downloadRecorder := h.request(http.MethodGet, "/api/v1/files/"+listed.Items[0].ID+"/download", student.AccessToken, nil, "")
+	if downloadRecorder.Code != http.StatusOK {
+		t.Fatalf("download failed: status=%d body=%s", downloadRecorder.Code, downloadRecorder.Body.String())
+	}
+	if downloadRecorder.Body.String() != "alpha proof" {
+		t.Fatalf("unexpected download body: %q", downloadRecorder.Body.String())
+	}
+
+	afterDownloadRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/files", student.AccessToken, nil, "")
+	if afterDownloadRecorder.Code != http.StatusOK {
+		t.Fatalf("list after download failed: status=%d body=%s", afterDownloadRecorder.Code, afterDownloadRecorder.Body.String())
+	}
+	afterDownload := decodeData[struct {
+		Items []struct {
+			ID            string `json:"id"`
+			DownloadCount int64  `json:"download_count"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, afterDownloadRecorder))
+	if len(afterDownload.Items) == 0 || afterDownload.Items[0].DownloadCount != 1 {
+		t.Fatalf("expected download_count 1 after download, got %+v", afterDownload.Items)
+	}
+
+	previewRecorder := h.request(http.MethodGet, "/api/v1/files/"+listed.Items[0].ID+"/preview", student.AccessToken, nil, "")
+	if previewRecorder.Code != http.StatusOK {
+		t.Fatalf("preview failed: status=%d body=%s", previewRecorder.Code, previewRecorder.Body.String())
+	}
+	if previewRecorder.Body.String() != "alpha proof" {
+		t.Fatalf("unexpected preview body: %q", previewRecorder.Body.String())
+	}
+}

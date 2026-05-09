@@ -24,6 +24,7 @@ create table activity_files (
     id varchar(26) primary key,
     activity_id varchar(26) not null references activities (id),
     file_id varchar(26) not null references files (id),
+    file_category varchar(64) null,
     description text null,
     download_count bigint not null default 0,
     created_at timestamptz not null default now(),

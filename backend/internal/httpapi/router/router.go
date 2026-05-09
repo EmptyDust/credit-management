@@ -122,6 +122,7 @@ func New(deps Dependencies) *gin.Engine {
 		protected.POST("/activities/:id/files", deps.FileHandler.Upload)
 		protected.DELETE("/activities/:id/files/:file_id", deps.FileHandler.Delete)
 		protected.GET("/files/:file_id/download", deps.FileHandler.Download)
+		protected.GET("/files/:file_id/preview", deps.FileHandler.Preview)
 	}
 
 	if deps.ApplicationHandler != nil {

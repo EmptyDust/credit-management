@@ -32,6 +32,12 @@ type authPayload struct {
 	} `json:"user"`
 }
 
+type multipartUploadFile struct {
+	FieldName string
+	Filename  string
+	Content   []byte
+}
+
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 
@@ -84,6 +90,32 @@ func (h *harness) requestMultipart(method string, path string, token string, fie
 	}
 	if _, err := part.Write(content); err != nil {
 		h.t.Fatalf("write multipart content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		h.t.Fatalf("close multipart writer: %v", err)
+	}
+
+	return h.request(method, path, token, body.Bytes(), writer.FormDataContentType())
+}
+
+func (h *harness) requestMultipartFiles(method string, path string, token string, files []multipartUploadFile, fields map[string]string) *httptest.ResponseRecorder {
+	h.t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			h.t.Fatalf("write field %s: %v", key, err)
+		}
+	}
+	for _, file := range files {
+		part, err := writer.CreateFormFile(file.FieldName, file.Filename)
+		if err != nil {
+			h.t.Fatalf("create form file: %v", err)
+		}
+		if _, err := part.Write(file.Content); err != nil {
+			h.t.Fatalf("write multipart content: %v", err)
+		}
 	}
 	if err := writer.Close(); err != nil {
 		h.t.Fatalf("close multipart writer: %v", err)
