@@ -21,6 +21,7 @@ import {
   createTeacher,
   deleteTeacher,
   exportTeachers,
+  getTeacherStats,
   listTeachers,
   resetUserPassword,
   updateTeacher,
@@ -44,6 +45,8 @@ const initialTeacherForm: TeacherFormState = {
   teacher_id: "",
   title: "",
 };
+
+const pageSize = 20;
 
 interface TeacherEditState {
   id: string;
@@ -79,14 +82,25 @@ function toTeacherEditPayload(form: TeacherEditState): UserMutationInput {
 export default function TeachersPage() {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
+  const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
   const [teacherForm, setTeacherForm] = useState<TeacherFormState>(initialTeacherForm);
   const [editingTeacher, setEditingTeacher] = useState<TeacherEditState | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
   const query = useQuery({
-    queryKey: ["teachers", keyword],
-    queryFn: () => listTeachers({ keyword: keyword || undefined }),
+    queryKey: ["teachers", "list", keyword, page],
+    queryFn: () =>
+      listTeachers({
+        keyword: keyword || undefined,
+        page,
+        page_size: pageSize,
+      }),
+  });
+
+  const statsQuery = useQuery({
+    queryKey: ["teachers", "stats", keyword],
+    queryFn: () => getTeacherStats({ keyword: keyword || undefined }),
   });
 
   const invalidateTeachers = () =>
@@ -195,6 +209,57 @@ export default function TeachersPage() {
 
   return (
     <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              总教师数
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{statsQuery.data?.total ?? 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              活跃教师
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {statsQuery.data?.status_counts?.active ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              停用教师
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">
+              {statsQuery.data?.status_counts?.disabled ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              职称分布
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              {(statsQuery.data?.title_counts ?? [])
+                .map((item) => `${item.label}: ${item.count}`)
+                .join(" / ") || "-"}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>创建教师</CardTitle>
@@ -326,7 +391,10 @@ export default function TeachersPage() {
               className="w-72"
               placeholder="搜索用户名或姓名"
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(1);
+              }}
             />
             <Button variant="secondary" className="gap-2" onClick={() => query.refetch()}>
               <RefreshCw className="h-4 w-4" />
@@ -418,6 +486,30 @@ export default function TeachersPage() {
               </TableBody>
             </Table>
           )}
+          <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              第 {query.data?.page ?? page} / {query.data?.total_pages ?? 0} 页，共{" "}
+              {query.data?.total ?? 0} 条
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={(query.data?.page ?? page) <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                上一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={(query.data?.page ?? page) >= (query.data?.total_pages ?? 0)}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"credit-management/backend/internal/httpapi/response"
 	authservice "credit-management/backend/internal/modules/auth/service"
@@ -55,11 +56,21 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"items":       result.Items,
-		"page":        1,
-		"page_size":   len(result.Items),
+		"page":        result.Page,
+		"page_size":   result.PageSize,
 		"total":       result.Total,
-		"total_pages": 1,
+		"total_pages": result.TotalPages,
 	})
+}
+
+func (h *AdminHandler) StudentStats(c *gin.Context) {
+	stats, err := h.adminService.StudentStats(c.Request.Context(), queryFilter(c))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load student stats failed", nil)
+		return
+	}
+
+	response.OK(c, stats)
 }
 
 func (h *AdminHandler) CreateStudent(c *gin.Context) {
@@ -125,11 +136,21 @@ func (h *AdminHandler) ListTeachers(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"items":       result.Items,
-		"page":        1,
-		"page_size":   len(result.Items),
+		"page":        result.Page,
+		"page_size":   result.PageSize,
 		"total":       result.Total,
-		"total_pages": 1,
+		"total_pages": result.TotalPages,
 	})
+}
+
+func (h *AdminHandler) TeacherStats(c *gin.Context) {
+	stats, err := h.adminService.TeacherStats(c.Request.Context(), queryFilter(c))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "load teacher stats failed", nil)
+		return
+	}
+
+	response.OK(c, stats)
 }
 
 func (h *AdminHandler) CreateTeacher(c *gin.Context) {
@@ -269,11 +290,25 @@ func (h *AdminHandler) updateUser(c *gin.Context, userType string) {
 
 func queryFilter(c *gin.Context) usersrepo.ListFilter {
 	return usersrepo.ListFilter{
-		Keyword: c.Query("keyword"),
-		Status:  c.Query("status"),
-		Grade:   c.Query("grade"),
-		Title:   c.Query("title"),
+		Keyword:  c.Query("keyword"),
+		Status:   c.Query("status"),
+		Grade:    c.Query("grade"),
+		Title:    c.Query("title"),
+		Page:     queryInt(c, "page"),
+		PageSize: queryInt(c, "page_size"),
 	}
+}
+
+func queryInt(c *gin.Context, key string) int {
+	value := c.Query(key)
+	if value == "" {
+		return 0
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0
+	}
+	return parsed
 }
 
 func handleAdminError(c *gin.Context, err error, fallback string) {

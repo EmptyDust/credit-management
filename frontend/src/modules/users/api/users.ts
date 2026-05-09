@@ -22,6 +22,28 @@ export interface UserListResponse {
   total_pages: number;
 }
 
+export interface UserListFilters {
+  keyword?: string;
+  status?: string;
+  grade?: string;
+  title?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface UserStatsCount {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface UserStats {
+  total: number;
+  status_counts: Record<string, number>;
+  grade_counts?: UserStatsCount[];
+  title_counts?: UserStatsCount[];
+}
+
 export interface UserMutationInput {
   username?: string;
   password?: string;
@@ -51,7 +73,7 @@ export interface Profile {
   avatar_url?: string;
 }
 
-export async function listStudents(filters: { keyword?: string; status?: string } = {}) {
+export async function listStudents(filters: UserListFilters = {}) {
   const response = await apiClient.get<ApiSuccessResponse<UserListResponse>>(
     "/students",
     {
@@ -62,9 +84,31 @@ export async function listStudents(filters: { keyword?: string; status?: string 
   return response.data.data;
 }
 
-export async function listTeachers(filters: { keyword?: string; status?: string } = {}) {
+export async function listTeachers(filters: UserListFilters = {}) {
   const response = await apiClient.get<ApiSuccessResponse<UserListResponse>>(
     "/teachers",
+    {
+      params: filters,
+    }
+  );
+
+  return response.data.data;
+}
+
+export async function getStudentStats(filters: UserListFilters = {}) {
+  const response = await apiClient.get<ApiSuccessResponse<UserStats>>(
+    "/students/stats",
+    {
+      params: filters,
+    }
+  );
+
+  return response.data.data;
+}
+
+export async function getTeacherStats(filters: UserListFilters = {}) {
+  const response = await apiClient.get<ApiSuccessResponse<UserStats>>(
+    "/teachers/stats",
     {
       params: filters,
     }

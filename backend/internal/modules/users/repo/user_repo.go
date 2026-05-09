@@ -12,6 +12,8 @@ type ListFilter struct {
 	Status   string
 	Grade    string
 	Title    string
+	Page     int
+	PageSize int
 }
 
 type CreateUserInput struct {

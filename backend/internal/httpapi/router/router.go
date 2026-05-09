@@ -138,6 +138,7 @@ func New(deps Dependencies) *gin.Engine {
 
 	if deps.AdminHandler != nil {
 		teacherOrAdmin.GET("/students", deps.AdminHandler.ListStudents)
+		teacherOrAdmin.GET("/students/stats", deps.AdminHandler.StudentStats)
 		teacherOrAdmin.GET("/students/export", deps.AdminHandler.ExportStudents)
 		teacherOrAdmin.GET("/students/:id", deps.AdminHandler.GetStudent)
 
@@ -146,6 +147,7 @@ func New(deps Dependencies) *gin.Engine {
 		adminOnly.DELETE("/students/:id", deps.AdminHandler.DeleteStudent)
 
 		adminOnly.GET("/teachers", deps.AdminHandler.ListTeachers)
+		adminOnly.GET("/teachers/stats", deps.AdminHandler.TeacherStats)
 		adminOnly.GET("/teachers/export", deps.AdminHandler.ExportTeachers)
 		adminOnly.GET("/teachers/:id", deps.AdminHandler.GetTeacher)
 		adminOnly.POST("/teachers", deps.AdminHandler.CreateTeacher)

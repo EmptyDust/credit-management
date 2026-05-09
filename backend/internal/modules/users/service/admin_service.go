@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 
 	authservice "credit-management/backend/internal/modules/auth/service"
 	usersdomain "credit-management/backend/internal/modules/users/domain"
@@ -32,8 +33,24 @@ type AdminUser struct {
 }
 
 type ListResult struct {
-	Items []AdminUser `json:"items"`
-	Total int         `json:"total"`
+	Items      []AdminUser `json:"items"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	PageSize   int         `json:"page_size"`
+	TotalPages int         `json:"total_pages"`
+}
+
+type KeyCount struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+type UserStats struct {
+	Total        int            `json:"total"`
+	StatusCounts map[string]int `json:"status_counts"`
+	GradeCounts  []KeyCount     `json:"grade_counts,omitempty"`
+	TitleCounts  []KeyCount     `json:"title_counts,omitempty"`
 }
 
 func NewAdminService(users usersrepo.UserRepository, sessions AdminSessionStore) *AdminService {
@@ -51,6 +68,26 @@ func (s *AdminService) ListStudents(ctx context.Context, filter usersrepo.ListFi
 func (s *AdminService) ListTeachers(ctx context.Context, filter usersrepo.ListFilter) (ListResult, error) {
 	filter.UserType = authz.RoleTeacher
 	return s.listUsers(ctx, filter)
+}
+
+func (s *AdminService) StudentStats(ctx context.Context, filter usersrepo.ListFilter) (UserStats, error) {
+	filter.UserType = authz.RoleStudent
+	users, err := s.users.ListUsers(ctx, withoutPagination(filter))
+	if err != nil {
+		return UserStats{}, err
+	}
+
+	return buildUserStats(users, "grade"), nil
+}
+
+func (s *AdminService) TeacherStats(ctx context.Context, filter usersrepo.ListFilter) (UserStats, error) {
+	filter.UserType = authz.RoleTeacher
+	users, err := s.users.ListUsers(ctx, withoutPagination(filter))
+	if err != nil {
+		return UserStats{}, err
+	}
+
+	return buildUserStats(users, "title"), nil
 }
 
 func (s *AdminService) GetUser(ctx context.Context, userID string) (AdminUser, error) {
@@ -140,10 +177,98 @@ func (s *AdminService) listUsers(ctx context.Context, filter usersrepo.ListFilte
 		items = append(items, toAdminUser(&user))
 	}
 
+	total := len(items)
+	page, pageSize := normalizePagination(filter.Page, filter.PageSize)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if totalPages > 0 && page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+
 	return ListResult{
-		Items: items,
-		Total: len(items),
+		Items:      items[start:end],
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
 	}, nil
+}
+
+func normalizePagination(page int, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+func withoutPagination(filter usersrepo.ListFilter) usersrepo.ListFilter {
+	filter.Page = 0
+	filter.PageSize = 0
+	return filter
+}
+
+func buildUserStats(users []usersdomain.User, dimension string) UserStats {
+	stats := UserStats{
+		Total:        len(users),
+		StatusCounts: map[string]int{},
+	}
+	dimensionCounts := map[string]int{}
+
+	for _, user := range users {
+		stats.StatusCounts[user.Status]++
+		switch dimension {
+		case "grade":
+			if user.Grade != "" {
+				dimensionCounts[user.Grade]++
+			}
+		case "title":
+			if user.Title != "" {
+				dimensionCounts[user.Title]++
+			}
+		}
+	}
+
+	switch dimension {
+	case "grade":
+		stats.GradeCounts = toKeyCounts(dimensionCounts)
+	case "title":
+		stats.TitleCounts = toKeyCounts(dimensionCounts)
+	}
+
+	return stats
+}
+
+func toKeyCounts(counts map[string]int) []KeyCount {
+	items := make([]KeyCount, 0, len(counts))
+	for key, count := range counts {
+		items = append(items, KeyCount{
+			Key:   key,
+			Label: key,
+			Count: count,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Key < items[j].Key
+	})
+	return items
 }
 
 func toAdminUser(user *usersdomain.User) AdminUser {

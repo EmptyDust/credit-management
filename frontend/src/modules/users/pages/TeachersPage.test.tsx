@@ -10,6 +10,7 @@ const {
   mockCreateTeacher,
   mockDeleteTeacher,
   mockExportTeachers,
+  mockGetTeacherStats,
   mockListTeachers,
   mockResetUserPassword,
   mockUpdateTeacher,
@@ -18,6 +19,7 @@ const {
   mockCreateTeacher: vi.fn(),
   mockDeleteTeacher: vi.fn(),
   mockExportTeachers: vi.fn(),
+  mockGetTeacherStats: vi.fn(),
   mockListTeachers: vi.fn(),
   mockResetUserPassword: vi.fn(),
   mockUpdateTeacher: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock("@/modules/users/api/users", () => ({
   createTeacher: mockCreateTeacher,
   deleteTeacher: mockDeleteTeacher,
   exportTeachers: mockExportTeachers,
+  getTeacherStats: mockGetTeacherStats,
   listTeachers: mockListTeachers,
   resetUserPassword: mockResetUserPassword,
   updateTeacher: mockUpdateTeacher,
@@ -78,8 +81,18 @@ describe("TeachersPage", () => {
       ],
       total: 1,
       page: 1,
-      page_size: 10,
-      total_pages: 1,
+      page_size: 20,
+      total_pages: 2,
+    });
+    mockGetTeacherStats.mockResolvedValue({
+      total: 2,
+      status_counts: {
+        active: 2,
+      },
+      title_counts: [
+        { key: "教授", label: "教授", count: 1 },
+        { key: "研究员", label: "研究员", count: 1 },
+      ],
     });
     mockCreateTeacher.mockResolvedValue({ id: "teacher-2" });
     mockUpdateTeacher.mockResolvedValue({ id: "teacher-1" });
@@ -98,6 +111,15 @@ describe("TeachersPage", () => {
     renderPage();
 
     expect(await screen.findByText("Tina")).toBeTruthy();
+    expect(await screen.findByText("总教师数")).toBeTruthy();
+    expect(screen.getByText("活跃教师")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => {
+      expect(mockListTeachers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, page_size: 20 })
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("教师用户名"), { target: { value: "tom" } });
     fireEvent.change(screen.getByLabelText("教师密码"), {
