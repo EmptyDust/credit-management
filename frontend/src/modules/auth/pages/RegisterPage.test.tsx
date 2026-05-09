@@ -113,27 +113,38 @@ describe("RegisterPage", () => {
     await user.click(screen.getByRole("combobox", { name: "年级" }));
     await user.click(await screen.findByRole("option", { name: "2024级" }));
 
-    await user.click(screen.getByRole("button", { name: "注册学生账号" }));
+    const originalSetTimeout = globalThis.setTimeout;
+    const redirectTimer = vi
+      .spyOn(globalThis, "setTimeout")
+      .mockImplementation((handler: TimerHandler, timeout?: number) => {
+        if (timeout === 2000 && typeof handler === "function") {
+          handler();
+          return 0 as ReturnType<typeof setTimeout>;
+        }
 
-    await waitFor(() => {
-      expect(mockPost).toHaveBeenCalledWith("/auth/register/student", {
-        student_id: "20240001",
-        username: "alice_01",
-        password: "Password123",
-        email: "alice@example.com",
-        phone: "13812345678",
-        real_name: "Alice",
-        department_id: "class-1",
-        grade: "2024",
+        return originalSetTimeout(handler, timeout);
       });
-    });
 
-    expect(mockToastSuccess).toHaveBeenCalledWith("注册成功！正在跳转到登录页面...");
-    await waitFor(
-      () => {
-        expect(mockNavigate).toHaveBeenCalledWith("/login");
-      },
-      { timeout: 2500 }
-    );
+    try {
+      await user.click(screen.getByRole("button", { name: "注册学生账号" }));
+
+      await waitFor(() => {
+        expect(mockPost).toHaveBeenCalledWith("/auth/register/student", {
+          student_id: "20240001",
+          username: "alice_01",
+          password: "Password123",
+          email: "alice@example.com",
+          phone: "13812345678",
+          real_name: "Alice",
+          department_id: "class-1",
+          grade: "2024",
+        });
+      });
+
+      expect(mockToastSuccess).toHaveBeenCalledWith("注册成功！正在跳转到登录页面...");
+      expect(mockNavigate).toHaveBeenCalledWith("/login");
+    } finally {
+      redirectTimer.mockRestore();
+    }
   });
 });
