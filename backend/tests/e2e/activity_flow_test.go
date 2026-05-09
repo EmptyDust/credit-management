@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -293,4 +294,131 @@ func containsAuditAction(items []struct {
 		}
 	}
 	return false
+}
+
+func TestParticipantManagementStatsAndExport(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "Participant management activity",
+		"description":   "participant contract",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Participant Lab",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	addRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants", student.AccessToken, map[string]any{
+		"user_ids": []string{student.User.ID},
+		"credits":  1.5,
+	})
+	if addRecorder.Code != http.StatusOK {
+		t.Fatalf("add participants failed: status=%d body=%s", addRecorder.Code, addRecorder.Body.String())
+	}
+
+	listRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/participants", student.AccessToken, nil, "")
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list participants failed: status=%d body=%s", listRecorder.Code, listRecorder.Body.String())
+	}
+	participants := decodeData[struct {
+		Items []struct {
+			ID      string  `json:"id"`
+			UserID  string  `json:"user_id"`
+			Credits float64 `json:"credits"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, listRecorder))
+	if len(participants.Items) != 1 {
+		t.Fatalf("expected 1 participant, got %+v", participants.Items)
+	}
+	participantID := participants.Items[0].ID
+
+	updateRecorder := h.requestJSON(http.MethodPatch, "/api/v1/activities/"+created.Activity.ID+"/participants/"+participantID, student.AccessToken, map[string]any{
+		"credits": 4.5,
+	})
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("update participant failed: status=%d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	updated := decodeData[struct {
+		Participant struct {
+			ID      string  `json:"id"`
+			Credits float64 `json:"credits"`
+		} `json:"participant"`
+	}](t, decodeEnvelope(t, updateRecorder))
+	if updated.Participant.ID != participantID || updated.Participant.Credits != 4.5 {
+		t.Fatalf("unexpected updated participant: %+v", updated.Participant)
+	}
+
+	statsRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/participants/stats", student.AccessToken, nil, "")
+	if statsRecorder.Code != http.StatusOK {
+		t.Fatalf("participant stats failed: status=%d body=%s", statsRecorder.Code, statsRecorder.Body.String())
+	}
+	stats := decodeData[struct {
+		TotalCount     int     `json:"total_count"`
+		TotalCredits   float64 `json:"total_credits"`
+		AverageCredits float64 `json:"average_credits"`
+		RecentNewCount int     `json:"recent_new_count"`
+	}](t, decodeEnvelope(t, statsRecorder))
+	if stats.TotalCount != 1 || stats.TotalCredits != 4.5 || stats.AverageCredits != 4.5 || stats.RecentNewCount != 1 {
+		t.Fatalf("unexpected participant stats: %+v", stats)
+	}
+
+	exportRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/participants/export", student.AccessToken, nil, "")
+	if exportRecorder.Code != http.StatusOK {
+		t.Fatalf("participant export failed: status=%d body=%s", exportRecorder.Code, exportRecorder.Body.String())
+	}
+	if body := exportRecorder.Body.String(); !strings.Contains(body, "participant_id,user_id,credits,joined_at") || !strings.Contains(body, participantID) {
+		t.Fatalf("unexpected participant export: %s", body)
+	}
+
+	batchSetRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants/batch-set-credits", student.AccessToken, map[string]any{
+		"participant_ids": []string{participantID},
+		"credits":         2,
+	})
+	if batchSetRecorder.Code != http.StatusOK {
+		t.Fatalf("batch set credits failed: status=%d body=%s", batchSetRecorder.Code, batchSetRecorder.Body.String())
+	}
+	batchSet := decodeData[struct {
+		AffectedCount int `json:"affected_count"`
+	}](t, decodeEnvelope(t, batchSetRecorder))
+	if batchSet.AffectedCount != 1 {
+		t.Fatalf("unexpected batch set result: %+v", batchSet)
+	}
+
+	batchDeleteRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants/batch-delete", student.AccessToken, map[string]any{
+		"participant_ids": []string{participantID},
+	})
+	if batchDeleteRecorder.Code != http.StatusOK {
+		t.Fatalf("batch delete failed: status=%d body=%s", batchDeleteRecorder.Code, batchDeleteRecorder.Body.String())
+	}
+	batchDelete := decodeData[struct {
+		AffectedCount int `json:"affected_count"`
+	}](t, decodeEnvelope(t, batchDeleteRecorder))
+	if batchDelete.AffectedCount != 1 {
+		t.Fatalf("unexpected batch delete result: %+v", batchDelete)
+	}
+
+	emptyRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/participants", student.AccessToken, nil, "")
+	if emptyRecorder.Code != http.StatusOK {
+		t.Fatalf("list participants after delete failed: status=%d body=%s", emptyRecorder.Code, emptyRecorder.Body.String())
+	}
+	empty := decodeData[struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, emptyRecorder))
+	if len(empty.Items) != 0 {
+		t.Fatalf("expected no participants after delete, got %+v", empty.Items)
+	}
 }

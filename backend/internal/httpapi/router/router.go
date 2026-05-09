@@ -107,7 +107,13 @@ func New(deps Dependencies) *gin.Engine {
 
 	if deps.ParticipantHandler != nil {
 		protected.GET("/activities/:id/participants", deps.ParticipantHandler.List)
+		protected.GET("/activities/:id/participants/stats", deps.ParticipantHandler.Stats)
+		protected.GET("/activities/:id/participants/export", deps.ParticipantHandler.Export)
 		protected.POST("/activities/:id/participants", deps.ParticipantHandler.Add)
+		protected.PATCH("/activities/:id/participants/:participant_id", deps.ParticipantHandler.UpdateCredits)
+		protected.POST("/activities/:id/participants/batch-set-credits", deps.ParticipantHandler.BatchSetCredits)
+		protected.DELETE("/activities/:id/participants/:participant_id", deps.ParticipantHandler.Delete)
+		protected.POST("/activities/:id/participants/batch-delete", deps.ParticipantHandler.BatchDelete)
 		protected.POST("/activities/:id/participants/leave", deps.ParticipantHandler.Leave)
 	}
 
