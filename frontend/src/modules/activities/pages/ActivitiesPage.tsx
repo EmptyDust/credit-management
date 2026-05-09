@@ -1,24 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Plus, RefreshCw, Search } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Download, Eye, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
-import {
-  createActivity,
-  listActivities,
-} from "@/modules/activities/api/activities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DialogDescription,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,6 +23,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  exportActivities,
+  getActivityStats,
+  type ActivityStats,
+  type ActivityStatsFilters,
+} from "@/modules/activities/api/activity-stats";
+import { listActivities } from "@/modules/activities/api/activities";
+import ActivityImportDialog from "@/modules/activities/components/ActivityImportDialog";
+
+const statusOptions = [
+  { value: "draft", label: "草稿" },
+  { value: "pending_review", label: "审核中" },
+  { value: "approved", label: "已通过" },
+  { value: "rejected", label: "已拒绝" },
+];
+
+const selectClassName =
+  "h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
 function statusLabel(status: string) {
   switch (status) {
@@ -45,118 +57,276 @@ function statusLabel(status: string) {
   }
 }
 
+function statusCount(stats: ActivityStats | undefined, status: string) {
+  return stats?.status_counts?.[status] ?? 0;
+}
+
+function totalCount(stats: ActivityStats | undefined) {
+  return Object.values(stats?.status_counts ?? {}).reduce(
+    (total, count) => total + count,
+    0
+  );
+}
+
 export default function ActivitiesPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [draftForm, setDraftForm] = useState({
-    title: "",
-    description: "",
-    category: "",
-    academic_year: "",
-    semester: "",
+  const [status, setStatus] = useState("");
+  const [category, setCategory] = useState("");
+  const [academicYear, setAcademicYear] = useState("");
+  const [semester, setSemester] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+
+  const filters: ActivityStatsFilters = useMemo(
+    () => ({
+      keyword: keyword.trim() || undefined,
+      status: status || undefined,
+      category: category || undefined,
+      academic_year: academicYear || undefined,
+      semester: semester || undefined,
+    }),
+    [academicYear, category, keyword, semester, status]
+  );
+
+  const listQuery = useQuery({
+    queryKey: ["activities", filters],
+    queryFn: () => listActivities(filters),
   });
 
-  const query = useQuery({
-    queryKey: ["activities", keyword],
-    queryFn: () =>
-      listActivities({
-        keyword: keyword || undefined,
-      }),
+  const statsQuery = useQuery({
+    queryKey: ["activities", "stats", filters],
+    queryFn: () => getActivityStats(filters),
   });
 
-  const categories = useMemo(() => {
-    const values = new Set(query.data?.items.map((item) => item.category) || []);
-    return Array.from(values);
-  }, [query.data?.items]);
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createActivity({
-        title: draftForm.title,
-        description: draftForm.description || undefined,
-        category: draftForm.category,
-        academic_year: draftForm.academic_year,
-        semester: draftForm.semester,
-        start_date: undefined,
-        end_date: undefined,
-        details: {},
-      }),
-    onSuccess: async (activity) => {
-      await queryClient.invalidateQueries({ queryKey: ["activities"] });
-      toast.success("活动草稿已创建");
-      setIsCreateOpen(false);
-      setDraftForm({
-        title: "",
-        description: "",
-        category: "",
-        academic_year: "",
-        semester: "",
-      });
-      navigate(`/activities/${activity.id}`);
+  const exportMutation = useMutation({
+    mutationFn: () => exportActivities(filters),
+    onSuccess: () => {
+      toast.success("活动导出已开始");
     },
     onError: (error) => {
       const message =
-        error instanceof Error ? error.message : "创建活动失败，请稍后重试";
+        error instanceof Error ? error.message : "活动导出失败，请稍后重试";
       toast.error(message);
     },
   });
 
+  const refreshWorkspace = () => {
+    void listQuery.refetch();
+    void statsQuery.refetch();
+  };
+
+  const categories = statsQuery.data?.category_counts ?? [];
+  const academicYears = statsQuery.data?.academic_year_counts ?? [];
+  const semesters = statsQuery.data?.semester_counts ?? [];
+
   return (
     <div className="space-y-6">
-      <Card className="border-none bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-50 shadow-xl">
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <Card className="border-none bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-50 shadow-xl">
+        <CardHeader className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <CardTitle className="text-2xl">活动列表</CardTitle>
-            <p className="mt-2 text-sm text-slate-300">
-              新版活动列表直接基于模块化单体 API 渲染，作为后续编辑、审核和导入流的入口。
-            </p>
+            <CardTitle className="text-3xl">活动工作台</CardTitle>
+            <CardDescription className="mt-3 max-w-2xl text-slate-300">
+              从这里进入 schema 驱动的新建、草稿编辑、统计、导入和导出流程。
+            </CardDescription>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              className="gap-2 bg-white text-slate-950 hover:bg-slate-100"
+              onClick={() => navigate("/activities/new")}
+            >
+              <Plus className="h-4 w-4" />
+              新建活动
+            </Button>
+            <Button
+              className="gap-2 border-slate-600 bg-slate-950/40 text-slate-50 hover:bg-slate-800"
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className="h-4 w-4" />
+              导入
+            </Button>
+            <Button
+              className="gap-2 border-slate-600 bg-slate-950/40 text-slate-50 hover:bg-slate-800"
+              variant="outline"
+              disabled={exportMutation.isPending}
+              onClick={() => exportMutation.mutate()}
+            >
+              <Download className="h-4 w-4" />
+              导出
+            </Button>
+            <Button
+              className="gap-2"
+              variant="secondary"
+              onClick={refreshWorkspace}
+            >
+              <RefreshCw className="h-4 w-4" />
+              刷新
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              活动总数
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {totalCount(statsQuery.data)}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              我的活动
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {statsQuery.data?.mine_count ?? 0}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              已参与
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {statsQuery.data?.participated_count ?? 0}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              审核中
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {statusCount(statsQuery.data, "pending_review")}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              已通过
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold">
+            {statusCount(statsQuery.data, "approved")}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>筛选</CardTitle>
+          <CardDescription>筛选条件同时作用于列表、统计和导出。</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[minmax(260px,1fr)_repeat(4,180px)]">
+          <div className="space-y-2">
+            <Label htmlFor="activity-keyword">关键字</Label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="w-72 border-slate-700 bg-slate-950/70 pl-10 text-slate-50 placeholder:text-slate-500"
+                id="activity-keyword"
+                className="pl-10"
                 placeholder="搜索活动标题"
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
               />
             </div>
-            <Button
-              variant="secondary"
-              className="gap-2"
-              onClick={() => query.refetch()}
-            >
-              <RefreshCw className="h-4 w-4" />
-              刷新
-            </Button>
-            <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              新建活动
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          {categories.map((category) => (
-            <Badge key={category} variant="secondary" className="bg-white/10 text-slate-100">
-              {category}
-            </Badge>
-          ))}
-          <Badge variant="outline" className="border-slate-700 text-slate-100">
-            共 {query.data?.total ?? 0} 项
-          </Badge>
+          <div className="space-y-2">
+            <Label htmlFor="activity-status">状态</Label>
+            <select
+              id="activity-status"
+              className={selectClassName}
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="">全部状态</option>
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="activity-category">分类</Label>
+            <select
+              id="activity-category"
+              className={selectClassName}
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+            >
+              <option value="">全部分类</option>
+              {categories.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label || item.key}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="activity-academic-year">学年</Label>
+            <select
+              id="activity-academic-year"
+              className={selectClassName}
+              value={academicYear}
+              onChange={(event) => setAcademicYear(event.target.value)}
+            >
+              <option value="">全部学年</option>
+              {academicYears.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.value}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="activity-semester">学期</Label>
+            <select
+              id="activity-semester"
+              className={selectClassName}
+              value={semester}
+              onChange={(event) => setSemester(event.target.value)}
+            >
+              <option value="">全部学期</option>
+              {semesters.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.value}
+                </option>
+              ))}
+            </select>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>活动数据</CardTitle>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>活动数据</CardTitle>
+            <CardDescription>
+              共 {listQuery.data?.total ?? 0} 项，点击查看进入详情页。
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {categories.slice(0, 4).map((item) => (
+              <Badge key={item.key} variant="secondary">
+                {item.label || item.key}: {item.count}
+              </Badge>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
-          {query.isLoading ? (
-            <div className="py-10 text-sm text-muted-foreground">正在加载活动数据...</div>
-          ) : query.isError ? (
+          {listQuery.isLoading ? (
+            <div className="py-10 text-sm text-muted-foreground">
+              正在加载活动数据...
+            </div>
+          ) : listQuery.isError ? (
             <div className="py-10 text-sm text-destructive">活动列表加载失败。</div>
           ) : (
             <Table>
@@ -170,7 +340,7 @@ export default function ActivitiesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {query.data?.items.map((activity) => (
+                {listQuery.data?.items.map((activity) => (
                   <TableRow key={activity.id}>
                     <TableCell>
                       <div className="font-medium">{activity.title}</div>
@@ -189,9 +359,9 @@ export default function ActivitiesPage() {
                     </TableCell>
                     <TableCell>
                       <Button
-                        variant="ghost"
-                        size="sm"
                         className="gap-2"
+                        size="sm"
+                        variant="ghost"
                         onClick={() => navigate(`/activities/${activity.id}`)}
                       >
                         <Eye className="h-4 w-4" />
@@ -206,93 +376,11 @@ export default function ActivitiesPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>创建活动草稿</DialogTitle>
-            <DialogDescription>
-              填写基础字段后立即创建一个新的 draft 活动，后续在详情页继续编辑参与者、附件和审核流程。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="create-title">标题</Label>
-              <Input
-                id="create-title"
-                aria-label="标题"
-                value={draftForm.title}
-                onChange={(event) =>
-                  setDraftForm((current) => ({ ...current, title: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-description">描述</Label>
-              <Input
-                id="create-description"
-                aria-label="描述"
-                value={draftForm.description}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-category">分类</Label>
-              <Input
-                id="create-category"
-                aria-label="分类"
-                value={draftForm.category}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    category: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-academic-year">学年</Label>
-              <Input
-                id="create-academic-year"
-                aria-label="学年"
-                value={draftForm.academic_year}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    academic_year: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-semester">学期</Label>
-              <Input
-                id="create-semester"
-                aria-label="学期"
-                value={draftForm.semester}
-                onChange={(event) =>
-                  setDraftForm((current) => ({
-                    ...current,
-                    semester: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              取消
-            </Button>
-            <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
-              创建草稿
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ActivityImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onCompleted={refreshWorkspace}
+      />
     </div>
   );
 }
