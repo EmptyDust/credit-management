@@ -102,13 +102,30 @@ func TestSeedOptionItemsUsesResolvedGroupIDs(t *testing.T) {
 	}
 }
 
-func TestSeedActivityCategoryTemplatesProvideMinimalDefault(t *testing.T) {
+func TestSeedActivityCategoryTemplatesProvideWorkspaceDefaults(t *testing.T) {
 	rows := seedActivityCategoryTemplates()
-	if len(rows) != 1 {
-		t.Fatalf("expected 1 activity category seed row, got %d", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 activity category seed rows, got %d", len(rows))
 	}
-	if rows[0].Key != "general" || !rows[0].Enabled {
-		t.Fatalf("unexpected activity category seed: %#v", rows[0])
+
+	keys := map[string]activityCategoryTemplateSeedRow{}
+	for _, row := range rows {
+		keys[row.Key] = row
+	}
+	for _, key := range []string{"general", "innovation"} {
+		row, ok := keys[key]
+		if !ok || !row.Enabled {
+			t.Fatalf("expected enabled %s category seed, got %#v", key, keys)
+		}
+	}
+
+	fields := seedActivityFieldSchemas()
+	if len(fields) != 1 {
+		t.Fatalf("expected 1 activity field schema seed row, got %d", len(fields))
+	}
+	field := fields[0]
+	if field.CategoryID != "actcat-innovation-01" || field.FieldKey != "location" || field.FieldType != "text" || !field.Required {
+		t.Fatalf("unexpected innovation field schema seed: %#v", field)
 	}
 }
 

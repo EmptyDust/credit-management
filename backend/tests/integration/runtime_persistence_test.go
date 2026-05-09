@@ -91,7 +91,7 @@ func TestRuntimePersistsActivityApplicationsAndFilesAcrossAppRecreation(t *testi
 	createRecorder := h1.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
 		"title":         "Persistent robotics lab",
 		"description":   "runtime persistence integration",
-		"category":      "general",
+		"category":      "innovation",
 		"academic_year": "2025-2026",
 		"semester":      "autumn",
 		"details": map[string]any{

@@ -48,6 +48,9 @@ func (Seeder) Run(ctx context.Context, db *gorm.DB) error {
 		if err := insertSeedRows(tx, seedActivityCategoryTemplates()); err != nil {
 			return fmt.Errorf("seed activity category templates: %w", err)
 		}
+		if err := insertSeedRows(tx, seedActivityFieldSchemas()); err != nil {
+			return fmt.Errorf("seed activity field schemas: %w", err)
+		}
 
 		return nil
 	})
@@ -127,6 +130,22 @@ type activityCategoryTemplateSeedRow struct {
 
 func (activityCategoryTemplateSeedRow) TableName() string {
 	return "activity_category_templates"
+}
+
+type activityFieldSchemaSeedRow struct {
+	ID              string `gorm:"column:id"`
+	CategoryID      string `gorm:"column:category_id"`
+	FieldKey        string `gorm:"column:field_key"`
+	FieldLabel      string `gorm:"column:field_label"`
+	FieldType       string `gorm:"column:field_type"`
+	Required        bool   `gorm:"column:required"`
+	DefaultValue    []byte `gorm:"column:default_value"`
+	ValidationRules []byte `gorm:"column:validation_rules"`
+	DisplayOrder    int    `gorm:"column:display_order"`
+}
+
+func (activityFieldSchemaSeedRow) TableName() string {
+	return "activity_field_schemas"
 }
 
 func seedUsers(passwordHash string) []userSeedRow {
@@ -236,6 +255,29 @@ func seedActivityCategoryTemplates() []activityCategoryTemplateSeedRow {
 			Label:     "General",
 			SortOrder: 1,
 			Enabled:   true,
+		},
+		{
+			ID:        "actcat-innovation-01",
+			Key:       "innovation",
+			Label:     "Innovation",
+			SortOrder: 2,
+			Enabled:   true,
+		},
+	}
+}
+
+func seedActivityFieldSchemas() []activityFieldSchemaSeedRow {
+	return []activityFieldSchemaSeedRow{
+		{
+			ID:              "actfld-innov-location-01",
+			CategoryID:      "actcat-innovation-01",
+			FieldKey:        "location",
+			FieldLabel:      "Location",
+			FieldType:       "text",
+			Required:        true,
+			DefaultValue:    []byte(`""`),
+			ValidationRules: []byte(`{}`),
+			DisplayOrder:    10,
 		},
 	}
 }
