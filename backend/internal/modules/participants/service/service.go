@@ -39,10 +39,23 @@ type Stats struct {
 	RecentNewCount int     `json:"recent_new_count"`
 }
 
+type AuditHooks interface {
+	RecordParticipantEvent(ctx context.Context, event ParticipantAuditEvent) error
+}
+
+type ParticipantAuditEvent struct {
+	ActorID   string
+	ActorRole string
+	TargetID  string
+	Action    string
+	Result    string
+}
+
 type Service struct {
 	activities activityrepo.Repository
 	users      usersrepo.UserRepository
 	repo       Repository
+	auditHooks AuditHooks
 }
 
 func New(activities activityrepo.Repository, users usersrepo.UserRepository) *Service {
@@ -55,6 +68,11 @@ func NewWithRepository(activities activityrepo.Repository, users usersrepo.UserR
 		users:      users,
 		repo:       repo,
 	}
+}
+
+func (s *Service) UseAuditHooks(hooks AuditHooks) *Service {
+	s.auditHooks = hooks
+	return s
 }
 
 func (s *Service) List(ctx context.Context, actorID string, actorRole string, activityID string) ([]Participant, error) {
@@ -105,6 +123,17 @@ func (s *Service) Add(ctx context.Context, actorID string, actorRole string, act
 	if err := s.repo.AddBatch(ctx, activityID, added); err != nil {
 		return nil, err
 	}
+	for _, participant := range added {
+		if err := s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+			ActorID:   actorID,
+			ActorRole: actorRole,
+			TargetID:  participant.ID,
+			Action:    "participant.add",
+			Result:    "success",
+		}); err != nil {
+			return nil, err
+		}
+	}
 	return added, nil
 }
 
@@ -115,7 +144,20 @@ func (s *Service) UpdateCredits(ctx context.Context, actorID string, actorRole s
 	if _, err := s.editableActivity(ctx, actorID, actorRole, activityID); err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateCredits(ctx, activityID, participantID, credits)
+	participant, err := s.repo.UpdateCredits(ctx, activityID, participantID, credits)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  participant.ID,
+		Action:    "participant.update_credits",
+		Result:    "success",
+	}); err != nil {
+		return nil, err
+	}
+	return participant, nil
 }
 
 func (s *Service) BatchSetCredits(ctx context.Context, actorID string, actorRole string, activityID string, participantIDs []string, credits float64) (int, error) {
@@ -125,21 +167,60 @@ func (s *Service) BatchSetCredits(ctx context.Context, actorID string, actorRole
 	if _, err := s.editableActivity(ctx, actorID, actorRole, activityID); err != nil {
 		return 0, err
 	}
-	return s.repo.BatchUpdateCredits(ctx, activityID, participantIDs, credits)
+	affected, err := s.repo.BatchUpdateCredits(ctx, activityID, participantIDs, credits)
+	if err != nil {
+		return 0, err
+	}
+	for _, participantID := range participantIDs {
+		if err := s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+			ActorID:   actorID,
+			ActorRole: actorRole,
+			TargetID:  participantID,
+			Action:    "participant.batch_set_credits",
+			Result:    "success",
+		}); err != nil {
+			return 0, err
+		}
+	}
+	return affected, nil
 }
 
 func (s *Service) Delete(ctx context.Context, actorID string, actorRole string, activityID string, participantID string) error {
 	if _, err := s.editableActivity(ctx, actorID, actorRole, activityID); err != nil {
 		return err
 	}
-	return s.repo.SoftDelete(ctx, activityID, participantID)
+	if err := s.repo.SoftDelete(ctx, activityID, participantID); err != nil {
+		return err
+	}
+	return s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  participantID,
+		Action:    "participant.delete",
+		Result:    "success",
+	})
 }
 
 func (s *Service) BatchDelete(ctx context.Context, actorID string, actorRole string, activityID string, participantIDs []string) (int, error) {
 	if _, err := s.editableActivity(ctx, actorID, actorRole, activityID); err != nil {
 		return 0, err
 	}
-	return s.repo.BatchSoftDelete(ctx, activityID, participantIDs)
+	affected, err := s.repo.BatchSoftDelete(ctx, activityID, participantIDs)
+	if err != nil {
+		return 0, err
+	}
+	for _, participantID := range participantIDs {
+		if err := s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+			ActorID:   actorID,
+			ActorRole: actorRole,
+			TargetID:  participantID,
+			Action:    "participant.batch_delete",
+			Result:    "success",
+		}); err != nil {
+			return 0, err
+		}
+	}
+	return affected, nil
 }
 
 func (s *Service) Stats(ctx context.Context, actorID string, actorRole string, activityID string) (Stats, error) {
@@ -214,7 +295,20 @@ func (s *Service) Leave(ctx context.Context, actorID string, actorRole string, a
 		return err
 	}
 
-	return s.repo.SoftDeleteByActivityUser(ctx, activityID, actorID)
+	participant, err := s.repo.GetActiveByActivityUser(ctx, activityID, actorID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.SoftDeleteByActivityUser(ctx, activityID, actorID); err != nil {
+		return err
+	}
+	return s.recordParticipantAudit(ctx, ParticipantAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  participant.ID,
+		Action:    "participant.leave",
+		Result:    "success",
+	})
 }
 
 func (s *Service) SnapshotByActivity(ctx context.Context, activityID string) ([]Participant, error) {
@@ -265,4 +359,11 @@ func (s *Service) manageableActivity(ctx context.Context, actorID string, actorR
 		return nil, ErrParticipantEditForbidden
 	}
 	return activity, nil
+}
+
+func (s *Service) recordParticipantAudit(ctx context.Context, event ParticipantAuditEvent) error {
+	if s.auditHooks == nil {
+		return nil
+	}
+	return s.auditHooks.RecordParticipantEvent(ctx, event)
 }

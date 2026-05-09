@@ -207,6 +207,7 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 		auditWriter = auditlog.NewWriter()
 	}
 	auditSvc := auditservice.New(auditWriter)
+	participantSvc.UseAuditHooks(participantAuditRecorder{audit: auditSvc})
 	fileSvc := fileservice.New(activityRepo).UseAuditHooks(fileAuditRecorder{audit: auditSvc})
 	if deps.storageStore != nil && deps.db != nil {
 		fileSvc = fileservice.NewWithStore(activityRepo, fileservice.NewGormMetadataRepository(deps.db), deps.storageStore).
@@ -338,6 +339,24 @@ func (r fileAuditRecorder) RecordFileEvent(ctx context.Context, event fileservic
 		ActorID:    event.ActorID,
 		ActorRole:  event.ActorRole,
 		TargetType: "file",
+		TargetID:   event.TargetID,
+		Action:     event.Action,
+		Result:     event.Result,
+	})
+}
+
+type participantAuditRecorder struct {
+	audit *auditservice.Service
+}
+
+func (r participantAuditRecorder) RecordParticipantEvent(ctx context.Context, event participantservice.ParticipantAuditEvent) error {
+	if r.audit == nil {
+		return nil
+	}
+	return r.audit.Record(ctx, auditlog.Entry{
+		ActorID:    event.ActorID,
+		ActorRole:  event.ActorRole,
+		TargetType: "participant",
 		TargetID:   event.TargetID,
 		Action:     event.Action,
 		Result:     event.Result,

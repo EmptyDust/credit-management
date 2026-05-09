@@ -398,6 +398,99 @@ func TestActivityFileOperationsWriteAuditLogs(t *testing.T) {
 	}
 }
 
+func TestParticipantOperationsWriteAuditLogs(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+	admin := login(t, h, "admin01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "Participant audit activity",
+		"description":   "audit participant operations",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Participant Audit Lab",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	addRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants", student.AccessToken, map[string]any{
+		"user_ids": []string{student.User.ID},
+		"credits":  1.5,
+	})
+	if addRecorder.Code != http.StatusOK {
+		t.Fatalf("add participant failed: status=%d body=%s", addRecorder.Code, addRecorder.Body.String())
+	}
+	added := decodeData[struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, addRecorder))
+	if len(added.Items) != 1 {
+		t.Fatalf("expected one participant, got %+v", added.Items)
+	}
+	participantID := added.Items[0].ID
+
+	updateRecorder := h.requestJSON(http.MethodPatch, "/api/v1/activities/"+created.Activity.ID+"/participants/"+participantID, student.AccessToken, map[string]any{
+		"credits": 2,
+	})
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("update participant failed: status=%d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+
+	batchRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants/batch-set-credits", student.AccessToken, map[string]any{
+		"participant_ids": []string{participantID},
+		"credits":         3,
+	})
+	if batchRecorder.Code != http.StatusOK {
+		t.Fatalf("batch set participant failed: status=%d body=%s", batchRecorder.Code, batchRecorder.Body.String())
+	}
+
+	deleteRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants/batch-delete", student.AccessToken, map[string]any{
+		"participant_ids": []string{participantID},
+	})
+	if deleteRecorder.Code != http.StatusOK {
+		t.Fatalf("batch delete participant failed: status=%d body=%s", deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	auditRecorder := h.request(http.MethodGet, "/api/v1/devtools/audit-logs?target_type=participant&target_id="+participantID, admin.AccessToken, nil, "")
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf("list audit logs failed: status=%d body=%s", auditRecorder.Code, auditRecorder.Body.String())
+	}
+	auditLogs := decodeData[struct {
+		Items []struct {
+			ActorID    string `json:"actor_id"`
+			ActorRole  string `json:"actor_role"`
+			TargetType string `json:"target_type"`
+			TargetID   string `json:"target_id"`
+			Action     string `json:"action"`
+			Result     string `json:"result"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, auditRecorder))
+
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "participant", "participant.add", "success") {
+		t.Fatalf("expected participant.add audit log, got %+v", auditLogs.Items)
+	}
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "participant", "participant.update_credits", "success") {
+		t.Fatalf("expected participant.update_credits audit log, got %+v", auditLogs.Items)
+	}
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "participant", "participant.batch_set_credits", "success") {
+		t.Fatalf("expected participant.batch_set_credits audit log, got %+v", auditLogs.Items)
+	}
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "participant", "participant.batch_delete", "success") {
+		t.Fatalf("expected participant.batch_delete audit log, got %+v", auditLogs.Items)
+	}
+}
+
 func containsAuditAction(items []struct {
 	ActorID    string `json:"actor_id"`
 	ActorRole  string `json:"actor_role"`
