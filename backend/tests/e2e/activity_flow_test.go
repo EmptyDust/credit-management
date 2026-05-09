@@ -327,6 +327,77 @@ func TestActivityReviewAndTransferWriteAuditLogs(t *testing.T) {
 	}
 }
 
+func TestActivityFileOperationsWriteAuditLogs(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+	admin := login(t, h, "admin01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "File audit activity",
+		"description":   "audit file operations",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Audit Archive",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	uploadRecorder := h.requestMultipartFiles(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/files", student.AccessToken, []multipartUploadFile{
+		{FieldName: "files[]", Filename: "audit-proof.txt", Content: []byte("audit proof")},
+	}, map[string]string{
+		"file_category": "audit",
+	})
+	if uploadRecorder.Code != http.StatusCreated {
+		t.Fatalf("upload file failed: status=%d body=%s", uploadRecorder.Code, uploadRecorder.Body.String())
+	}
+	uploaded := decodeData[struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, uploadRecorder))
+	if len(uploaded.Items) != 1 {
+		t.Fatalf("expected one uploaded file, got %+v", uploaded.Items)
+	}
+	fileID := uploaded.Items[0].ID
+
+	deleteRecorder := h.request(http.MethodDelete, "/api/v1/activities/"+created.Activity.ID+"/files/"+fileID, student.AccessToken, nil, "")
+	if deleteRecorder.Code != http.StatusOK {
+		t.Fatalf("delete file failed: status=%d body=%s", deleteRecorder.Code, deleteRecorder.Body.String())
+	}
+
+	auditRecorder := h.request(http.MethodGet, "/api/v1/devtools/audit-logs?target_type=file&target_id="+fileID, admin.AccessToken, nil, "")
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf("list audit logs failed: status=%d body=%s", auditRecorder.Code, auditRecorder.Body.String())
+	}
+	auditLogs := decodeData[struct {
+		Items []struct {
+			ActorID    string `json:"actor_id"`
+			ActorRole  string `json:"actor_role"`
+			TargetType string `json:"target_type"`
+			TargetID   string `json:"target_id"`
+			Action     string `json:"action"`
+			Result     string `json:"result"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, auditRecorder))
+
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "file", "file.upload", "success") {
+		t.Fatalf("expected file.upload audit log, got %+v", auditLogs.Items)
+	}
+	if !containsAuditTargetAction(auditLogs.Items, student.User.ID, "student", "file", "file.delete", "success") {
+		t.Fatalf("expected file.delete audit log, got %+v", auditLogs.Items)
+	}
+}
+
 func containsAuditAction(items []struct {
 	ActorID    string `json:"actor_id"`
 	ActorRole  string `json:"actor_role"`
@@ -335,8 +406,19 @@ func containsAuditAction(items []struct {
 	Action     string `json:"action"`
 	Result     string `json:"result"`
 }, actorID string, actorRole string, action string, result string) bool {
+	return containsAuditTargetAction(items, actorID, actorRole, "activity", action, result)
+}
+
+func containsAuditTargetAction(items []struct {
+	ActorID    string `json:"actor_id"`
+	ActorRole  string `json:"actor_role"`
+	TargetType string `json:"target_type"`
+	TargetID   string `json:"target_id"`
+	Action     string `json:"action"`
+	Result     string `json:"result"`
+}, actorID string, actorRole string, targetType string, action string, result string) bool {
 	for _, item := range items {
-		if item.ActorID == actorID && item.ActorRole == actorRole && item.TargetType == "activity" && item.Action == action && item.Result == result {
+		if item.ActorID == actorID && item.ActorRole == actorRole && item.TargetType == targetType && item.Action == action && item.Result == result {
 			return true
 		}
 	}

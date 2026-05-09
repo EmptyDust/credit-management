@@ -54,10 +54,23 @@ type UploadOptions struct {
 	Description  string
 }
 
+type AuditHooks interface {
+	RecordFileEvent(ctx context.Context, event FileAuditEvent) error
+}
+
+type FileAuditEvent struct {
+	ActorID   string
+	ActorRole string
+	TargetID  string
+	Action    string
+	Result    string
+}
+
 type Service struct {
 	activities activityrepo.Repository
 	repo       MetadataRepository
 	store      storage.Store
+	auditHooks AuditHooks
 }
 
 type storedFile struct {
@@ -82,6 +95,11 @@ func NewWithStore(activities activityrepo.Repository, repo MetadataRepository, s
 		repo:       repo,
 		store:      store,
 	}
+}
+
+func (s *Service) UseAuditHooks(hooks AuditHooks) *Service {
+	s.auditHooks = hooks
+	return s
 }
 
 func (s *Service) List(ctx context.Context, actorID string, actorRole string, activityID string) ([]File, error) {
@@ -198,6 +216,15 @@ func (s *Service) UploadWithOptions(ctx context.Context, actorID string, actorRo
 		}
 		return nil, err
 	}
+	if err := s.recordFileAudit(ctx, FileAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  file.ID,
+		Action:    "file.upload",
+		Result:    "success",
+	}); err != nil {
+		return nil, err
+	}
 
 	return &file, nil
 }
@@ -222,10 +249,18 @@ func (s *Service) Delete(ctx context.Context, actorID string, actorRole string, 
 		return err
 	}
 	if s.store != nil && meta.StorageKey != "" {
-		return s.store.Delete(ctx, meta.StorageKey)
+		if err := s.store.Delete(ctx, meta.StorageKey); err != nil {
+			return err
+		}
 	}
 
-	return nil
+	return s.recordFileAudit(ctx, FileAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  fileID,
+		Action:    "file.delete",
+		Result:    "success",
+	})
 }
 
 func (s *Service) CopyActivityFiles(ctx context.Context, sourceActivityID string, targetActivityID string, actorID string) error {
@@ -451,4 +486,11 @@ func isPreviewable(filename string, contentType string) bool {
 	return strings.HasPrefix(contentType, "text/plain") ||
 		strings.HasPrefix(contentType, "application/pdf") ||
 		strings.HasPrefix(contentType, "image/")
+}
+
+func (s *Service) recordFileAudit(ctx context.Context, event FileAuditEvent) error {
+	if s.auditHooks == nil {
+		return nil
+	}
+	return s.auditHooks.RecordFileEvent(ctx, event)
 }

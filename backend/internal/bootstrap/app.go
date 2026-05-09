@@ -202,9 +202,15 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	if deps.participantRepo != nil {
 		participantSvc = participantservice.NewWithRepository(activityRepo, deps.userRepo, deps.participantRepo)
 	}
-	fileSvc := fileservice.New(activityRepo)
+	auditWriter := deps.auditWriter
+	if auditWriter == nil {
+		auditWriter = auditlog.NewWriter()
+	}
+	auditSvc := auditservice.New(auditWriter)
+	fileSvc := fileservice.New(activityRepo).UseAuditHooks(fileAuditRecorder{audit: auditSvc})
 	if deps.storageStore != nil && deps.db != nil {
-		fileSvc = fileservice.NewWithStore(activityRepo, fileservice.NewGormMetadataRepository(deps.db), deps.storageStore)
+		fileSvc = fileservice.NewWithStore(activityRepo, fileservice.NewGormMetadataRepository(deps.db), deps.storageStore).
+			UseAuditHooks(fileAuditRecorder{audit: auditSvc})
 	}
 	appSvc := appservice.New()
 	if deps.applicationRepo != nil {
@@ -215,11 +221,6 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	appSvc.SetParticipantService(participantSvc)
 	activityStatsSvc := dashboard.NewActivityStatsService(activityRepo, activityCategoryRepo, participantSvc)
 	activityExportSvc := exportservice.NewActivityExportService(activityRepo)
-	auditWriter := deps.auditWriter
-	if auditWriter == nil {
-		auditWriter = auditlog.NewWriter()
-	}
-	auditSvc := auditservice.New(auditWriter)
 	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc)).
 		UseCopyHooks(activityRelationCopier{
 			participants: participantSvc,
@@ -319,6 +320,24 @@ func (r activityAuditRecorder) RecordActivityEvent(ctx context.Context, event ac
 		ActorID:    event.ActorID,
 		ActorRole:  event.ActorRole,
 		TargetType: "activity",
+		TargetID:   event.TargetID,
+		Action:     event.Action,
+		Result:     event.Result,
+	})
+}
+
+type fileAuditRecorder struct {
+	audit *auditservice.Service
+}
+
+func (r fileAuditRecorder) RecordFileEvent(ctx context.Context, event fileservice.FileAuditEvent) error {
+	if r.audit == nil {
+		return nil
+	}
+	return r.audit.Record(ctx, auditlog.Entry{
+		ActorID:    event.ActorID,
+		ActorRole:  event.ActorRole,
+		TargetType: "file",
 		TargetID:   event.TargetID,
 		Action:     event.Action,
 		Result:     event.Result,
