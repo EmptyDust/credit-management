@@ -82,6 +82,15 @@ export async function createStudent(input: UserMutationInput) {
   return response.data.data.user;
 }
 
+export async function createTeacher(input: UserMutationInput) {
+  const response = await apiClient.post<ApiSuccessResponse<{ user: AdminUser }>>(
+    "/teachers",
+    input
+  );
+
+  return response.data.data.user;
+}
+
 export async function updateStudent(id: string, input: UserMutationInput) {
   const response = await apiClient.patch<ApiSuccessResponse<{ user: AdminUser }>>(
     `/students/${id}`,
@@ -91,8 +100,21 @@ export async function updateStudent(id: string, input: UserMutationInput) {
   return response.data.data.user;
 }
 
+export async function updateTeacher(id: string, input: UserMutationInput) {
+  const response = await apiClient.patch<ApiSuccessResponse<{ user: AdminUser }>>(
+    `/teachers/${id}`,
+    input
+  );
+
+  return response.data.data.user;
+}
+
 export async function deleteStudent(id: string) {
   await apiClient.delete(`/students/${id}`);
+}
+
+export async function deleteTeacher(id: string) {
+  await apiClient.delete(`/teachers/${id}`);
 }
 
 export async function updateUserStatus(id: string, status: string) {
