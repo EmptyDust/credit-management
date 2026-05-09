@@ -17,11 +17,16 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   addActivityParticipants,
+  batchDeleteActivityParticipants,
+  batchSetActivityParticipantCredits,
   copyActivity,
   deleteActivity,
   deleteActivityFile,
+  deleteActivityParticipant,
   downloadActivityFile,
+  exportActivityParticipants,
   getActivityDetail,
+  getActivityParticipantStats,
   leaveActivity,
   listActivityFiles,
   listActivityParticipants,
@@ -29,16 +34,19 @@ import {
   submitActivity,
   transferActivityOwner,
   updateActivity,
+  updateActivityParticipantCredits,
   uploadActivityFile,
   withdrawActivity,
   type ActivityDetail,
   type ActivityFile,
   type ActivityParticipant,
+  type ActivityParticipantStats,
   type ActivityMutationInput,
 } from "@/modules/activities/api/activities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -193,19 +201,53 @@ function DetailsBlock({ activity }: { activity: ActivityDetail }) {
 
 function ParticipantsBlock({
   participants,
+  stats,
   canManage,
   canLeave,
   onAdd,
   onLeave,
+  onExport,
+  onUpdateCredits,
+  onDelete,
+  onBatchSetCredits,
+  onBatchDelete,
 }: {
   participants: ActivityParticipant[];
+  stats?: ActivityParticipantStats;
   canManage: boolean;
   canLeave: boolean;
   onAdd: (userIDs: string[], credits: number) => Promise<void>;
   onLeave: () => Promise<void>;
+  onExport: () => Promise<void>;
+  onUpdateCredits: (participantID: string, credits: number) => Promise<void>;
+  onDelete: (participantID: string) => Promise<void>;
+  onBatchSetCredits: (participantIDs: string[], credits: number) => Promise<void>;
+  onBatchDelete: (participantIDs: string[]) => Promise<void>;
 }) {
   const [userIDsText, setUserIDsText] = useState("");
   const [creditsText, setCreditsText] = useState("0");
+  const [batchCreditsText, setBatchCreditsText] = useState("0");
+  const [creditDrafts, setCreditDrafts] = useState<Record<string, string>>({});
+  const [selectedParticipantIDs, setSelectedParticipantIDs] = useState<string[]>([]);
+
+  const parseCredits = (value: string) => {
+    const credits = Number(value || "0");
+    if (!Number.isFinite(credits) || credits < 0) {
+      toast.error("学分必须大于等于 0");
+      return null;
+    }
+
+    return credits;
+  };
+
+  const requireSelectedIDs = () => {
+    if (selectedParticipantIDs.length === 0) {
+      toast.error("请选择至少一个参与者");
+      return null;
+    }
+
+    return selectedParticipantIDs;
+  };
 
   const handleAdd = async () => {
     const userIDs = userIDsText
@@ -217,8 +259,60 @@ function ParticipantsBlock({
       return;
     }
 
-    await onAdd(userIDs, Number(creditsText || "0"));
+    const credits = parseCredits(creditsText);
+    if (credits === null) {
+      return;
+    }
+
+    await onAdd(userIDs, credits);
     setUserIDsText("");
+  };
+
+  const handleUpdateCredits = async (participant: ActivityParticipant) => {
+    const credits = parseCredits(
+      creditDrafts[participant.id] ?? String(participant.credits)
+    );
+    if (credits === null) {
+      return;
+    }
+
+    await onUpdateCredits(participant.id, credits);
+  };
+
+  const handleBatchSetCredits = async () => {
+    const selectedIDs = requireSelectedIDs();
+    if (!selectedIDs) {
+      return;
+    }
+
+    const credits = parseCredits(batchCreditsText);
+    if (credits === null) {
+      return;
+    }
+
+    await onBatchSetCredits(selectedIDs, credits);
+  };
+
+  const handleBatchDelete = async () => {
+    const selectedIDs = requireSelectedIDs();
+    if (!selectedIDs) {
+      return;
+    }
+
+    await onBatchDelete(selectedIDs);
+    setSelectedParticipantIDs([]);
+  };
+
+  const toggleParticipant = (participantID: string, checked: boolean) => {
+    setSelectedParticipantIDs((current) => {
+      if (checked) {
+        return current.includes(participantID)
+          ? current
+          : [...current, participantID];
+      }
+
+      return current.filter((id) => id !== participantID);
+    });
   };
 
   return (
@@ -228,13 +322,51 @@ function ParticipantsBlock({
           <Users className="h-4 w-4" />
           参与者
         </CardTitle>
-        {canLeave ? (
-          <Button variant="outline" size="sm" onClick={() => void onLeave()}>
-            退出活动
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => void onExport()}
+          >
+            <Download className="h-4 w-4" />
+            导出参与者
           </Button>
-        ) : null}
+          {canLeave ? (
+            <Button variant="outline" size="sm" onClick={() => void onLeave()}>
+              退出活动
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {stats ? (
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">参与者总数</div>
+              <div className="mt-1 text-2xl font-semibold">{stats.total_count}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">总学分</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {stats.total_credits} 学分
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">平均学分</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {stats.average_credits} 学分/人
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">近 7 日新增</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {stats.recent_new_count}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {canManage ? (
           <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_160px_auto]">
             <div className="space-y-2">
@@ -266,23 +398,110 @@ function ParticipantsBlock({
           </div>
         ) : null}
 
+        {canManage && participants.length > 0 ? (
+          <div className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-2 md:w-48">
+              <Label htmlFor="batch-participant-credits">批量学分</Label>
+              <Input
+                id="batch-participant-credits"
+                aria-label="批量设置学分"
+                type="number"
+                min="0"
+                step="0.5"
+                value={batchCreditsText}
+                onChange={(event) => setBatchCreditsText(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void handleBatchSetCredits()}
+              >
+                批量设置所选学分
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void handleBatchDelete()}
+              >
+                批量删除所选参与者
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {participants.length === 0 ? (
           <div className="text-sm text-muted-foreground">暂无参与者</div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
+                {canManage ? <TableHead className="w-12">选择</TableHead> : null}
                 <TableHead>用户 ID</TableHead>
                 <TableHead>学分</TableHead>
                 <TableHead>加入时间</TableHead>
+                {canManage ? <TableHead>操作</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {participants.map((participant) => (
                 <TableRow key={participant.id}>
+                  {canManage ? (
+                    <TableCell>
+                      <Checkbox
+                        aria-label={`选择参与者 ${participant.user_id}`}
+                        checked={selectedParticipantIDs.includes(participant.id)}
+                        onCheckedChange={(checked) =>
+                          toggleParticipant(participant.id, checked === true)
+                        }
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell>{participant.user_id}</TableCell>
-                  <TableCell>{participant.credits}</TableCell>
+                  <TableCell>
+                    {canManage ? (
+                      <Input
+                        aria-label={`参与者 ${participant.user_id} 学分`}
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={
+                          creditDrafts[participant.id] ??
+                          String(participant.credits)
+                        }
+                        onChange={(event) =>
+                          setCreditDrafts((current) => ({
+                            ...current,
+                            [participant.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    ) : (
+                      participant.credits
+                    )}
+                  </TableCell>
                   <TableCell>{participant.joined_at || "-"}</TableCell>
+                  {canManage ? (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`保存 ${participant.user_id} 学分`}
+                          onClick={() => void handleUpdateCredits(participant)}
+                        >
+                          保存
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`删除参与者 ${participant.user_id}`}
+                          onClick={() => void onDelete(participant.id)}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -422,6 +641,12 @@ export default function ActivityDetailPage() {
     enabled: Boolean(id),
   });
 
+  const participantStatsQuery = useQuery({
+    queryKey: ["activities", "participants", "stats", id],
+    queryFn: () => getActivityParticipantStats(id),
+    enabled: Boolean(id),
+  });
+
   const filesQuery = useQuery({
     queryKey: ["activities", "files", id],
     queryFn: () => listActivityFiles(id),
@@ -466,6 +691,7 @@ export default function ActivityDetailPage() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["activities", "detail", id] }),
       queryClient.invalidateQueries({ queryKey: ["activities", "participants", id] }),
+      queryClient.invalidateQueries({ queryKey: ["activities", "participants", "stats", id] }),
       queryClient.invalidateQueries({ queryKey: ["activities", "files", id] }),
       queryClient.invalidateQueries({ queryKey: ["activities"] }),
       queryClient.invalidateQueries({ queryKey: ["applications"] }),
@@ -484,6 +710,10 @@ export default function ActivityDetailPage() {
         | { type: "transfer"; newOwnerID: string }
         | { type: "update"; payload: ActivityMutationInput }
         | { type: "addParticipants"; userIDs: string[]; credits: number }
+        | { type: "updateParticipantCredits"; participantID: string; credits: number }
+        | { type: "deleteParticipant"; participantID: string }
+        | { type: "batchSetParticipantCredits"; participantIDs: string[]; credits: number }
+        | { type: "batchDeleteParticipants"; participantIDs: string[] }
         | { type: "uploadFile"; file: File }
         | { type: "deleteFile"; fileID: string }
     ) => {
@@ -514,6 +744,23 @@ export default function ActivityDetailPage() {
             user_ids: action.userIDs,
             credits: action.credits,
           });
+        case "updateParticipantCredits":
+          return updateActivityParticipantCredits(
+            id,
+            action.participantID,
+            action.credits
+          );
+        case "deleteParticipant":
+          await deleteActivityParticipant(id, action.participantID);
+          return null;
+        case "batchSetParticipantCredits":
+          return batchSetActivityParticipantCredits(
+            id,
+            action.participantIDs,
+            action.credits
+          );
+        case "batchDeleteParticipants":
+          return batchDeleteActivityParticipants(id, action.participantIDs);
         case "uploadFile":
           return uploadActivityFile(id, action.file);
         case "deleteFile":
@@ -558,6 +805,18 @@ export default function ActivityDetailPage() {
           break;
         case "addParticipants":
           toast.success("参与者已添加");
+          break;
+        case "updateParticipantCredits":
+          toast.success("参与者学分已更新");
+          break;
+        case "deleteParticipant":
+          toast.success("参与者已删除");
+          break;
+        case "batchSetParticipantCredits":
+          toast.success("所选参与者学分已更新");
+          break;
+        case "batchDeleteParticipants":
+          toast.success("所选参与者已删除");
           break;
         case "uploadFile":
           toast.success("附件已上传");
@@ -688,6 +947,7 @@ export default function ActivityDetailPage() {
 
       <ParticipantsBlock
         participants={participantsQuery.data || []}
+        stats={participantStatsQuery.data}
         canManage={canManageParticipants}
         canLeave={canLeave}
         onAdd={async (userIDs, credits) =>
@@ -695,6 +955,33 @@ export default function ActivityDetailPage() {
         }
         onLeave={async () =>
           actionMutation.mutateAsync({ type: "leave" }).then(() => undefined)
+        }
+        onExport={async () => {
+          await exportActivityParticipants(id);
+        }}
+        onUpdateCredits={async (participantID, credits) =>
+          actionMutation
+            .mutateAsync({ type: "updateParticipantCredits", participantID, credits })
+            .then(() => undefined)
+        }
+        onDelete={async (participantID) =>
+          actionMutation
+            .mutateAsync({ type: "deleteParticipant", participantID })
+            .then(() => undefined)
+        }
+        onBatchSetCredits={async (participantIDs, credits) =>
+          actionMutation
+            .mutateAsync({
+              type: "batchSetParticipantCredits",
+              participantIDs,
+              credits,
+            })
+            .then(() => undefined)
+        }
+        onBatchDelete={async (participantIDs) =>
+          actionMutation
+            .mutateAsync({ type: "batchDeleteParticipants", participantIDs })
+            .then(() => undefined)
         }
       />
 

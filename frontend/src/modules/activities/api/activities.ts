@@ -1,5 +1,4 @@
-import apiClient from "@/lib/api";
-import { apiHelpers } from "@/lib/api";
+import apiClient, { apiHelpers } from "@/lib/api";
 import type { ApiSuccessResponse } from "@/shared/types/api";
 
 export interface ActivityListItem {
@@ -28,6 +27,13 @@ export interface ActivityParticipant {
   user_id: string;
   credits: number;
   joined_at: string;
+}
+
+export interface ActivityParticipantStats {
+  total_count: number;
+  total_credits: number;
+  average_credits: number;
+  recent_new_count: number;
 }
 
 export interface ActivityFile {
@@ -165,6 +171,21 @@ export async function listActivityParticipants(id: string) {
   return response.data.data.items;
 }
 
+export async function getActivityParticipantStats(id: string) {
+  const response = await apiClient.get<ApiSuccessResponse<ActivityParticipantStats>>(
+    `/activities/${id}/participants/stats`
+  );
+
+  return response.data.data;
+}
+
+export async function exportActivityParticipants(id: string) {
+  return apiHelpers.downloadFile(
+    `/activities/${id}/participants/export`,
+    "participants.csv"
+  );
+}
+
 export async function addActivityParticipants(
   id: string,
   input: { user_ids: string[]; credits: number }
@@ -174,6 +195,55 @@ export async function addActivityParticipants(
   >(`/activities/${id}/participants`, input);
 
   return response.data.data.items;
+}
+
+export async function updateActivityParticipantCredits(
+  activityID: string,
+  participantID: string,
+  credits: number
+) {
+  const response = await apiClient.patch<
+    ApiSuccessResponse<{ participant: ActivityParticipant }>
+  >(`/activities/${activityID}/participants/${participantID}`, { credits });
+
+  return response.data.data.participant;
+}
+
+export async function batchSetActivityParticipantCredits(
+  activityID: string,
+  participantIDs: string[],
+  credits: number
+) {
+  const response = await apiClient.post<ApiSuccessResponse<{ affected_count: number }>>(
+    `/activities/${activityID}/participants/batch-set-credits`,
+    {
+      participant_ids: participantIDs,
+      credits,
+    }
+  );
+
+  return response.data.data;
+}
+
+export async function deleteActivityParticipant(
+  activityID: string,
+  participantID: string
+) {
+  await apiClient.delete(`/activities/${activityID}/participants/${participantID}`);
+}
+
+export async function batchDeleteActivityParticipants(
+  activityID: string,
+  participantIDs: string[]
+) {
+  const response = await apiClient.post<ApiSuccessResponse<{ affected_count: number }>>(
+    `/activities/${activityID}/participants/batch-delete`,
+    {
+      participant_ids: participantIDs,
+    }
+  );
+
+  return response.data.data;
 }
 
 export async function leaveActivity(id: string) {

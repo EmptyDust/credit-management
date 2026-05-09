@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import RegisterPage from "@/modules/auth/pages/RegisterPage";
 
@@ -42,6 +42,109 @@ vi.mock("@/lib/options", () => ({
   getOptions: () => mockGetOptions(),
 }));
 
+vi.mock("@/components/ui/select", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+
+  type SelectData = {
+    ariaLabel?: string;
+    disabled?: boolean;
+    placeholder?: string;
+    items: Array<{ value: string; label: string }>;
+  };
+
+  const SelectTrigger = ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
+  );
+  const SelectValue = () => null;
+  const SelectContent = ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
+  );
+  const SelectItem = ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
+  );
+
+  function collectSelectData(children: React.ReactNode): SelectData {
+    const data: SelectData = { items: [] };
+
+    function visit(node: React.ReactNode) {
+      React.Children.forEach(node, (child) => {
+        if (!React.isValidElement(child)) {
+          return;
+        }
+
+        if (child.type === SelectTrigger) {
+          const props = child.props as {
+            "aria-label"?: string;
+            disabled?: boolean;
+          };
+          data.ariaLabel = props["aria-label"];
+          data.disabled = props.disabled;
+        }
+
+        if (child.type === SelectValue) {
+          const props = child.props as { placeholder?: string };
+          data.placeholder = props.placeholder;
+        }
+
+        if (child.type === SelectItem) {
+          const props = child.props as { value: string; children?: React.ReactNode };
+          data.items.push({
+            value: props.value,
+            label: String(props.children ?? props.value),
+          });
+        }
+
+        const props = child.props as { children?: React.ReactNode };
+        visit(props.children);
+      });
+    }
+
+    visit(children);
+    return data;
+  }
+
+  return {
+    Select: ({
+      children,
+      defaultValue,
+      disabled,
+      onValueChange,
+      value,
+    }: {
+      children?: React.ReactNode;
+      defaultValue?: string;
+      disabled?: boolean;
+      onValueChange?: (value: string) => void;
+      value?: string;
+    }) => {
+      const data = collectSelectData(children);
+
+      return (
+        <select
+          aria-label={data.ariaLabel}
+          defaultValue={value === undefined ? defaultValue || "" : undefined}
+          disabled={disabled || data.disabled}
+          value={value}
+          onChange={(event) => onValueChange?.(event.target.value)}
+        >
+          <option value="" disabled>
+            {data.placeholder || "请选择"}
+          </option>
+          {data.items.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      );
+    },
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  };
+});
+
 vi.mock("react-hot-toast", () => ({
   default: {
     success: mockToastSuccess,
@@ -65,6 +168,10 @@ describe("RegisterPage", () => {
     mockPost.mockReset();
     mockGetOptions.mockReset();
     mockToastSuccess.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("submits the student registration payload and returns to login", async () => {
@@ -101,17 +208,10 @@ describe("RegisterPage", () => {
     await user.type(screen.getByLabelText("手机号码"), "13812345678");
     await user.type(screen.getByLabelText("学号"), "20240001");
 
-    await user.click(screen.getByRole("combobox", { name: "学部" }));
-    await user.click(await screen.findByRole("option", { name: "计算机学院" }));
-
-    await user.click(screen.getByRole("combobox", { name: "专业" }));
-    await user.click(await screen.findByRole("option", { name: "软件工程" }));
-
-    await user.click(screen.getByRole("combobox", { name: "班级" }));
-    await user.click(await screen.findByRole("option", { name: "软件工程一班" }));
-
-    await user.click(screen.getByRole("combobox", { name: "年级" }));
-    await user.click(await screen.findByRole("option", { name: "2024级" }));
+    await user.selectOptions(await screen.findByLabelText("学部"), "college-1");
+    await user.selectOptions(await screen.findByLabelText("专业"), "major-1");
+    await user.selectOptions(await screen.findByLabelText("班级"), "class-1");
+    await user.selectOptions(await screen.findByLabelText("年级"), "2024");
 
     const originalSetTimeout = globalThis.setTimeout;
     const redirectTimer = vi
