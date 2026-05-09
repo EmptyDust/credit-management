@@ -11,10 +11,6 @@ import type {
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const NUMBER_PATTERN = /^-?\d+(\.\d+)?$/
 
-function isArrayValue(value: ActivitySchemaValue): value is Array<string | number | boolean> {
-  return Array.isArray(value)
-}
-
 function isEmptyValue(value: ActivitySchemaValue) {
   if (value === null || value === undefined) {
     return true

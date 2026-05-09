@@ -10,6 +10,8 @@ import AdminLayout from "@/app/layouts/AdminLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import RoleBasedRoute from "@/components/RoleBasedRoute";
 import ActivityDetailPage from "@/modules/activities/pages/ActivityDetailPage";
+import ActivityCreatePage from "@/modules/activities/pages/ActivityCreatePage";
+import ActivityEditPage from "@/modules/activities/pages/ActivityEditPage";
 import ApplicationsPage from "@/modules/applications/pages/ApplicationsPage";
 import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
 import LoginPage from "@/modules/auth/pages/LoginPage";
@@ -71,6 +73,14 @@ export const appRoutes: RouteObject[] = [
           {
             path: "/activities",
             element: <ActivitiesPage />,
+          },
+          {
+            path: "/activities/new",
+            element: <ActivityCreatePage />,
+          },
+          {
+            path: "/activities/:id/edit",
+            element: <ActivityEditPage />,
           },
           {
             path: "/activities/:id",
