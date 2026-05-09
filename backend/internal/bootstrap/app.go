@@ -215,16 +215,17 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	appSvc.SetParticipantService(participantSvc)
 	activityStatsSvc := dashboard.NewActivityStatsService(activityRepo, activityCategoryRepo, participantSvc)
 	activityExportSvc := exportservice.NewActivityExportService(activityRepo)
-	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc)).
-		UseCopyHooks(activityRelationCopier{
-			participants: participantSvc,
-			files:        fileSvc,
-		})
 	auditWriter := deps.auditWriter
 	if auditWriter == nil {
 		auditWriter = auditlog.NewWriter()
 	}
 	auditSvc := auditservice.New(auditWriter)
+	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc)).
+		UseCopyHooks(activityRelationCopier{
+			participants: participantSvc,
+			files:        fileSvc,
+		}).
+		UseAuditHooks(activityAuditRecorder{audit: auditSvc})
 	dashboardSvc := dashboard.NewService(
 		deps.userCount,
 		func() int {
@@ -304,6 +305,24 @@ func (c activityRelationCopier) CopyActivityRelations(ctx context.Context, sourc
 		}
 	}
 	return nil
+}
+
+type activityAuditRecorder struct {
+	audit *auditservice.Service
+}
+
+func (r activityAuditRecorder) RecordActivityEvent(ctx context.Context, event activityservice.ActivityAuditEvent) error {
+	if r.audit == nil {
+		return nil
+	}
+	return r.audit.Record(ctx, auditlog.Entry{
+		ActorID:    event.ActorID,
+		ActorRole:  event.ActorRole,
+		TargetType: "activity",
+		TargetID:   event.TargetID,
+		Action:     event.Action,
+		Result:     event.Result,
+	})
 }
 
 func (memoryOptionRepo) ListOrganization(context.Context) ([]optionsservice.OrganizationNode, error) {

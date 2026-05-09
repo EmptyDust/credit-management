@@ -319,7 +319,7 @@ func (h *Handler) TransferOwner(c *gin.Context) {
 		return
 	}
 
-	activity, err := h.service.TransferOwner(c.Request.Context(), claims.UserType, c.Param("id"), input.NewOwnerID)
+	activity, err := h.service.TransferOwner(c.Request.Context(), claims.UserID, claims.UserType, c.Param("id"), input.NewOwnerID)
 	if err != nil {
 		handleActivityError(c, err, "transfer owner failed")
 		return

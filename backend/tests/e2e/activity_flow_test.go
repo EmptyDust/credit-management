@@ -209,3 +209,88 @@ func TestCopyActivityIncludesParticipantsAndFiles(t *testing.T) {
 		t.Fatalf("unexpected copied files: %+v", files.Items)
 	}
 }
+
+func TestActivityReviewAndTransferWriteAuditLogs(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+	teacher := login(t, h, "teacher01")
+	admin := login(t, h, "admin01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "Audited activity",
+		"description":   "audit contract",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Audit Lab",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	submitRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/submit", student.AccessToken, map[string]any{})
+	if submitRecorder.Code != http.StatusOK {
+		t.Fatalf("submit activity failed: status=%d body=%s", submitRecorder.Code, submitRecorder.Body.String())
+	}
+
+	reviewRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/review", teacher.AccessToken, map[string]string{
+		"target_status":   "approved",
+		"review_comments": "audited approval",
+	})
+	if reviewRecorder.Code != http.StatusOK {
+		t.Fatalf("review activity failed: status=%d body=%s", reviewRecorder.Code, reviewRecorder.Body.String())
+	}
+
+	transferRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/transfer-owner", admin.AccessToken, map[string]string{
+		"new_owner_id": teacher.User.ID,
+	})
+	if transferRecorder.Code != http.StatusOK {
+		t.Fatalf("transfer activity failed: status=%d body=%s", transferRecorder.Code, transferRecorder.Body.String())
+	}
+
+	auditRecorder := h.request(http.MethodGet, "/api/v1/devtools/audit-logs?target_type=activity&target_id="+created.Activity.ID, admin.AccessToken, nil, "")
+	if auditRecorder.Code != http.StatusOK {
+		t.Fatalf("list audit logs failed: status=%d body=%s", auditRecorder.Code, auditRecorder.Body.String())
+	}
+	auditLogs := decodeData[struct {
+		Items []struct {
+			ActorID    string `json:"actor_id"`
+			ActorRole  string `json:"actor_role"`
+			TargetType string `json:"target_type"`
+			TargetID   string `json:"target_id"`
+			Action     string `json:"action"`
+			Result     string `json:"result"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, auditRecorder))
+
+	if !containsAuditAction(auditLogs.Items, teacher.User.ID, "teacher", "activity.review", "success") {
+		t.Fatalf("expected activity.review audit log, got %+v", auditLogs.Items)
+	}
+	if !containsAuditAction(auditLogs.Items, admin.User.ID, "admin", "activity.transfer_owner", "success") {
+		t.Fatalf("expected activity.transfer_owner audit log, got %+v", auditLogs.Items)
+	}
+}
+
+func containsAuditAction(items []struct {
+	ActorID    string `json:"actor_id"`
+	ActorRole  string `json:"actor_role"`
+	TargetType string `json:"target_type"`
+	TargetID   string `json:"target_id"`
+	Action     string `json:"action"`
+	Result     string `json:"result"`
+}, actorID string, actorRole string, action string, result string) bool {
+	for _, item := range items {
+		if item.ActorID == actorID && item.ActorRole == actorRole && item.TargetType == "activity" && item.Action == action && item.Result == result {
+			return true
+		}
+	}
+	return false
+}

@@ -20,10 +20,23 @@ type CopyHooks interface {
 	CopyActivityRelations(ctx context.Context, sourceActivityID string, targetActivityID string, actorID string) error
 }
 
+type AuditHooks interface {
+	RecordActivityEvent(ctx context.Context, event ActivityAuditEvent) error
+}
+
+type ActivityAuditEvent struct {
+	ActorID   string
+	ActorRole string
+	TargetID  string
+	Action    string
+	Result    string
+}
+
 type Service struct {
 	repo           activityrepo.Repository
 	hooks          ApplicationHooks
 	copyHooks      CopyHooks
+	auditHooks     AuditHooks
 	schemaResolver activityCategorySchemaResolver
 }
 
@@ -69,6 +82,11 @@ func New(repo activityrepo.Repository, hooks ApplicationHooks) *Service {
 
 func (s *Service) UseCopyHooks(hooks CopyHooks) *Service {
 	s.copyHooks = hooks
+	return s
+}
+
+func (s *Service) UseAuditHooks(hooks AuditHooks) *Service {
+	s.auditHooks = hooks
 	return s
 }
 
@@ -230,6 +248,15 @@ func (s *Service) Review(ctx context.Context, actorID string, actorRole string, 
 			return nil, err
 		}
 	}
+	if err := s.recordActivityAudit(ctx, ActivityAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  activity.ID,
+		Action:    "activity.review",
+		Result:    "success",
+	}); err != nil {
+		return nil, err
+	}
 
 	return activity, nil
 }
@@ -269,7 +296,7 @@ func (s *Service) Copy(ctx context.Context, actorID string, actorRole string, ac
 	return copyActivity, nil
 }
 
-func (s *Service) TransferOwner(ctx context.Context, actorRole string, activityID string, newOwnerID string) (*activitydomain.Activity, error) {
+func (s *Service) TransferOwner(ctx context.Context, actorID string, actorRole string, activityID string, newOwnerID string) (*activitydomain.Activity, error) {
 	activity, err := s.repo.Get(ctx, activityID)
 	if err != nil {
 		return nil, err
@@ -280,8 +307,24 @@ func (s *Service) TransferOwner(ctx context.Context, actorRole string, activityI
 	if err := s.repo.Save(ctx, activity); err != nil {
 		return nil, err
 	}
+	if err := s.recordActivityAudit(ctx, ActivityAuditEvent{
+		ActorID:   actorID,
+		ActorRole: actorRole,
+		TargetID:  activity.ID,
+		Action:    "activity.transfer_owner",
+		Result:    "success",
+	}); err != nil {
+		return nil, err
+	}
 
 	return activity, nil
+}
+
+func (s *Service) recordActivityAudit(ctx context.Context, event ActivityAuditEvent) error {
+	if s.auditHooks == nil {
+		return nil
+	}
+	return s.auditHooks.RecordActivityEvent(ctx, event)
 }
 
 func (r *MemoryRepository) List(_ context.Context, filter activityrepo.ListFilter) ([]activitydomain.Activity, error) {
