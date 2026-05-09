@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"strconv"
+	"strings"
 
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	fileservice "credit-management/backend/internal/modules/files/service"
@@ -34,6 +35,15 @@ type Service struct {
 	activities   activityrepo.Repository
 	files        *fileservice.Service
 	participants *participantservice.Service
+}
+
+type Filter struct {
+	Keyword      string
+	ActivityID   string
+	UserID       string
+	Status       string
+	AcademicYear string
+	Semester     string
 }
 
 func New() *Service {
@@ -152,6 +162,10 @@ func (s *Service) RevokeApprovedActivityContext(ctx context.Context, activityID 
 }
 
 func (s *Service) List(actorID string, actorRole string) []ApplicationView {
+	return s.ListFiltered(actorID, actorRole, Filter{})
+}
+
+func (s *Service) ListFiltered(actorID string, actorRole string, filter Filter) []ApplicationView {
 	items, err := s.repo.List(context.Background(), actorID, actorRole)
 	if err != nil {
 		return []ApplicationView{}
@@ -160,13 +174,21 @@ func (s *Service) List(actorID string, actorRole string) []ApplicationView {
 	views := make([]ApplicationView, 0, len(items))
 	for i := range items {
 		application := items[i]
-		views = append(views, s.buildView(&application))
+		view := s.buildView(&application)
+		if !matchesFilter(view, filter) {
+			continue
+		}
+		views = append(views, view)
 	}
 	return views
 }
 
 func (s *Service) Stats(actorID string, actorRole string) Stats {
-	items := s.List(actorID, actorRole)
+	return s.StatsFiltered(actorID, actorRole, Filter{})
+}
+
+func (s *Service) StatsFiltered(actorID string, actorRole string, filter Filter) Stats {
+	items := s.ListFiltered(actorID, actorRole, filter)
 	stats := Stats{Total: len(items)}
 	for _, item := range items {
 		if item.Status == "approved" {
@@ -187,7 +209,11 @@ func (s *Service) Get(actorID string, actorRole string, applicationID string) (A
 }
 
 func (s *Service) Export(actorID string, actorRole string) ([]byte, error) {
-	items := s.List(actorID, actorRole)
+	return s.ExportFiltered(actorID, actorRole, Filter{})
+}
+
+func (s *Service) ExportFiltered(actorID string, actorRole string, filter Filter) ([]byte, error) {
+	items := s.ListFiltered(actorID, actorRole, filter)
 	buf := &bytes.Buffer{}
 	writer := csv.NewWriter(buf)
 	if err := writer.Write([]string{"id", "activity_id", "user_id", "status", "applied_credits", "awarded_credits", "academic_year", "semester"}); err != nil {
@@ -255,6 +281,41 @@ func (s *Service) buildView(application *Application) ApplicationView {
 	}
 
 	return view
+}
+
+func matchesFilter(item ApplicationView, filter Filter) bool {
+	if filter.Status != "" && item.Status != filter.Status {
+		return false
+	}
+	if filter.ActivityID != "" && stringValue(item.Activity["id"]) != filter.ActivityID {
+		return false
+	}
+	if filter.UserID != "" && stringValue(item.Activity["user_id"]) != filter.UserID {
+		return false
+	}
+	if filter.AcademicYear != "" && item.AcademicYear != filter.AcademicYear {
+		return false
+	}
+	if filter.Semester != "" && item.Semester != filter.Semester {
+		return false
+	}
+	if strings.TrimSpace(filter.Keyword) != "" {
+		keyword := strings.ToLower(strings.TrimSpace(filter.Keyword))
+		haystack := strings.ToLower(strings.Join([]string{
+			item.ID,
+			stringValue(item.Activity["id"]),
+			stringValue(item.Activity["user_id"]),
+			stringValue(item.Activity["title"]),
+			stringValue(item.Activity["category"]),
+			item.Status,
+			item.AcademicYear,
+			item.Semester,
+		}, " "))
+		if !strings.Contains(haystack, keyword) {
+			return false
+		}
+	}
+	return true
 }
 
 func stringValue(value any) string {

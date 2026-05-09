@@ -25,7 +25,7 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	items := h.service.List(claims.UserID, claims.UserType)
+	items := h.service.ListFiltered(claims.UserID, claims.UserType, queryFilter(c))
 	response.OK(c, gin.H{
 		"items":       items,
 		"page":        1,
@@ -42,7 +42,7 @@ func (h *Handler) Stats(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, h.service.Stats(claims.UserID, claims.UserType))
+	response.OK(c, h.service.StatsFiltered(claims.UserID, claims.UserType, queryFilter(c)))
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -68,7 +68,7 @@ func (h *Handler) Export(c *gin.Context) {
 		return
 	}
 
-	content, err := h.service.Export(claims.UserID, claims.UserType)
+	content, err := h.service.ExportFiltered(claims.UserID, claims.UserType, queryFilter(c))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "export applications failed", nil)
 		return
@@ -77,4 +77,15 @@ func (h *Handler) Export(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", `attachment; filename="applications.csv"`)
 	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
+}
+
+func queryFilter(c *gin.Context) appservice.Filter {
+	return appservice.Filter{
+		Keyword:      c.Query("keyword"),
+		ActivityID:   c.Query("activity_id"),
+		UserID:       c.Query("user_id"),
+		Status:       c.Query("status"),
+		AcademicYear: c.Query("academic_year"),
+		Semester:     c.Query("semester"),
+	}
 }

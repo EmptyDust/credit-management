@@ -129,6 +129,53 @@ func TestDraftToApprovedGeneratesApplications(t *testing.T) {
 	if applications.Items[0].AcademicYear != "2025-2026" || applications.Items[0].Semester != "autumn" {
 		t.Fatalf("unexpected academic dimensions: %+v", applications.Items[0])
 	}
+
+	filteredRecorder := h.request(http.MethodGet, "/api/v1/applications?academic_year=2025-2026&semester=autumn&keyword=Robotics", student.AccessToken, nil, "")
+	if filteredRecorder.Code != http.StatusOK {
+		t.Fatalf("filtered applications failed: status=%d body=%s", filteredRecorder.Code, filteredRecorder.Body.String())
+	}
+	filtered := decodeData[struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, filteredRecorder))
+	if len(filtered.Items) != 1 {
+		t.Fatalf("expected 1 filtered application, got %+v", filtered.Items)
+	}
+
+	emptyFilteredRecorder := h.request(http.MethodGet, "/api/v1/applications?semester=spring", student.AccessToken, nil, "")
+	if emptyFilteredRecorder.Code != http.StatusOK {
+		t.Fatalf("empty filtered applications failed: status=%d body=%s", emptyFilteredRecorder.Code, emptyFilteredRecorder.Body.String())
+	}
+	emptyFiltered := decodeData[struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, emptyFilteredRecorder))
+	if len(emptyFiltered.Items) != 0 {
+		t.Fatalf("expected no spring applications, got %+v", emptyFiltered.Items)
+	}
+
+	filteredStatsRecorder := h.request(http.MethodGet, "/api/v1/applications/stats?semester=autumn", student.AccessToken, nil, "")
+	if filteredStatsRecorder.Code != http.StatusOK {
+		t.Fatalf("filtered application stats failed: status=%d body=%s", filteredStatsRecorder.Code, filteredStatsRecorder.Body.String())
+	}
+	filteredStats := decodeData[struct {
+		Total         int     `json:"total"`
+		ApprovedCount int     `json:"approved_count"`
+		TotalCredits  float64 `json:"total_credits"`
+	}](t, decodeEnvelope(t, filteredStatsRecorder))
+	if filteredStats.Total != 1 || filteredStats.ApprovedCount != 1 || filteredStats.TotalCredits != 2.5 {
+		t.Fatalf("unexpected filtered stats: %+v", filteredStats)
+	}
+
+	exportRecorder := h.request(http.MethodGet, "/api/v1/applications/export?semester=autumn", student.AccessToken, nil, "")
+	if exportRecorder.Code != http.StatusOK {
+		t.Fatalf("filtered application export failed: status=%d body=%s", exportRecorder.Code, exportRecorder.Body.String())
+	}
+	if body := exportRecorder.Body.String(); !strings.Contains(body, "academic_year,semester") || !strings.Contains(body, "2025-2026,autumn") {
+		t.Fatalf("unexpected filtered application export: %s", body)
+	}
 }
 
 func TestCopyActivityIncludesParticipantsAndFiles(t *testing.T) {
