@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Table,
   TableBody,
@@ -81,6 +82,7 @@ function toStudentEditPayload(form: StudentEditState): UserMutationInput {
 
 export default function StudentsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
@@ -102,6 +104,8 @@ export default function StudentsPage() {
     queryKey: ["students", "stats", keyword],
     queryFn: () => getStudentStats({ keyword: keyword || undefined }),
   });
+
+  const canManageStudents = user?.userType === "admin";
 
   const invalidateStudents = () =>
     queryClient.invalidateQueries({ queryKey: ["students"] });
@@ -260,66 +264,68 @@ export default function StudentsPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>创建学生</CardTitle>
-          <p className="mt-2 text-sm text-muted-foreground">
-            管理员与教师可直接创建学生账号；导入仍用于批量场景。
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form className="grid gap-4 md:grid-cols-6" onSubmit={handleCreateStudent}>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="student-username">学生用户名</Label>
-              <Input
-                id="student-username"
-                value={studentForm.username}
-                onChange={(event) => updateStudentForm("username", event.target.value)}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="student-password">学生密码</Label>
-              <Input
-                id="student-password"
-                type="password"
-                value={studentForm.password}
-                onChange={(event) => updateStudentForm("password", event.target.value)}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="student-real-name">学生姓名</Label>
-              <Input
-                id="student-real-name"
-                value={studentForm.real_name}
-                onChange={(event) => updateStudentForm("real_name", event.target.value)}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="student-number">学生学号</Label>
-              <Input
-                id="student-number"
-                value={studentForm.student_id}
-                onChange={(event) => updateStudentForm("student_id", event.target.value)}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="student-grade">学生年级</Label>
-              <Input
-                id="student-grade"
-                value={studentForm.grade}
-                onChange={(event) => updateStudentForm("grade", event.target.value)}
-              />
-            </div>
-            <div className="flex items-end md:col-span-2">
-              <Button type="submit" disabled={createMutation.isPending}>
-                创建学生
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      {canManageStudents ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>创建学生</CardTitle>
+            <p className="mt-2 text-sm text-muted-foreground">
+              管理员可直接创建学生账号；导入仍用于批量场景。
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4 md:grid-cols-6" onSubmit={handleCreateStudent}>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-username">学生用户名</Label>
+                <Input
+                  id="student-username"
+                  value={studentForm.username}
+                  onChange={(event) => updateStudentForm("username", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-password">学生密码</Label>
+                <Input
+                  id="student-password"
+                  type="password"
+                  value={studentForm.password}
+                  onChange={(event) => updateStudentForm("password", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-real-name">学生姓名</Label>
+                <Input
+                  id="student-real-name"
+                  value={studentForm.real_name}
+                  onChange={(event) => updateStudentForm("real_name", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-number">学生学号</Label>
+                <Input
+                  id="student-number"
+                  value={studentForm.student_id}
+                  onChange={(event) => updateStudentForm("student_id", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-grade">学生年级</Label>
+                <Input
+                  id="student-grade"
+                  value={studentForm.grade}
+                  onChange={(event) => updateStudentForm("grade", event.target.value)}
+                />
+              </div>
+              <div className="flex items-end md:col-span-2">
+                <Button type="submit" disabled={createMutation.isPending}>
+                  创建学生
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {editingStudent ? (
+      {canManageStudents && editingStudent ? (
         <Card>
           <CardHeader>
             <CardTitle>编辑学生</CardTitle>
@@ -400,10 +406,12 @@ export default function StudentsPage() {
               <RefreshCw className="h-4 w-4" />
               刷新
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" />
-              导入
-            </Button>
+            {canManageStudents ? (
+              <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+                <Upload className="h-4 w-4" />
+                导入
+              </Button>
+            ) : null}
             <Button variant="outline" className="gap-2" onClick={() => void exportStudents()}>
               <Download className="h-4 w-4" />
               导出
@@ -424,7 +432,7 @@ export default function StudentsPage() {
                   <TableHead>学号</TableHead>
                   <TableHead>年级</TableHead>
                   <TableHead>状态</TableHead>
-                  <TableHead>操作</TableHead>
+                  {canManageStudents ? <TableHead>操作</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -437,50 +445,52 @@ export default function StudentsPage() {
                     <TableCell>
                       <Badge variant="outline">{student.status}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`编辑 ${student.username}`}
-                          onClick={() => startEditingStudent(student)}
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`${student.status === "active" ? "停用" : "启用"} ${student.username}`}
-                          disabled={statusMutation.isPending}
-                          onClick={() =>
-                            statusMutation.mutate({
-                              id: student.id,
-                              status: student.status === "active" ? "disabled" : "active",
-                            })
-                          }
-                        >
-                          {student.status === "active" ? "停用" : "启用"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`重置 ${student.username} 密码`}
-                          disabled={resetPasswordMutation.isPending}
-                          onClick={() => handleResetPassword(student.id)}
-                        >
-                          重置密码
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          aria-label={`删除 ${student.username}`}
-                          disabled={deleteMutation.isPending}
-                          onClick={() => deleteMutation.mutate(student.id)}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {canManageStudents ? (
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`编辑 ${student.username}`}
+                            onClick={() => startEditingStudent(student)}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`${student.status === "active" ? "停用" : "启用"} ${student.username}`}
+                            disabled={statusMutation.isPending}
+                            onClick={() =>
+                              statusMutation.mutate({
+                                id: student.id,
+                                status: student.status === "active" ? "disabled" : "active",
+                              })
+                            }
+                          >
+                            {student.status === "active" ? "停用" : "启用"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`重置 ${student.username} 密码`}
+                            disabled={resetPasswordMutation.isPending}
+                            onClick={() => handleResetPassword(student.id)}
+                          >
+                            重置密码
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            aria-label={`删除 ${student.username}`}
+                            disabled={deleteMutation.isPending}
+                            onClick={() => deleteMutation.mutate(student.id)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -513,29 +523,33 @@ export default function StudentsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>重置密码</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-sm space-y-2">
-            <Label htmlFor="student-new-password">新密码</Label>
-            <Input
-              id="student-new-password"
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {canManageStudents ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>重置密码</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-sm space-y-2">
+              <Label htmlFor="student-new-password">新密码</Label>
+              <Input
+                id="student-new-password"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <UserImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        userType="student"
-        onCompleted={() => void query.refetch()}
-      />
+      {canManageStudents ? (
+        <UserImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          userType="student"
+          onCompleted={() => void query.refetch()}
+        />
+      ) : null}
     </div>
   );
 }

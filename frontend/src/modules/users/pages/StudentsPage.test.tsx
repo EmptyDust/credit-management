@@ -15,6 +15,7 @@ const {
   mockResetUserPassword,
   mockUpdateStudent,
   mockUpdateUserStatus,
+  mockAuthState,
 } = vi.hoisted(() => ({
   mockCreateStudent: vi.fn(),
   mockDeleteStudent: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockResetUserPassword: vi.fn(),
   mockUpdateStudent: vi.fn(),
   mockUpdateUserStatus: vi.fn(),
+  mockAuthState: { userType: "admin" },
 }));
 
 vi.mock("@/modules/imports/components/UserImportDialog", () => ({
@@ -39,6 +41,17 @@ vi.mock("@/modules/users/api/users", () => ({
   resetUserPassword: mockResetUserPassword,
   updateStudent: mockUpdateStudent,
   updateUserStatus: mockUpdateUserStatus,
+}));
+
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    user: {
+      id: "current-user",
+      userType: mockAuthState.userType,
+      user_type: mockAuthState.userType,
+    },
+  }),
 }));
 
 vi.mock("react-hot-toast", () => ({
@@ -66,6 +79,7 @@ function renderPage() {
 
 describe("StudentsPage", () => {
   beforeEach(() => {
+    mockAuthState.userType = "admin";
     mockListStudents.mockResolvedValue({
       items: [
         {
@@ -184,5 +198,20 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(mockDeleteStudent).toHaveBeenCalledWith("student-1");
     });
+  });
+
+  it("hides admin-only student actions from teachers", async () => {
+    mockAuthState.userType = "teacher";
+
+    renderPage();
+
+    expect(await screen.findByText("Alice")).toBeTruthy();
+    expect(await screen.findByText("总学生数")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "创建学生" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "导入" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "编辑 alice" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "停用 alice" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "重置 alice 密码" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "删除 alice" })).toBeNull();
   });
 });
