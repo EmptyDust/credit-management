@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -11,13 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, RefreshCw } from "lucide-react";
+import { Download, Eye, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import {
+  exportApplications,
   getApplicationDetail,
   getApplicationStats,
   listApplications,
+  type ApplicationFilters,
 } from "@/modules/applications/api/applications";
 
 function statusLabel(status: string) {
@@ -35,19 +38,52 @@ function statusLabel(status: string) {
   }
 }
 
+function buildFilters(input: {
+  keyword: string;
+  academicYear: string;
+  semester: string;
+  status: string;
+}): ApplicationFilters {
+  const filters: ApplicationFilters = {};
+  const keyword = input.keyword.trim();
+  const academicYear = input.academicYear.trim();
+  const semester = input.semester.trim();
+  const status = input.status.trim();
+
+  if (keyword) {
+    filters.keyword = keyword;
+  }
+  if (academicYear) {
+    filters.academic_year = academicYear;
+  }
+  if (semester) {
+    filters.semester = semester;
+  }
+  if (status) {
+    filters.status = status;
+  }
+
+  return filters;
+}
+
 export default function ApplicationsPage() {
   const [selectedApplicationID, setSelectedApplicationID] = useState<string | null>(
     null
   );
+  const [keyword, setKeyword] = useState("");
+  const [academicYear, setAcademicYear] = useState("");
+  const [semester, setSemester] = useState("");
+  const [status, setStatus] = useState("");
+  const filters = buildFilters({ keyword, academicYear, semester, status });
 
   const listQuery = useQuery({
-    queryKey: ["applications"],
-    queryFn: listApplications,
+    queryKey: ["applications", filters],
+    queryFn: () => listApplications(filters),
   });
 
   const statsQuery = useQuery({
-    queryKey: ["applications", "stats"],
-    queryFn: getApplicationStats,
+    queryKey: ["applications", "stats", filters],
+    queryFn: () => getApplicationStats(filters),
   });
 
   const detailQuery = useQuery({
@@ -86,19 +122,59 @@ export default function ApplicationsPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>申请列表</CardTitle>
-          <Button
-            variant="secondary"
-            className="gap-2"
-            onClick={() => {
-              void listQuery.refetch();
-              void statsQuery.refetch();
-            }}
-          >
-            <RefreshCw className="h-4 w-4" />
-            刷新
-          </Button>
+        <CardHeader className="gap-4">
+          <div className="flex flex-row items-center justify-between gap-4">
+            <CardTitle>申请列表</CardTitle>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  void exportApplications(filters);
+                }}
+              >
+                <Download className="h-4 w-4" />
+                导出申请
+              </Button>
+              <Button
+                variant="secondary"
+                className="gap-2"
+                onClick={() => {
+                  void listQuery.refetch();
+                  void statsQuery.refetch();
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                刷新
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Input
+              aria-label="申请搜索关键字"
+              placeholder="搜索活动、用户或申请"
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+            <Input
+              aria-label="申请学年"
+              placeholder="学年，如 2025-2026"
+              value={academicYear}
+              onChange={(event) => setAcademicYear(event.target.value)}
+            />
+            <Input
+              aria-label="申请学期"
+              placeholder="学期，如 autumn"
+              value={semester}
+              onChange={(event) => setSemester(event.target.value)}
+            />
+            <Input
+              aria-label="申请状态"
+              placeholder="状态，如 approved"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {listQuery.isLoading ? (

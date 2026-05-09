@@ -1,5 +1,14 @@
-import apiClient from "@/lib/api";
+import apiClient, { apiHelpers } from "@/lib/api";
 import type { ApiSuccessResponse } from "@/shared/types/api";
+
+export interface ApplicationFilters {
+  keyword?: string;
+  activity_id?: string;
+  user_id?: string;
+  status?: string;
+  academic_year?: string;
+  semester?: string;
+}
 
 export interface ApplicationListItem {
   id: string;
@@ -30,20 +39,45 @@ export interface ApplicationListResponse {
   total_pages: number;
 }
 
-export async function listApplications() {
+function compactFilters(filters: ApplicationFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== "")
+  );
+}
+
+function exportPath(filters: ApplicationFilters) {
+  const params = new URLSearchParams(
+    compactFilters(filters) as Record<string, string>
+  );
+  const query = params.toString();
+
+  return query ? `/applications/export?${query}` : "/applications/export";
+}
+
+export async function listApplications(filters: ApplicationFilters = {}) {
   const response = await apiClient.get<ApiSuccessResponse<ApplicationListResponse>>(
-    "/applications"
+    "/applications",
+    {
+      params: compactFilters(filters),
+    }
   );
 
   return response.data.data;
 }
 
-export async function getApplicationStats() {
+export async function getApplicationStats(filters: ApplicationFilters = {}) {
   const response = await apiClient.get<ApiSuccessResponse<ApplicationStats>>(
-    "/applications/stats"
+    "/applications/stats",
+    {
+      params: compactFilters(filters),
+    }
   );
 
   return response.data.data;
+}
+
+export async function exportApplications(filters: ApplicationFilters = {}) {
+  return apiHelpers.downloadFile(exportPath(filters), "applications.csv");
 }
 
 export async function getApplicationDetail(id: string) {
