@@ -40,10 +40,31 @@ export interface ActivityFile {
   id: string;
   activity_id: string;
   name: string;
+  original_name?: string;
   content_type?: string;
+  file_category?: string;
+  description?: string;
   size: number;
   uploaded_by: string;
   created_at: string;
+  download_count?: number;
+  md5_hash?: string;
+}
+
+export interface ActivityFileCount {
+  value: string;
+  count: number;
+}
+
+export interface ActivityFileListResponse {
+  items: ActivityFile[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  total_size: number;
+  category_counts: ActivityFileCount[];
+  type_counts: ActivityFileCount[];
 }
 
 export interface ActivityListResponse {
@@ -251,28 +272,40 @@ export async function leaveActivity(id: string) {
 }
 
 export async function listActivityFiles(id: string) {
-  const response = await apiClient.get<
-    ApiSuccessResponse<{
-      items: ActivityFile[];
-      total: number;
-      page: number;
-      page_size: number;
-      total_pages: number;
-    }>
-  >(`/activities/${id}/files`);
+  const response = await apiClient.get<ApiSuccessResponse<ActivityFileListResponse>>(
+    `/activities/${id}/files`
+  );
 
-  return response.data.data.items;
+  return response.data.data;
 }
 
 export async function uploadActivityFile(id: string, file: File) {
+  const items = await uploadActivityFiles(id, [file]);
+
+  return items[0];
+}
+
+export async function uploadActivityFiles(
+  id: string,
+  files: File[],
+  metadata: { file_category?: string; description?: string } = {}
+) {
   const formData = new FormData();
-  formData.append("file", file);
+  files.forEach((file) => {
+    formData.append("files[]", file);
+  });
+  if (metadata.file_category) {
+    formData.append("file_category", metadata.file_category);
+  }
+  if (metadata.description) {
+    formData.append("description", metadata.description);
+  }
 
   const response = await apiClient.post<
-    ApiSuccessResponse<{ file: ActivityFile }>
+    ApiSuccessResponse<{ items: ActivityFile[]; file?: ActivityFile }>
   >(`/activities/${id}/files`, formData);
 
-  return response.data.data.file;
+  return response.data.data.items;
 }
 
 export async function deleteActivityFile(activityID: string, fileID: string) {
@@ -281,4 +314,8 @@ export async function deleteActivityFile(activityID: string, fileID: string) {
 
 export async function downloadActivityFile(fileID: string, filename?: string) {
   await apiHelpers.downloadFile(`/files/${fileID}/download`, filename);
+}
+
+export async function previewActivityFile(fileID: string, filename?: string) {
+  await apiHelpers.downloadFile(`/files/${fileID}/preview`, filename);
 }

@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Copy,
   Download,
+  Eye,
   FileUp,
   RefreshCw,
   Send,
@@ -30,15 +31,17 @@ import {
   leaveActivity,
   listActivityFiles,
   listActivityParticipants,
+  previewActivityFile,
   reviewActivity,
   submitActivity,
   transferActivityOwner,
   updateActivity,
   updateActivityParticipantCredits,
-  uploadActivityFile,
+  uploadActivityFiles,
   withdrawActivity,
   type ActivityDetail,
   type ActivityFile,
+  type ActivityFileListResponse,
   type ActivityParticipant,
   type ActivityParticipantStats,
   type ActivityMutationInput,
@@ -514,27 +517,41 @@ function ParticipantsBlock({
 
 function FilesBlock({
   files,
+  summary,
   canManage,
   onUpload,
   onDelete,
   onDownload,
+  onPreview,
 }: {
   files: ActivityFile[];
+  summary?: ActivityFileListResponse;
   canManage: boolean;
-  onUpload: (file: File) => Promise<void>;
+  onUpload: (
+    files: File[],
+    metadata: { file_category?: string; description?: string }
+  ) => Promise<void>;
   onDelete: (fileID: string) => Promise<void>;
   onDownload: (fileID: string, filename?: string) => Promise<void>;
+  onPreview: (fileID: string, filename?: string) => Promise<void>;
 }) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileCategory, setFileCategory] = useState("");
+  const [fileDescription, setFileDescription] = useState("");
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error("请选择文件");
+    if (selectedFiles.length === 0) {
+      toast.error("请选择至少一个文件");
       return;
     }
 
-    await onUpload(selectedFile);
-    setSelectedFile(null);
+    await onUpload(selectedFiles, {
+      file_category: fileCategory.trim() || undefined,
+      description: fileDescription.trim() || undefined,
+    });
+    setSelectedFiles([]);
+    setFileCategory("");
+    setFileDescription("");
   };
 
   return (
@@ -543,14 +560,65 @@ function FilesBlock({
         <CardTitle>附件</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {summary ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">附件总数</div>
+              <div className="mt-1 text-2xl font-semibold">{summary.total}</div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">附件总大小</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {formatBytes(summary.total_size)}
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">附件分类</div>
+              <div className="mt-1 text-sm">
+                {summary.category_counts.length === 0
+                  ? "-"
+                  : summary.category_counts
+                      .map((item) => `${item.value} ${item.count}`)
+                      .join(" / ")}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {canManage ? (
-          <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto]">
-            <Input
-              type="file"
-              onChange={(event) =>
-                setSelectedFile(event.target.files?.[0] ?? null)
-              }
-            />
+          <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_180px_1fr_auto]">
+            <div className="space-y-2">
+              <Label htmlFor="activity-file-input">附件文件</Label>
+              <Input
+                id="activity-file-input"
+                aria-label="附件文件"
+                type="file"
+                multiple
+                onChange={(event) =>
+                  setSelectedFiles(Array.from(event.target.files ?? []))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="activity-file-category">附件分类</Label>
+              <Input
+                id="activity-file-category"
+                aria-label="附件分类"
+                value={fileCategory}
+                onChange={(event) => setFileCategory(event.target.value)}
+                placeholder="如 proof"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="activity-file-description">附件描述</Label>
+              <Input
+                id="activity-file-description"
+                aria-label="附件描述"
+                value={fileDescription}
+                onChange={(event) => setFileDescription(event.target.value)}
+                placeholder="补充说明"
+              />
+            </div>
             <Button className="gap-2" onClick={() => void handleUpload()}>
               <FileUp className="h-4 w-4" />
               上传附件
@@ -568,17 +636,42 @@ function FilesBlock({
                 className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
               >
                 <div>
-                  <div className="font-medium">{file.name}</div>
+                  <div className="font-medium">
+                    {file.original_name || file.name}
+                  </div>
                   <div className="text-sm text-muted-foreground">
                     {formatBytes(file.size)} · {file.content_type || "unknown"}
                   </div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>{file.file_category || "未分类"}</span>
+                    <span>下载次数：{file.download_count ?? 0}</span>
+                    {file.md5_hash ? <span>MD5：{file.md5_hash}</span> : null}
+                  </div>
+                  {file.description ? (
+                    <div className="mt-2 text-sm">{file.description}</div>
+                  ) : null}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => void onDownload(file.id, file.name)}
+                    aria-label={`预览 ${file.original_name || file.name}`}
+                    onClick={() =>
+                      void onPreview(file.id, file.original_name || file.name)
+                    }
+                  >
+                    <Eye className="h-4 w-4" />
+                    预览
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    aria-label={`下载 ${file.original_name || file.name}`}
+                    onClick={() =>
+                      void onDownload(file.id, file.original_name || file.name)
+                    }
                   >
                     <Download className="h-4 w-4" />
                     下载
@@ -588,6 +681,7 @@ function FilesBlock({
                       variant="outline"
                       size="sm"
                       className="gap-2"
+                      aria-label={`删除 ${file.original_name || file.name}`}
                       onClick={() => void onDelete(file.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -714,7 +808,11 @@ export default function ActivityDetailPage() {
         | { type: "deleteParticipant"; participantID: string }
         | { type: "batchSetParticipantCredits"; participantIDs: string[]; credits: number }
         | { type: "batchDeleteParticipants"; participantIDs: string[] }
-        | { type: "uploadFile"; file: File }
+        | {
+            type: "uploadFiles";
+            files: File[];
+            metadata: { file_category?: string; description?: string };
+          }
         | { type: "deleteFile"; fileID: string }
     ) => {
       switch (action.type) {
@@ -761,8 +859,8 @@ export default function ActivityDetailPage() {
           );
         case "batchDeleteParticipants":
           return batchDeleteActivityParticipants(id, action.participantIDs);
-        case "uploadFile":
-          return uploadActivityFile(id, action.file);
+        case "uploadFiles":
+          return uploadActivityFiles(id, action.files, action.metadata);
         case "deleteFile":
           await deleteActivityFile(id, action.fileID);
           return null;
@@ -818,7 +916,7 @@ export default function ActivityDetailPage() {
         case "batchDeleteParticipants":
           toast.success("所选参与者已删除");
           break;
-        case "uploadFile":
+        case "uploadFiles":
           toast.success("附件已上传");
           break;
         case "deleteFile":
@@ -986,16 +1084,22 @@ export default function ActivityDetailPage() {
       />
 
       <FilesBlock
-        files={filesQuery.data || []}
+        files={filesQuery.data?.items || []}
+        summary={filesQuery.data}
         canManage={canManageFiles}
-        onUpload={async (file) =>
-          actionMutation.mutateAsync({ type: "uploadFile", file }).then(() => undefined)
+        onUpload={async (files, metadata) =>
+          actionMutation
+            .mutateAsync({ type: "uploadFiles", files, metadata })
+            .then(() => undefined)
         }
         onDelete={async (fileID) =>
           actionMutation.mutateAsync({ type: "deleteFile", fileID }).then(() => undefined)
         }
         onDownload={async (fileID, filename) => {
           await downloadActivityFile(fileID, filename);
+        }}
+        onPreview={async (fileID, filename) => {
+          await previewActivityFile(fileID, filename);
         }}
       />
 

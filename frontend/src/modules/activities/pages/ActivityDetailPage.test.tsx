@@ -22,12 +22,14 @@ const {
   mockLeaveActivity,
   mockListActivityFiles,
   mockListActivityParticipants,
+  mockPreviewActivityFile,
   mockReviewActivity,
   mockSubmitActivity,
   mockTransferActivityOwner,
   mockUpdateActivity,
   mockUpdateActivityParticipantCredits,
   mockUploadActivityFile,
+  mockUploadActivityFiles,
   mockWithdrawActivity,
 } = vi.hoisted(() => ({
   mockAddActivityParticipants: vi.fn(),
@@ -43,12 +45,14 @@ const {
   mockLeaveActivity: vi.fn(),
   mockListActivityFiles: vi.fn(),
   mockListActivityParticipants: vi.fn(),
+  mockPreviewActivityFile: vi.fn(),
   mockReviewActivity: vi.fn(),
   mockSubmitActivity: vi.fn(),
   mockTransferActivityOwner: vi.fn(),
   mockUpdateActivity: vi.fn(),
   mockUpdateActivityParticipantCredits: vi.fn(),
   mockUploadActivityFile: vi.fn(),
+  mockUploadActivityFiles: vi.fn(),
   mockWithdrawActivity: vi.fn(),
 }));
 
@@ -90,12 +94,14 @@ vi.mock("@/modules/activities/api/activities", () => ({
   leaveActivity: mockLeaveActivity,
   listActivityFiles: mockListActivityFiles,
   listActivityParticipants: mockListActivityParticipants,
+  previewActivityFile: mockPreviewActivityFile,
   reviewActivity: mockReviewActivity,
   submitActivity: mockSubmitActivity,
   transferActivityOwner: mockTransferActivityOwner,
   updateActivity: mockUpdateActivity,
   updateActivityParticipantCredits: mockUpdateActivityParticipantCredits,
   uploadActivityFile: mockUploadActivityFile,
+  uploadActivityFiles: mockUploadActivityFiles,
   withdrawActivity: mockWithdrawActivity,
 }));
 
@@ -161,7 +167,31 @@ describe("ActivityDetailPage", () => {
       average_credits: 1.5,
       recent_new_count: 1,
     });
-    mockListActivityFiles.mockResolvedValue([]);
+    mockListActivityFiles.mockResolvedValue({
+      items: [
+        {
+          id: "file-1",
+          activity_id: "activity-1",
+          name: "proof.txt",
+          original_name: "proof.txt",
+          content_type: "text/plain",
+          file_category: "proof",
+          description: "evidence bundle",
+          size: 11,
+          uploaded_by: "teacher-1",
+          created_at: "2026-05-01T00:00:00Z",
+          download_count: 0,
+          md5_hash: "f8a3f2d4",
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 1,
+      total_pages: 1,
+      total_size: 11,
+      category_counts: [{ value: "proof", count: 1 }],
+      type_counts: [{ value: "text/plain", count: 1 }],
+    });
     mockUpdateActivityParticipantCredits.mockResolvedValue({
       id: "participant-1",
       credits: 4.5,
@@ -169,6 +199,9 @@ describe("ActivityDetailPage", () => {
     mockBatchSetActivityParticipantCredits.mockResolvedValue({ affected_count: 1 });
     mockBatchDeleteActivityParticipants.mockResolvedValue({ affected_count: 1 });
     mockExportActivityParticipants.mockResolvedValue(undefined);
+    mockDownloadActivityFile.mockResolvedValue(undefined);
+    mockPreviewActivityFile.mockResolvedValue(undefined);
+    mockUploadActivityFiles.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -226,6 +259,44 @@ describe("ActivityDetailPage", () => {
       expect(mockBatchDeleteActivityParticipants).toHaveBeenCalledWith(
         "activity-1",
         ["participant-1"]
+      );
+    });
+  });
+
+  it("manages file stats preview download and batch upload metadata", async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+
+    expect(await screen.findByText("附件总数")).toBeTruthy();
+    expect(screen.getByText("proof.txt")).toBeTruthy();
+    expect(screen.getByText("evidence bundle")).toBeTruthy();
+    expect(screen.getByText("11 B")).toBeTruthy();
+    expect(screen.getByText("下载次数：0")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "预览 proof.txt" }));
+    expect(mockPreviewActivityFile).toHaveBeenCalledWith("file-1", "proof.txt");
+
+    await user.click(screen.getByRole("button", { name: "下载 proof.txt" }));
+    expect(mockDownloadActivityFile).toHaveBeenCalledWith("file-1", "proof.txt");
+
+    await user.type(screen.getByLabelText("附件分类"), "proof");
+    await user.type(screen.getByLabelText("附件描述"), "new evidence");
+
+    const file = new File(["new proof"], "new-proof.txt", {
+      type: "text/plain",
+    });
+    await user.upload(screen.getByLabelText("附件文件"), file);
+    await user.click(screen.getByRole("button", { name: "上传附件" }));
+
+    await waitFor(() => {
+      expect(mockUploadActivityFiles).toHaveBeenCalledWith(
+        "activity-1",
+        [file],
+        {
+          file_category: "proof",
+          description: "new evidence",
+        }
       );
     });
   });
