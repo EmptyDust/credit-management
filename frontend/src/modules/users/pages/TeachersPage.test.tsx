@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TeachersPage from "@/modules/users/pages/TeachersPage";
@@ -13,6 +12,7 @@ const {
   mockExportTeachers,
   mockListTeachers,
   mockResetUserPassword,
+  mockUpdateTeacher,
   mockUpdateUserStatus,
 } = vi.hoisted(() => ({
   mockCreateTeacher: vi.fn(),
@@ -20,6 +20,7 @@ const {
   mockExportTeachers: vi.fn(),
   mockListTeachers: vi.fn(),
   mockResetUserPassword: vi.fn(),
+  mockUpdateTeacher: vi.fn(),
   mockUpdateUserStatus: vi.fn(),
 }));
 
@@ -33,6 +34,7 @@ vi.mock("@/modules/users/api/users", () => ({
   exportTeachers: mockExportTeachers,
   listTeachers: mockListTeachers,
   resetUserPassword: mockResetUserPassword,
+  updateTeacher: mockUpdateTeacher,
   updateUserStatus: mockUpdateUserStatus,
 }));
 
@@ -80,6 +82,7 @@ describe("TeachersPage", () => {
       total_pages: 1,
     });
     mockCreateTeacher.mockResolvedValue({ id: "teacher-2" });
+    mockUpdateTeacher.mockResolvedValue({ id: "teacher-1" });
     mockUpdateUserStatus.mockResolvedValue({ id: "teacher-1", status: "disabled" });
     mockResetUserPassword.mockResolvedValue(undefined);
     mockDeleteTeacher.mockResolvedValue(undefined);
@@ -92,18 +95,18 @@ describe("TeachersPage", () => {
   });
 
   it("creates teachers and manages status password and deletion", async () => {
-    const user = userEvent.setup();
-
     renderPage();
 
     expect(await screen.findByText("Tina")).toBeTruthy();
 
-    await user.type(screen.getByLabelText("教师用户名"), "tom");
-    await user.type(screen.getByLabelText("教师密码"), "Password123");
-    await user.type(screen.getByLabelText("教师姓名"), "Tom");
-    await user.type(screen.getByLabelText("教师工号"), "T-002");
-    await user.type(screen.getByLabelText("教师职称"), "副教授");
-    await user.click(screen.getByRole("button", { name: "创建教师" }));
+    fireEvent.change(screen.getByLabelText("教师用户名"), { target: { value: "tom" } });
+    fireEvent.change(screen.getByLabelText("教师密码"), {
+      target: { value: "Password123" },
+    });
+    fireEvent.change(screen.getByLabelText("教师姓名"), { target: { value: "Tom" } });
+    fireEvent.change(screen.getByLabelText("教师工号"), { target: { value: "T-002" } });
+    fireEvent.change(screen.getByLabelText("教师职称"), { target: { value: "副教授" } });
+    fireEvent.click(screen.getByRole("button", { name: "创建教师" }));
 
     await waitFor(() => {
       expect(mockCreateTeacher).toHaveBeenCalledWith({
@@ -115,17 +118,46 @@ describe("TeachersPage", () => {
       });
     });
 
-    await user.click(screen.getByRole("button", { name: "停用 tina" }));
-    expect(mockUpdateUserStatus).toHaveBeenCalledWith("teacher-1", "disabled");
+    fireEvent.click(screen.getByRole("button", { name: "编辑 tina" }));
+    fireEvent.change(screen.getByLabelText("编辑教师姓名"), {
+      target: { value: "Tina Updated" },
+    });
+    fireEvent.change(screen.getByLabelText("编辑教师工号"), {
+      target: { value: "T-999" },
+    });
+    fireEvent.change(screen.getByLabelText("编辑教师职称"), {
+      target: { value: "研究员" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存教师" }));
 
-    await user.type(screen.getByLabelText("新密码"), "NewPassword123");
-    await user.click(screen.getByRole("button", { name: "重置 tina 密码" }));
-    expect(mockResetUserPassword).toHaveBeenCalledWith(
-      "teacher-1",
-      "NewPassword123"
-    );
+    await waitFor(() => {
+      expect(mockUpdateTeacher).toHaveBeenCalledWith("teacher-1", {
+        username: "tina",
+        real_name: "Tina Updated",
+        teacher_id: "T-999",
+        title: "研究员",
+      });
+    });
 
-    await user.click(screen.getByRole("button", { name: "删除 tina" }));
-    expect(mockDeleteTeacher).toHaveBeenCalledWith("teacher-1");
+    fireEvent.click(screen.getByRole("button", { name: "停用 tina" }));
+    await waitFor(() => {
+      expect(mockUpdateUserStatus).toHaveBeenCalledWith("teacher-1", "disabled");
+    });
+
+    fireEvent.change(screen.getByLabelText("新密码"), {
+      target: { value: "NewPassword123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "重置 tina 密码" }));
+    await waitFor(() => {
+      expect(mockResetUserPassword).toHaveBeenCalledWith(
+        "teacher-1",
+        "NewPassword123"
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "删除 tina" }));
+    await waitFor(() => {
+      expect(mockDeleteTeacher).toHaveBeenCalledWith("teacher-1");
+    });
   });
 });

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -175,8 +174,6 @@ describe("RegisterPage", () => {
   });
 
   it("submits the student registration payload and returns to login", async () => {
-    const user = userEvent.setup();
-
     mockGetOptions.mockResolvedValue({
       colleges: [{ value: "college-1", label: "计算机学院" }],
       majors: {
@@ -200,18 +197,34 @@ describe("RegisterPage", () => {
       </MemoryRouter>
     );
 
-    await user.type(screen.getByLabelText("用户名"), "alice_01");
-    await user.type(screen.getByLabelText("真实姓名"), "Alice");
-    await user.type(screen.getByLabelText("密码"), "Password123");
-    await user.type(screen.getByLabelText("确认密码"), "Password123");
-    await user.type(screen.getByLabelText("邮箱"), "alice@example.com");
-    await user.type(screen.getByLabelText("手机号码"), "13812345678");
-    await user.type(screen.getByLabelText("学号"), "20240001");
+    fireEvent.change(screen.getByLabelText("用户名"), {
+      target: { value: "alice_01" },
+    });
+    fireEvent.change(screen.getByLabelText("真实姓名"), { target: { value: "Alice" } });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "Password123" },
+    });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "Password123" },
+    });
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "alice@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("手机号码"), {
+      target: { value: "13812345678" },
+    });
+    fireEvent.change(screen.getByLabelText("学号"), { target: { value: "20240001" } });
 
-    await user.selectOptions(await screen.findByLabelText("学部"), "college-1");
-    await user.selectOptions(await screen.findByLabelText("专业"), "major-1");
-    await user.selectOptions(await screen.findByLabelText("班级"), "class-1");
-    await user.selectOptions(await screen.findByLabelText("年级"), "2024");
+    fireEvent.change(await screen.findByLabelText("学部"), {
+      target: { value: "college-1" },
+    });
+    fireEvent.change(await screen.findByLabelText("专业"), {
+      target: { value: "major-1" },
+    });
+    fireEvent.change(await screen.findByLabelText("班级"), {
+      target: { value: "class-1" },
+    });
+    fireEvent.change(await screen.findByLabelText("年级"), { target: { value: "2024" } });
 
     const originalSetTimeout = globalThis.setTimeout;
     const redirectTimer = vi
@@ -226,7 +239,7 @@ describe("RegisterPage", () => {
       });
 
     try {
-      await user.click(screen.getByRole("button", { name: "注册学生账号" }));
+      fireEvent.click(screen.getByRole("button", { name: "注册学生账号" }));
 
       await waitFor(() => {
         expect(mockPost).toHaveBeenCalledWith("/auth/register/student", {

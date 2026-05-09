@@ -23,7 +23,9 @@ import {
   exportStudents,
   listStudents,
   resetUserPassword,
+  updateStudent,
   updateUserStatus,
+  type AdminUser,
   type UserMutationInput,
 } from "@/modules/users/api/users";
 
@@ -43,6 +45,14 @@ const initialStudentForm: StudentFormState = {
   grade: "",
 };
 
+interface StudentEditState {
+  id: string;
+  username: string;
+  real_name: string;
+  student_id: string;
+  grade: string;
+}
+
 function toStudentPayload(form: StudentFormState): UserMutationInput {
   const payload: UserMutationInput = {};
 
@@ -55,11 +65,23 @@ function toStudentPayload(form: StudentFormState): UserMutationInput {
   return payload;
 }
 
+function toStudentEditPayload(form: StudentEditState): UserMutationInput {
+  const payload: UserMutationInput = {};
+
+  if (form.username.trim()) payload.username = form.username.trim();
+  if (form.real_name.trim()) payload.real_name = form.real_name.trim();
+  if (form.student_id.trim()) payload.student_id = form.student_id.trim();
+  if (form.grade.trim()) payload.grade = form.grade.trim();
+
+  return payload;
+}
+
 export default function StudentsPage() {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [studentForm, setStudentForm] = useState<StudentFormState>(initialStudentForm);
+  const [editingStudent, setEditingStudent] = useState<StudentEditState | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
   const query = useQuery({
@@ -94,6 +116,19 @@ export default function StudentsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UserMutationInput }) =>
+      updateStudent(id, input),
+    onSuccess: () => {
+      setEditingStudent(null);
+      void invalidateStudents();
+      toast.success("学生已更新");
+    },
+    onError: () => {
+      toast.error("更新学生失败");
+    },
+  });
+
   const resetPasswordMutation = useMutation({
     mutationFn: ({ id, password }: { id: string; password: string }) =>
       resetUserPassword(id, password),
@@ -121,9 +156,32 @@ export default function StudentsPage() {
     setStudentForm((current) => ({ ...current, [field]: value }));
   };
 
+  const updateEditingStudent = (field: keyof StudentEditState, value: string) => {
+    setEditingStudent((current) => current && { ...current, [field]: value });
+  };
+
   const handleCreateStudent = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     createMutation.mutate(toStudentPayload(studentForm));
+  };
+
+  const startEditingStudent = (student: AdminUser) => {
+    setEditingStudent({
+      id: student.id,
+      username: student.username,
+      real_name: student.real_name,
+      student_id: student.student_id ?? "",
+      grade: student.grade ?? "",
+    });
+  };
+
+  const handleUpdateStudent = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingStudent) return;
+    updateMutation.mutate({
+      id: editingStudent.id,
+      input: toStudentEditPayload(editingStudent),
+    });
   };
 
   const handleResetPassword = (studentId: string) => {
@@ -196,6 +254,65 @@ export default function StudentsPage() {
         </CardContent>
       </Card>
 
+      {editingStudent ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>编辑学生</CardTitle>
+            <p className="mt-2 text-sm text-muted-foreground">
+              更新学生基础资料，密码请使用单独的重置入口。
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4 md:grid-cols-6" onSubmit={handleUpdateStudent}>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="edit-student-username">编辑学生用户名</Label>
+                <Input
+                  id="edit-student-username"
+                  value={editingStudent.username}
+                  onChange={(event) => updateEditingStudent("username", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="edit-student-real-name">编辑学生姓名</Label>
+                <Input
+                  id="edit-student-real-name"
+                  value={editingStudent.real_name}
+                  onChange={(event) => updateEditingStudent("real_name", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="edit-student-number">编辑学生学号</Label>
+                <Input
+                  id="edit-student-number"
+                  value={editingStudent.student_id}
+                  onChange={(event) => updateEditingStudent("student_id", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="edit-student-grade">编辑学生年级</Label>
+                <Input
+                  id="edit-student-grade"
+                  value={editingStudent.grade}
+                  onChange={(event) => updateEditingStudent("grade", event.target.value)}
+                />
+              </div>
+              <div className="flex items-end gap-2 md:col-span-2">
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  保存学生
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingStudent(null)}
+                >
+                  取消
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -254,6 +371,14 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`编辑 ${student.username}`}
+                          onClick={() => startEditingStudent(student)}
+                        >
+                          编辑
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
