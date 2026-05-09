@@ -215,7 +215,11 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 	appSvc.SetParticipantService(participantSvc)
 	activityStatsSvc := dashboard.NewActivityStatsService(activityRepo, activityCategoryRepo, participantSvc)
 	activityExportSvc := exportservice.NewActivityExportService(activityRepo)
-	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc))
+	activitySvc := activityservice.New(activityRepo, appservice.NewHook(appSvc)).
+		UseCopyHooks(activityRelationCopier{
+			participants: participantSvc,
+			files:        fileSvc,
+		})
 	auditWriter := deps.auditWriter
 	if auditWriter == nil {
 		auditWriter = auditlog.NewWriter()
@@ -282,6 +286,25 @@ func resolveMigrationsDir() string {
 type memoryOptionRepo struct{}
 
 type memoryCategorySchemaRepo struct{}
+
+type activityRelationCopier struct {
+	participants *participantservice.Service
+	files        *fileservice.Service
+}
+
+func (c activityRelationCopier) CopyActivityRelations(ctx context.Context, sourceActivityID string, targetActivityID string, actorID string) error {
+	if c.participants != nil {
+		if err := c.participants.CopyActivityParticipants(ctx, sourceActivityID, targetActivityID); err != nil {
+			return err
+		}
+	}
+	if c.files != nil {
+		if err := c.files.CopyActivityFiles(ctx, sourceActivityID, targetActivityID, actorID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (memoryOptionRepo) ListOrganization(context.Context) ([]optionsservice.OrganizationNode, error) {
 	return []optionsservice.OrganizationNode{

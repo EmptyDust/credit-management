@@ -129,3 +129,83 @@ func TestDraftToApprovedGeneratesApplications(t *testing.T) {
 		t.Fatalf("unexpected academic dimensions: %+v", applications.Items[0])
 	}
 }
+
+func TestCopyActivityIncludesParticipantsAndFiles(t *testing.T) {
+	h := newHarness(t)
+
+	student := login(t, h, "student01")
+
+	createRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities", student.AccessToken, map[string]any{
+		"title":         "Copy source activity",
+		"description":   "source for copy contract",
+		"category":      "innovation",
+		"academic_year": "2025-2026",
+		"semester":      "autumn",
+		"details": map[string]any{
+			"location": "Lab 1",
+		},
+	})
+	if createRecorder.Code != http.StatusCreated {
+		t.Fatalf("create activity failed: status=%d body=%s", createRecorder.Code, createRecorder.Body.String())
+	}
+	created := decodeData[struct {
+		Activity struct {
+			ID string `json:"id"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, createRecorder))
+
+	addParticipants := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants", student.AccessToken, map[string]any{
+		"user_ids": []string{student.User.ID},
+		"credits":  3,
+	})
+	if addParticipants.Code != http.StatusOK {
+		t.Fatalf("add participants failed: status=%d body=%s", addParticipants.Code, addParticipants.Body.String())
+	}
+
+	uploadRecorder := h.requestMultipart(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/files", student.AccessToken, "file", "copy-proof.txt", []byte("copy proof"))
+	if uploadRecorder.Code != http.StatusCreated {
+		t.Fatalf("upload file failed: status=%d body=%s", uploadRecorder.Code, uploadRecorder.Body.String())
+	}
+
+	copyRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/copy", student.AccessToken, map[string]any{})
+	if copyRecorder.Code != http.StatusCreated {
+		t.Fatalf("copy activity failed: status=%d body=%s", copyRecorder.Code, copyRecorder.Body.String())
+	}
+	copied := decodeData[struct {
+		Activity struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"activity"`
+	}](t, decodeEnvelope(t, copyRecorder))
+	if copied.Activity.Status != "draft" {
+		t.Fatalf("expected copied activity to be draft, got %+v", copied.Activity)
+	}
+
+	participantsRecorder := h.request(http.MethodGet, "/api/v1/activities/"+copied.Activity.ID+"/participants", student.AccessToken, nil, "")
+	if participantsRecorder.Code != http.StatusOK {
+		t.Fatalf("list copied participants failed: status=%d body=%s", participantsRecorder.Code, participantsRecorder.Body.String())
+	}
+	participants := decodeData[struct {
+		Items []struct {
+			UserID  string  `json:"user_id"`
+			Credits float64 `json:"credits"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, participantsRecorder))
+	if len(participants.Items) != 1 || participants.Items[0].UserID != student.User.ID || participants.Items[0].Credits != 3 {
+		t.Fatalf("unexpected copied participants: %+v", participants.Items)
+	}
+
+	filesRecorder := h.request(http.MethodGet, "/api/v1/activities/"+copied.Activity.ID+"/files", student.AccessToken, nil, "")
+	if filesRecorder.Code != http.StatusOK {
+		t.Fatalf("list copied files failed: status=%d body=%s", filesRecorder.Code, filesRecorder.Body.String())
+	}
+	files := decodeData[struct {
+		Items []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"items"`
+	}](t, decodeEnvelope(t, filesRecorder))
+	if len(files.Items) != 1 || files.Items[0].Name != "copy-proof.txt" {
+		t.Fatalf("unexpected copied files: %+v", files.Items)
+	}
+}

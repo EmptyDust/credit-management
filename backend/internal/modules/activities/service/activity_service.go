@@ -16,9 +16,14 @@ type ApplicationHooks interface {
 	RevokeApprovedActivity(ctx context.Context, activityID string) error
 }
 
+type CopyHooks interface {
+	CopyActivityRelations(ctx context.Context, sourceActivityID string, targetActivityID string, actorID string) error
+}
+
 type Service struct {
 	repo           activityrepo.Repository
 	hooks          ApplicationHooks
+	copyHooks      CopyHooks
 	schemaResolver activityCategorySchemaResolver
 }
 
@@ -60,6 +65,11 @@ func New(repo activityrepo.Repository, hooks ApplicationHooks) *Service {
 	}
 
 	return service
+}
+
+func (s *Service) UseCopyHooks(hooks CopyHooks) *Service {
+	s.copyHooks = hooks
+	return s
 }
 
 func NewMemoryRepository() *MemoryRepository {
@@ -248,6 +258,12 @@ func (s *Service) Copy(ctx context.Context, actorID string, actorRole string, ac
 	}
 	if err := s.repo.Save(ctx, copyActivity); err != nil {
 		return nil, err
+	}
+	if s.copyHooks != nil {
+		if err := s.copyHooks.CopyActivityRelations(ctx, source.ID, copyActivity.ID, actorID); err != nil {
+			_ = s.repo.Delete(ctx, copyActivity.ID)
+			return nil, err
+		}
 	}
 
 	return copyActivity, nil

@@ -97,6 +97,21 @@ func (s *LocalStore) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+func (s *LocalStore) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateKey(key); err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(s.pathForKey(key))
+	if err != nil {
+		return nil, fmt.Errorf("open local storage object: %w", err)
+	}
+	return file, nil
+}
+
 func (s *LocalStore) SignGetURL(ctx context.Context, key string, _ SignedURLOptions) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

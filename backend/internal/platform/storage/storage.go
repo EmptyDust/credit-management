@@ -33,6 +33,7 @@ type SignedURLOptions struct {
 
 type Store interface {
 	Put(ctx context.Context, req PutRequest) (Object, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	SignGetURL(ctx context.Context, key string, opts SignedURLOptions) (string, error)
 }

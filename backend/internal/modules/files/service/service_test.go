@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"io"
 	"mime/multipart"
 	"net/textproto"
 	"testing"
@@ -161,6 +162,10 @@ func (s *fakeStore) Put(_ context.Context, req storage.PutRequest) (storage.Obje
 		ContentType: req.ContentType,
 		Backend:     storage.BackendLocal,
 	}, nil
+}
+
+func (s *fakeStore) Get(_ context.Context, _ string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader([]byte("stored object"))), nil
 }
 
 func (s *fakeStore) Delete(_ context.Context, key string) error {

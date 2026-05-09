@@ -178,6 +178,80 @@ func (s *Service) Delete(ctx context.Context, actorID string, actorRole string, 
 	return nil
 }
 
+func (s *Service) CopyActivityFiles(ctx context.Context, sourceActivityID string, targetActivityID string, actorID string) error {
+	sourceFiles, err := s.repo.ListRecordsByActivity(ctx, sourceActivityID)
+	if err != nil {
+		return err
+	}
+	if len(sourceFiles) == 0 {
+		return nil
+	}
+
+	for _, source := range sourceFiles {
+		copied := File{
+			ID:          idgen.New(),
+			ActivityID:  targetActivityID,
+			Name:        source.Name,
+			ContentType: source.ContentType,
+			Size:        source.Size,
+			UploadedBy:  actorID,
+			CreatedAt:   time.Now().UTC(),
+		}
+		record := MetadataRecord{
+			File:           copied,
+			StorageBackend: source.StorageBackend,
+		}
+
+		if memoryRepo, ok := s.repo.(*memoryMetadataRepository); ok {
+			sourceFile, exists := memoryRepo.files[source.ID]
+			if !exists {
+				return ErrFileNotFound
+			}
+			memoryRepo.files[copied.ID] = &storedFile{
+				meta:           copied,
+				content:        append([]byte(nil), sourceFile.content...),
+				storageBackend: sourceFile.storageBackend,
+			}
+		}
+
+		if s.store != nil {
+			reader, err := s.store.Get(ctx, source.StorageKey)
+			if err != nil {
+				return err
+			}
+			key := fmt.Sprintf("activities/%s/%s-%s", targetActivityID, idgen.New(), source.Name)
+			object, putErr := s.store.Put(ctx, storage.PutRequest{
+				Key:         key,
+				Body:        reader,
+				Size:        source.Size,
+				ContentType: source.ContentType,
+			})
+			closeErr := reader.Close()
+			if putErr != nil {
+				return putErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			record.StorageKey = object.Key
+			record.StorageBackend = string(object.Backend)
+			if memoryRepo, ok := s.repo.(*memoryMetadataRepository); ok {
+				memoryRepo.files[copied.ID].storageKey = object.Key
+				memoryRepo.files[copied.ID].storageBackend = string(object.Backend)
+			}
+		}
+
+		if err := s.repo.SaveUpload(ctx, record); err != nil {
+			if s.store != nil && record.StorageKey != "" {
+				_ = s.store.Delete(ctx, record.StorageKey)
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Service) Download(ctx context.Context, actorID string, actorRole string, fileID string) (*Download, error) {
 	meta, err := s.repo.Get(ctx, fileID)
 	if err != nil {

@@ -119,3 +119,27 @@ func (s *Service) Leave(ctx context.Context, actorID string, actorRole string, a
 func (s *Service) SnapshotByActivity(ctx context.Context, activityID string) ([]Participant, error) {
 	return s.repo.ListByActivity(ctx, activityID)
 }
+
+func (s *Service) CopyActivityParticipants(ctx context.Context, sourceActivityID string, targetActivityID string) error {
+	source, err := s.repo.ListByActivity(ctx, sourceActivityID)
+	if err != nil {
+		return err
+	}
+	if len(source) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	copied := make([]Participant, 0, len(source))
+	for _, participant := range source {
+		copied = append(copied, Participant{
+			ID:         idgen.New(),
+			ActivityID: targetActivityID,
+			UserID:     participant.UserID,
+			Credits:    participant.Credits,
+			JoinedAt:   now,
+		})
+	}
+
+	return s.repo.AddBatch(ctx, targetActivityID, copied)
+}

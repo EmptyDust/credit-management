@@ -20,6 +20,7 @@ type MetadataRepository interface {
 	SaveUpload(ctx context.Context, meta MetadataRecord) error
 	Get(ctx context.Context, fileID string) (*MetadataRecord, error)
 	ListByActivity(ctx context.Context, activityID string) ([]File, error)
+	ListRecordsByActivity(ctx context.Context, activityID string) ([]MetadataRecord, error)
 	SoftDelete(ctx context.Context, activityID string, fileID string) error
 }
 
@@ -122,6 +123,21 @@ func (r *memoryMetadataRepository) ListByActivity(_ context.Context, activityID 
 	return items, nil
 }
 
+func (r *memoryMetadataRepository) ListRecordsByActivity(_ context.Context, activityID string) ([]MetadataRecord, error) {
+	ids := r.byActivity[activityID]
+	items := make([]MetadataRecord, 0, len(ids))
+	for _, id := range ids {
+		if file, ok := r.files[id]; ok {
+			items = append(items, MetadataRecord{
+				File:           file.meta,
+				StorageKey:     file.storageKey,
+				StorageBackend: file.storageBackend,
+			})
+		}
+	}
+	return items, nil
+}
+
 func (r *memoryMetadataRepository) SoftDelete(_ context.Context, activityID string, fileID string) error {
 	if _, ok := r.files[fileID]; !ok {
 		return ErrFileNotFound
@@ -212,6 +228,37 @@ func (r *gormMetadataRepository) ListByActivity(ctx context.Context, activityID 
 			Size:        rows[i].FileSize,
 			UploadedBy:  rows[i].UploadedBy,
 			CreatedAt:   rows[i].UploadedAt.UTC(),
+		})
+	}
+	return items, nil
+}
+
+func (r *gormMetadataRepository) ListRecordsByActivity(ctx context.Context, activityID string) ([]MetadataRecord, error) {
+	var rows []joinedFileRow
+	if err := r.db.WithContext(ctx).
+		Table("files").
+		Select("files.id, activity_files.activity_id, files.storage_key, files.original_name, files.mime_type, files.file_size, files.storage_backend, files.uploaded_by, files.uploaded_at").
+		Joins("JOIN activity_files ON activity_files.file_id = files.id AND activity_files.deleted_at IS NULL").
+		Where("activity_files.activity_id = ? AND files.deleted_at IS NULL", activityID).
+		Order("files.uploaded_at ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]MetadataRecord, 0, len(rows))
+	for i := range rows {
+		items = append(items, MetadataRecord{
+			File: File{
+				ID:          rows[i].ID,
+				ActivityID:  rows[i].ActivityID,
+				Name:        rows[i].OriginalName,
+				ContentType: rows[i].MimeType,
+				Size:        rows[i].FileSize,
+				UploadedBy:  rows[i].UploadedBy,
+				CreatedAt:   rows[i].UploadedAt.UTC(),
+			},
+			StorageKey:     rows[i].StorageKey,
+			StorageBackend: rows[i].StorageBackend,
 		})
 	}
 	return items, nil
