@@ -235,6 +235,11 @@ func newConfiguredApp(cfg config.Config, logger *slog.Logger, deps configuredApp
 			return len(activities)
 		},
 		appSvc.Count,
+		dashboard.WithUserStats(deps.userRepo),
+		dashboard.WithActivityOverview(activityRepo, activityCategoryRepo, participantSvc),
+		dashboard.WithApplicationStats(func(actorID string, actorRole string) appservice.Stats {
+			return appSvc.Stats(actorID, actorRole)
+		}),
 	)
 	authHandler := authhttp.NewHandler(deps.authSvc)
 	activityHandler := activityhttp.NewHandler(activitySvc, activityCategoryRepo).

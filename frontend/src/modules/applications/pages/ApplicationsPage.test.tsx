@@ -48,25 +48,25 @@ function renderPage() {
 describe("ApplicationsPage", () => {
   beforeEach(() => {
     mockListApplications.mockResolvedValue({
-    items: [
-      {
-        id: "application-1",
-        status: "approved",
-        applied_credits: 2,
-        awarded_credits: 2,
-        academic_year: "2025-2026",
-        semester: "autumn",
-        activity: {
-          id: "activity-1",
-          title: "Campus Volunteer Day",
-          category: "volunteer",
+      items: [
+        {
+          id: "application-1",
+          status: "approved",
+          applied_credits: 2,
+          awarded_credits: 2,
+          academic_year: "2025-2026",
+          semester: "autumn",
+          activity: {
+            id: "activity-1",
+            title: "Campus Volunteer Day",
+            category: "volunteer",
+          },
         },
-      },
-    ],
-    total: 1,
-    page: 1,
-    page_size: 10,
-    total_pages: 1,
+      ],
+      total: 21,
+      page: 1,
+      page_size: 10,
+      total_pages: 3,
     });
     mockGetApplicationStats.mockResolvedValue({
       total: 1,
@@ -116,6 +116,8 @@ describe("ApplicationsPage", () => {
         keyword: "Robotics",
         academic_year: "2025-2026",
         semester: "autumn",
+        page: 1,
+        page_size: 10,
       });
       expect(mockGetApplicationStats).toHaveBeenLastCalledWith({
         keyword: "Robotics",
@@ -130,6 +132,24 @@ describe("ApplicationsPage", () => {
       keyword: "Robotics",
       academic_year: "2025-2026",
       semester: "autumn",
+    });
+  });
+
+  it("renders pagination and requests the selected page", async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+
+    expect(await screen.findByText("Campus Volunteer Day")).toBeTruthy();
+    expect(screen.getByText("显示第 1 到 10 条，共 21 条记录")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "2" }));
+
+    await waitFor(() => {
+      expect(mockListApplications).toHaveBeenLastCalledWith({
+        page: 2,
+        page_size: 10,
+      });
     });
   });
 });

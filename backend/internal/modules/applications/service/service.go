@@ -44,6 +44,8 @@ type Filter struct {
 	Status       string
 	AcademicYear string
 	Semester     string
+	Page         int
+	PageSize     int
 }
 
 func New() *Service {
@@ -60,6 +62,14 @@ type Stats struct {
 	Total         int     `json:"total"`
 	ApprovedCount int     `json:"approved_count"`
 	TotalCredits  float64 `json:"total_credits"`
+}
+
+type ListResult struct {
+	Items      []ApplicationView `json:"items"`
+	Total      int               `json:"total"`
+	Page       int               `json:"page"`
+	PageSize   int               `json:"page_size"`
+	TotalPages int               `json:"total_pages"`
 }
 
 type ApplicationView struct {
@@ -166,6 +176,42 @@ func (s *Service) List(actorID string, actorRole string) []ApplicationView {
 }
 
 func (s *Service) ListFiltered(actorID string, actorRole string, filter Filter) []ApplicationView {
+	filter.Page = 0
+	filter.PageSize = 0
+	return s.listFilteredViews(actorID, actorRole, filter)
+}
+
+func (s *Service) ListFilteredPage(actorID string, actorRole string, filter Filter) ListResult {
+	items := s.listFilteredViews(actorID, actorRole, filter)
+	total := len(items)
+	page, pageSize := normalizePagination(filter.Page, filter.PageSize)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if totalPages > 0 && page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+
+	return ListResult{
+		Items:      items[start:end],
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}
+}
+
+func (s *Service) listFilteredViews(actorID string, actorRole string, filter Filter) []ApplicationView {
 	items, err := s.repo.List(context.Background(), actorID, actorRole)
 	if err != nil {
 		return []ApplicationView{}
@@ -325,4 +371,17 @@ func stringValue(value any) string {
 
 func floatString(value float64) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+func normalizePagination(page int, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
 }

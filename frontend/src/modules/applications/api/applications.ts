@@ -8,6 +8,8 @@ export interface ApplicationFilters {
   status?: string;
   academic_year?: string;
   semester?: string;
+  page?: number;
+  page_size?: number;
 }
 
 export interface ApplicationListItem {
@@ -41,7 +43,9 @@ export interface ApplicationListResponse {
 
 function compactFilters(filters: ApplicationFilters) {
   return Object.fromEntries(
-    Object.entries(filters).filter(([, value]) => value !== undefined && value !== "")
+    Object.entries(filters)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)])
   );
 }
 

@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 
 	"credit-management/backend/internal/httpapi/middleware"
 	"credit-management/backend/internal/httpapi/response"
@@ -25,14 +26,7 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	items := h.service.ListFiltered(claims.UserID, claims.UserType, queryFilter(c))
-	response.OK(c, gin.H{
-		"items":       items,
-		"page":        1,
-		"page_size":   len(items),
-		"total":       len(items),
-		"total_pages": 1,
-	})
+	response.OK(c, h.service.ListFilteredPage(claims.UserID, claims.UserType, queryFilter(c)))
 }
 
 func (h *Handler) Stats(c *gin.Context) {
@@ -87,5 +81,15 @@ func queryFilter(c *gin.Context) appservice.Filter {
 		Status:       c.Query("status"),
 		AcademicYear: c.Query("academic_year"),
 		Semester:     c.Query("semester"),
+		Page:         intQuery(c, "page"),
+		PageSize:     intQuery(c, "page_size"),
 	}
+}
+
+func intQuery(c *gin.Context, key string) int {
+	value, err := strconv.Atoi(c.Query(key))
+	if err != nil {
+		return 0
+	}
+	return value
 }

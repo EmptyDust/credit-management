@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -74,11 +75,18 @@ export default function ApplicationsPage() {
   const [academicYear, setAcademicYear] = useState("");
   const [semester, setSemester] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const filters = buildFilters({ keyword, academicYear, semester, status });
+  const listFilters: ApplicationFilters = {
+    ...filters,
+    page,
+    page_size: pageSize,
+  };
 
   const listQuery = useQuery({
-    queryKey: ["applications", filters],
-    queryFn: () => listApplications(filters),
+    queryKey: ["applications", listFilters],
+    queryFn: () => listApplications(listFilters),
   });
 
   const statsQuery = useQuery({
@@ -154,25 +162,37 @@ export default function ApplicationsPage() {
               aria-label="申请搜索关键字"
               placeholder="搜索活动、用户或申请"
               value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(1);
+              }}
             />
             <Input
               aria-label="申请学年"
               placeholder="学年，如 2025-2026"
               value={academicYear}
-              onChange={(event) => setAcademicYear(event.target.value)}
+              onChange={(event) => {
+                setAcademicYear(event.target.value);
+                setPage(1);
+              }}
             />
             <Input
               aria-label="申请学期"
               placeholder="学期，如 autumn"
               value={semester}
-              onChange={(event) => setSemester(event.target.value)}
+              onChange={(event) => {
+                setSemester(event.target.value);
+                setPage(1);
+              }}
             />
             <Input
               aria-label="申请状态"
               placeholder="状态，如 approved"
               value={status}
-              onChange={(event) => setStatus(event.target.value)}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </CardHeader>
@@ -228,6 +248,19 @@ export default function ApplicationsPage() {
               </TableBody>
             </Table>
           )}
+          {listQuery.data ? (
+            <Pagination
+              currentPage={listQuery.data.page}
+              totalPages={listQuery.data.total_pages}
+              totalItems={listQuery.data.total}
+              pageSize={listQuery.data.page_size}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
+          ) : null}
         </CardContent>
       </Card>
 

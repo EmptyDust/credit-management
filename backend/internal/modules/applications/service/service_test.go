@@ -73,3 +73,77 @@ func TestSyncApprovedActivityContextCopiesParticipantCredits(t *testing.T) {
 		t.Fatalf("expected total credits 2.5, got %v", stats.TotalCredits)
 	}
 }
+
+func TestListFilteredPagePaginatesAfterFiltering(t *testing.T) {
+	svc := NewWithRepository(fakeApplicationRepository{
+		items: []Application{
+			{ID: "app-1", ActivityID: "activity-1", UserID: "student-1", Status: "approved"},
+			{ID: "app-2", ActivityID: "activity-2", UserID: "student-2", Status: "rejected"},
+			{ID: "app-3", ActivityID: "activity-3", UserID: "student-3", Status: "approved"},
+			{ID: "app-4", ActivityID: "activity-4", UserID: "student-4", Status: "approved"},
+		},
+	})
+
+	result := svc.ListFilteredPage("admin-1", "admin", Filter{
+		Status:   "approved",
+		Page:     2,
+		PageSize: 2,
+	})
+
+	if result.Total != 3 || result.Page != 2 || result.PageSize != 2 || result.TotalPages != 2 {
+		t.Fatalf("unexpected pagination metadata: %#v", result)
+	}
+	if len(result.Items) != 1 || result.Items[0].ID != "app-4" {
+		t.Fatalf("unexpected paginated items: %#v", result.Items)
+	}
+}
+
+type fakeApplicationRepository struct {
+	items []Application
+}
+
+func (f fakeApplicationRepository) UpsertApproved(context.Context, Application) error {
+	return nil
+}
+
+func (f fakeApplicationRepository) SoftDeleteByActivity(context.Context, string) error {
+	return nil
+}
+
+func (f fakeApplicationRepository) List(_ context.Context, actorID string, actorRole string) ([]Application, error) {
+	items := make([]Application, 0, len(f.items))
+	for _, item := range f.items {
+		if item.Deleted {
+			continue
+		}
+		if actorRole == "student" && item.UserID != actorID {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (f fakeApplicationRepository) Get(_ context.Context, actorID string, actorRole string, applicationID string) (*Application, error) {
+	for _, item := range f.items {
+		if item.ID != applicationID || item.Deleted {
+			continue
+		}
+		if actorRole == "student" && item.UserID != actorID {
+			break
+		}
+		copy := item
+		return &copy, nil
+	}
+	return nil, ErrApplicationNotFound
+}
+
+func (f fakeApplicationRepository) Count(context.Context) (int, error) {
+	count := 0
+	for _, item := range f.items {
+		if !item.Deleted {
+			count++
+		}
+	}
+	return count, nil
+}
