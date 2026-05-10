@@ -75,6 +75,16 @@ export interface ActivityListResponse {
   total_pages: number;
 }
 
+export interface ActivityListFilters {
+  keyword?: string;
+  status?: string;
+  category?: string;
+  academic_year?: string;
+  semester?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface ActivityMutationInput {
   title: string;
   description?: string;
@@ -91,13 +101,7 @@ export interface ReviewActivityInput {
   review_comments: string;
 }
 
-export async function listActivities(filters: {
-  keyword?: string;
-  status?: string;
-  category?: string;
-  academic_year?: string;
-  semester?: string;
-} = {}) {
+export async function listActivities(filters: ActivityListFilters = {}) {
   const response = await apiClient.get<ApiSuccessResponse<ActivityListResponse>>(
     "/activities",
     {

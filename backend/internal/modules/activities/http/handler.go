@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"credit-management/backend/internal/httpapi/middleware"
 	"credit-management/backend/internal/httpapi/response"
@@ -104,18 +105,18 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.List(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
+	result, err := h.service.ListPage(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "list activities failed", nil)
 		return
 	}
 
 	response.OK(c, gin.H{
-		"items":       mapActivities(items),
-		"page":        1,
-		"page_size":   len(items),
-		"total":       len(items),
-		"total_pages": 1,
+		"items":       mapActivities(result.Items),
+		"page":        result.Page,
+		"page_size":   result.PageSize,
+		"total":       result.Total,
+		"total_pages": result.TotalPages,
 	})
 }
 
@@ -344,7 +345,17 @@ func queryFilter(c *gin.Context) activityrepo.ListFilter {
 		AcademicYear: c.Query("academic_year"),
 		Semester:     c.Query("semester"),
 		OwnerID:      c.Query("owner_id"),
+		Page:         intQuery(c, "page"),
+		PageSize:     intQuery(c, "page_size"),
 	}
+}
+
+func intQuery(c *gin.Context, key string) int {
+	value, err := strconv.Atoi(c.Query(key))
+	if err != nil {
+		return 0
+	}
+	return value
 }
 
 func mapActivity(activity activitydomain.Activity) activityResponse {

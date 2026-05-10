@@ -10,6 +10,8 @@ import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
 
 const {
   mockConfirmActivityImport,
+  mockCopyActivity,
+  mockDeleteActivity,
   mockExportActivities,
   mockGetActivityStats,
   mockListActivities,
@@ -26,6 +28,16 @@ const {
     },
     created_activity_ids: ["activity-2"],
   }),
+  mockCopyActivity: vi.fn().mockResolvedValue({
+    id: "activity-copy",
+    title: "Campus Volunteer Day",
+    category: "volunteer",
+    academic_year: "2025-2026",
+    semester: "autumn",
+    status: "draft",
+    owner_id: "teacher-1",
+  }),
+  mockDeleteActivity: vi.fn().mockResolvedValue(undefined),
   mockExportActivities: vi.fn().mockResolvedValue(undefined),
   mockGetActivityStats: vi.fn().mockResolvedValue({
     status_counts: {
@@ -51,14 +63,14 @@ const {
         category: "volunteer",
         academic_year: "2025-2026",
         semester: "autumn",
-        status: "approved",
+        status: "draft",
         owner_id: "teacher-1",
       },
     ],
-    total: 1,
+    total: 21,
     page: 1,
     page_size: 10,
-    total_pages: 1,
+    total_pages: 3,
   }),
   mockNavigate: vi.fn(),
   mockPrecheckActivityImport: vi.fn().mockResolvedValue({
@@ -100,6 +112,8 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("@/modules/activities/api/activities", () => ({
+  copyActivity: mockCopyActivity,
+  deleteActivity: mockDeleteActivity,
   listActivities: mockListActivities,
 }));
 
@@ -143,7 +157,7 @@ describe("ActivitiesPage", () => {
 
     expect(await screen.findByText("Campus Volunteer Day")).toBeTruthy();
     expect(screen.getByText("活动总数")).toBeTruthy();
-    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getAllByText("3").length).toBeGreaterThan(0);
     expect(screen.getByText("我的活动")).toBeTruthy();
     expect(screen.getByText("已参与")).toBeTruthy();
     expect(mockGetActivityStats).toHaveBeenCalled();
@@ -173,6 +187,47 @@ describe("ActivitiesPage", () => {
         semester: undefined,
       });
     });
+  });
+
+  it("renders pagination and requests the selected activity page", async () => {
+    renderPage();
+
+    await screen.findByText("Campus Volunteer Day");
+    expect(screen.getByText("显示第 1 到 10 条，共 21 条记录")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "2" }));
+
+    await waitFor(() => {
+      expect(mockListActivities).toHaveBeenLastCalledWith({
+        keyword: undefined,
+        status: undefined,
+        category: undefined,
+        academic_year: undefined,
+        semester: undefined,
+        page: 2,
+        page_size: 10,
+      });
+    });
+  });
+
+  it("supports list-level copy edit and delete actions", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByText("Campus Volunteer Day");
+    await userEvent.click(
+      screen.getByRole("button", { name: "复制 Campus Volunteer Day" })
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "编辑 Campus Volunteer Day" })
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "删除 Campus Volunteer Day" })
+    );
+
+    expect(mockCopyActivity).toHaveBeenCalledWith("activity-1");
+    expect(mockNavigate).toHaveBeenCalledWith("/activities/activity-1/edit");
+    expect(mockDeleteActivity).toHaveBeenCalledWith("activity-1");
   });
 
   it("prechecks and confirms an activity import file", async () => {

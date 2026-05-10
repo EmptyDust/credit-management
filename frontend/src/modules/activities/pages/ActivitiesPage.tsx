@@ -1,5 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Eye, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Edit,
+  Eye,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -29,7 +40,13 @@ import {
   type ActivityStats,
   type ActivityStatsFilters,
 } from "@/modules/activities/api/activity-stats";
-import { listActivities } from "@/modules/activities/api/activities";
+import {
+  copyActivity,
+  deleteActivity,
+  listActivities,
+  type ActivityListFilters,
+  type ActivityListItem,
+} from "@/modules/activities/api/activities";
 import ActivityImportDialog from "@/modules/activities/components/ActivityImportDialog";
 
 const statusOptions = [
@@ -76,6 +93,8 @@ export default function ActivitiesPage() {
   const [academicYear, setAcademicYear] = useState("");
   const [semester, setSemester] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filters: ActivityStatsFilters = useMemo(
     () => ({
@@ -87,10 +106,15 @@ export default function ActivitiesPage() {
     }),
     [academicYear, category, keyword, semester, status]
   );
+  const listFilters: ActivityListFilters = {
+    ...filters,
+    page,
+    page_size: pageSize,
+  };
 
   const listQuery = useQuery({
-    queryKey: ["activities", filters],
-    queryFn: () => listActivities(filters),
+    queryKey: ["activities", listFilters],
+    queryFn: () => listActivities(listFilters),
   });
 
   const statsQuery = useQuery({
@@ -113,6 +137,34 @@ export default function ActivitiesPage() {
   const refreshWorkspace = () => {
     void listQuery.refetch();
     void statsQuery.refetch();
+  };
+
+  const activityActionMutation = useMutation({
+    mutationFn: async (action: { type: "copy" | "delete"; activityID: string }) => {
+      if (action.type === "copy") {
+        return copyActivity(action.activityID);
+      }
+      await deleteActivity(action.activityID);
+      return null;
+    },
+    onSuccess: (_, action) => {
+      toast.success(action.type === "copy" ? "活动已复制为草稿" : "活动已删除");
+      refreshWorkspace();
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "活动操作失败，请稍后重试";
+      toast.error(message);
+    },
+  });
+
+  const resetPage = () => setPage(1);
+
+  const handleDelete = (activity: ActivityListItem) => {
+    if (!window.confirm(`确定删除活动「${activity.title}」吗？`)) {
+      return;
+    }
+    activityActionMutation.mutate({ type: "delete", activityID: activity.id });
   };
 
   const categories = statsQuery.data?.category_counts ?? [];
@@ -234,7 +286,10 @@ export default function ActivitiesPage() {
                 className="pl-10"
                 placeholder="搜索活动标题"
                 value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
+                onChange={(event) => {
+                  setKeyword(event.target.value);
+                  resetPage();
+                }}
               />
             </div>
           </div>
@@ -244,7 +299,10 @@ export default function ActivitiesPage() {
               id="activity-status"
               className={selectClassName}
               value={status}
-              onChange={(event) => setStatus(event.target.value)}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                resetPage();
+              }}
             >
               <option value="">全部状态</option>
               {statusOptions.map((option) => (
@@ -260,7 +318,10 @@ export default function ActivitiesPage() {
               id="activity-category"
               className={selectClassName}
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onChange={(event) => {
+                setCategory(event.target.value);
+                resetPage();
+              }}
             >
               <option value="">全部分类</option>
               {categories.map((item) => (
@@ -276,7 +337,10 @@ export default function ActivitiesPage() {
               id="activity-academic-year"
               className={selectClassName}
               value={academicYear}
-              onChange={(event) => setAcademicYear(event.target.value)}
+              onChange={(event) => {
+                setAcademicYear(event.target.value);
+                resetPage();
+              }}
             >
               <option value="">全部学年</option>
               {academicYears.map((item) => (
@@ -292,7 +356,10 @@ export default function ActivitiesPage() {
               id="activity-semester"
               className={selectClassName}
               value={semester}
-              onChange={(event) => setSemester(event.target.value)}
+              onChange={(event) => {
+                setSemester(event.target.value);
+                resetPage();
+              }}
             >
               <option value="">全部学期</option>
               {semesters.map((item) => (
@@ -358,21 +425,73 @@ export default function ActivitiesPage() {
                       <Badge variant="outline">{statusLabel(activity.status)}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        className="gap-2"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => navigate(`/activities/${activity.id}`)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        查看
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          className="gap-2"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/activities/${activity.id}`)}
+                        >
+                          <Eye className="h-4 w-4" />
+                          查看
+                        </Button>
+                        <Button
+                          className="gap-2"
+                          size="sm"
+                          variant="outline"
+                          aria-label={`复制 ${activity.title}`}
+                          onClick={() =>
+                            activityActionMutation.mutate({
+                              type: "copy",
+                              activityID: activity.id,
+                            })
+                          }
+                        >
+                          <Copy className="h-4 w-4" />
+                          复制
+                        </Button>
+                        {activity.status === "draft" ? (
+                          <Button
+                            className="gap-2"
+                            size="sm"
+                            variant="outline"
+                            aria-label={`编辑 ${activity.title}`}
+                            onClick={() => navigate(`/activities/${activity.id}/edit`)}
+                          >
+                            <Edit className="h-4 w-4" />
+                            编辑
+                          </Button>
+                        ) : null}
+                        <Button
+                          className="gap-2"
+                          size="sm"
+                          variant="destructive"
+                          aria-label={`删除 ${activity.title}`}
+                          onClick={() => handleDelete(activity)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          删除
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
+          {listQuery.data ? (
+            <Pagination
+              currentPage={listQuery.data.page}
+              totalPages={listQuery.data.total_pages}
+              totalItems={listQuery.data.total}
+              pageSize={listQuery.data.page_size}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
+          ) : null}
         </CardContent>
       </Card>
 

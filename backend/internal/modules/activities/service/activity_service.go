@@ -56,6 +56,14 @@ type ReviewInput struct {
 	ReviewComments string `json:"review_comments"`
 }
 
+type ListResult struct {
+	Items      []activitydomain.Activity `json:"items"`
+	Total      int                       `json:"total"`
+	Page       int                       `json:"page"`
+	PageSize   int                       `json:"page_size"`
+	TotalPages int                       `json:"total_pages"`
+}
+
 type MemoryRepository struct {
 	mu         sync.RWMutex
 	activities map[string]*activitydomain.Activity
@@ -110,6 +118,40 @@ func (s *Service) List(ctx context.Context, actorID string, actorRole string, fi
 	}
 
 	return s.repo.List(ctx, filter)
+}
+
+func (s *Service) ListPage(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter) (ListResult, error) {
+	items, err := s.List(ctx, actorID, actorRole, filter)
+	if err != nil {
+		return ListResult{}, err
+	}
+
+	total := len(items)
+	page, pageSize := normalizePagination(filter.Page, filter.PageSize)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	if totalPages > 0 && page > totalPages {
+		page = totalPages
+	}
+
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+
+	return ListResult{
+		Items:      items[start:end],
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (s *Service) Get(ctx context.Context, actorID string, actorRole string, activityID string) (*activitydomain.Activity, error) {
@@ -420,4 +462,17 @@ func cloneDetails(details map[string]any) map[string]any {
 		copy[key] = value
 	}
 	return copy
+}
+
+func normalizePagination(page int, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
 }

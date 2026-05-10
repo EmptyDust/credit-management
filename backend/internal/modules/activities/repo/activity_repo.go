@@ -13,6 +13,8 @@ type ListFilter struct {
 	AcademicYear string
 	Semester     string
 	OwnerID      string
+	Page         int
+	PageSize     int
 }
 
 type Repository interface {
