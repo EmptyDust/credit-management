@@ -149,6 +149,7 @@ describe("ApplicationsPage", () => {
       keyword: "Robotics",
       academic_year: "2025-2026",
       semester: "autumn",
+      format: "xlsx",
     });
   });
 

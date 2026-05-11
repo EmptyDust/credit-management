@@ -10,6 +10,7 @@ export interface ApplicationFilters {
   semester?: string;
   page?: number;
   page_size?: number;
+  format?: "csv" | "xlsx";
 }
 
 export interface ApplicationListItem {
@@ -97,7 +98,9 @@ export async function getApplicationStats(filters: ApplicationFilters = {}) {
 }
 
 export async function exportApplications(filters: ApplicationFilters = {}) {
-  return apiHelpers.downloadFile(exportPath(filters), "applications.csv");
+  const format = filters.format === "xlsx" ? "xlsx" : "csv";
+
+  return apiHelpers.downloadFile(exportPath(filters), `applications.${format}`);
 }
 
 export async function getApplicationDetail(id: string) {

@@ -185,6 +185,7 @@ describe("ActivitiesPage", () => {
         category: undefined,
         academic_year: undefined,
         semester: undefined,
+        format: "xlsx",
       });
     });
   });

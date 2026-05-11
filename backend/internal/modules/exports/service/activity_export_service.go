@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -11,6 +9,7 @@ import (
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	"credit-management/backend/internal/platform/authz"
+	"credit-management/backend/internal/platform/exportfile"
 )
 
 var activityExportBaseHeader = []string{
@@ -35,24 +34,45 @@ func NewActivityExportService(activities activityExportRepository) *ActivityExpo
 	return &ActivityExportService{activities: activities}
 }
 
-func (s *ActivityExportService) Export(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter) ([]byte, error) {
+func (s *ActivityExportService) Export(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter, format string) (exportfile.File, error) {
 	items, err := s.activities.List(ctx, normalizeExportFilter(actorID, actorRole, filter))
 	if err != nil {
-		return nil, err
+		return exportfile.File{}, err
 	}
 
-	detailKeys := collectDetailKeys(items)
+	rows := buildActivityExportRows(items)
+	switch exportfile.NormalizeFormat(format) {
+	case exportfile.FormatXLSX:
+		content, err := exportfile.WriteXLSX("Activities", rows)
+		if err != nil {
+			return exportfile.File{}, err
+		}
+		return exportfile.File{
+			Filename:    "activities.xlsx",
+			ContentType: exportfile.ContentTypeXLSX,
+			Content:     content,
+		}, nil
+	default:
+		content, err := exportfile.WriteCSV(rows)
+		if err != nil {
+			return exportfile.File{}, err
+		}
+		return exportfile.File{
+			Filename:    "activities.csv",
+			ContentType: exportfile.ContentTypeCSV,
+			Content:     content,
+		}, nil
+	}
+}
 
-	buf := &bytes.Buffer{}
-	writer := csv.NewWriter(buf)
+func buildActivityExportRows(items []activitydomain.Activity) [][]string {
+	detailKeys := collectDetailKeys(items)
 
 	header := append([]string{}, activityExportBaseHeader...)
 	for _, key := range detailKeys {
 		header = append(header, "details."+key)
 	}
-	if err := writer.Write(header); err != nil {
-		return nil, err
-	}
+	rows := [][]string{header}
 
 	for _, item := range items {
 		record := []string{
@@ -67,17 +87,10 @@ func (s *ActivityExportService) Export(ctx context.Context, actorID string, acto
 		for _, key := range detailKeys {
 			record = append(record, formatExportValue(item.Details[key]))
 		}
-		if err := writer.Write(record); err != nil {
-			return nil, err
-		}
+		rows = append(rows, record)
 	}
 
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return rows
 }
 
 func normalizeExportFilter(actorID string, actorRole string, filter activityrepo.ListFilter) activityrepo.ListFilter {

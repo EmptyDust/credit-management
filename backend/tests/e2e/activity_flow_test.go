@@ -603,6 +603,16 @@ func TestParticipantManagementStatsAndExport(t *testing.T) {
 	if body := exportRecorder.Body.String(); !strings.Contains(body, "participant_id,user_id,credits,joined_at") || !strings.Contains(body, participantID) {
 		t.Fatalf("unexpected participant export: %s", body)
 	}
+	xlsxRecorder := h.request(http.MethodGet, "/api/v1/activities/"+created.Activity.ID+"/participants/export?format=xlsx", student.AccessToken, nil, "")
+	if xlsxRecorder.Code != http.StatusOK {
+		t.Fatalf("participant xlsx export failed: status=%d body=%s", xlsxRecorder.Code, xlsxRecorder.Body.String())
+	}
+	if got := xlsxRecorder.Header().Get("Content-Disposition"); got != `attachment; filename="participants.xlsx"` {
+		t.Fatalf("unexpected participant xlsx disposition: %q", got)
+	}
+	if got := xlsxRecorder.Header().Get("Content-Type"); got != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" {
+		t.Fatalf("unexpected participant xlsx content type: %q", got)
+	}
 
 	batchSetRecorder := h.requestJSON(http.MethodPost, "/api/v1/activities/"+created.Activity.ID+"/participants/batch-set-credits", student.AccessToken, map[string]any{
 		"participant_ids": []string{participantID},

@@ -105,15 +105,15 @@ func (h *Handler) Export(c *gin.Context) {
 		return
 	}
 
-	content, err := h.service.Export(c.Request.Context(), claims.UserID, claims.UserType, c.Param("id"))
+	file, err := h.service.Export(c.Request.Context(), claims.UserID, claims.UserType, c.Param("id"), c.Query("format"))
 	if err != nil {
 		handleParticipantError(c, err, "export participants failed")
 		return
 	}
 
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="participants.csv"`)
-	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
+	c.Header("Content-Type", file.ContentType)
+	c.Header("Content-Disposition", `attachment; filename="`+file.Filename+`"`)
+	c.Data(http.StatusOK, file.ContentType, file.Content)
 }
 
 func (h *Handler) UpdateCredits(c *gin.Context) {

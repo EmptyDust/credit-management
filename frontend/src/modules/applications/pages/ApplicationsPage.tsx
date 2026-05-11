@@ -146,7 +146,7 @@ export default function ApplicationsPage() {
                 variant="outline"
                 className="gap-2"
                 onClick={() => {
-                  void exportApplications(filters);
+                  void exportApplications({ ...filters, format: "xlsx" });
                 }}
               >
                 <Download className="h-4 w-4" />

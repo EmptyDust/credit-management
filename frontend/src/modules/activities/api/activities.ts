@@ -204,10 +204,16 @@ export async function getActivityParticipantStats(id: string) {
   return response.data.data;
 }
 
-export async function exportActivityParticipants(id: string) {
+export async function exportActivityParticipants(
+  id: string,
+  options: { format?: "csv" | "xlsx" } = {}
+) {
+  const format = options.format === "xlsx" ? "xlsx" : "csv";
+  const query = format === "xlsx" ? "?format=xlsx" : "";
+
   return apiHelpers.downloadFile(
-    `/activities/${id}/participants/export`,
-    "participants.csv"
+    `/activities/${id}/participants/export${query}`,
+    `participants.${format}`
   );
 }
 

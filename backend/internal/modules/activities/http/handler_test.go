@@ -15,6 +15,7 @@ import (
 	activityservice "credit-management/backend/internal/modules/activities/service"
 	"credit-management/backend/internal/modules/dashboard"
 	"credit-management/backend/internal/platform/authn"
+	"credit-management/backend/internal/platform/exportfile"
 
 	"github.com/gin-gonic/gin"
 )
@@ -530,7 +531,11 @@ func TestExportReturnsCSVAttachment(t *testing.T) {
 
 	handler := NewHandler(nil, fakeCategorySchemaRepo{}).
 		UseExportService(fakeActivityExportService{
-			content: []byte("title,category\nExpo,innovation\n"),
+			file: exportfile.File{
+				Filename:    "activities.csv",
+				ContentType: exportfile.ContentTypeCSV,
+				Content:     []byte("title,category\nExpo,innovation\n"),
+			},
 		})
 
 	recorder := httptest.NewRecorder()
@@ -555,6 +560,43 @@ func TestExportReturnsCSVAttachment(t *testing.T) {
 	}
 	if recorder.Body.String() != "title,category\nExpo,innovation\n" {
 		t.Fatalf("unexpected csv body: %q", recorder.Body.String())
+	}
+}
+
+func TestExportReturnsXLSXAttachment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler := NewHandler(nil, fakeCategorySchemaRepo{}).
+		UseExportService(fakeActivityExportService{
+			file: exportfile.File{
+				Filename:    "activities.xlsx",
+				ContentType: exportfile.ContentTypeXLSX,
+				Content:     []byte("xlsx-content"),
+			},
+		})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set(middleware.AuthClaimsKey, authn.Claims{
+		UserID:   "teacher-01",
+		Username: "teacher01",
+		UserType: "teacher",
+	})
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/activities/export?category=innovation&format=xlsx", nil)
+
+	handler.Export(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Type"); got != exportfile.ContentTypeXLSX {
+		t.Fatalf("unexpected content type: %s", got)
+	}
+	if got := recorder.Header().Get("Content-Disposition"); got != `attachment; filename="activities.xlsx"` {
+		t.Fatalf("unexpected content disposition: %s", got)
+	}
+	if recorder.Body.String() != "xlsx-content" {
+		t.Fatalf("unexpected xlsx body: %q", recorder.Body.String())
 	}
 }
 
@@ -594,12 +636,12 @@ func (f fakeActivityStatsService) Stats(context.Context, string, string, activit
 }
 
 type fakeActivityExportService struct {
-	content []byte
-	err     error
+	file exportfile.File
+	err  error
 }
 
-func (f fakeActivityExportService) Export(context.Context, string, string, activityrepo.ListFilter) ([]byte, error) {
-	return f.content, f.err
+func (f fakeActivityExportService) Export(context.Context, string, string, activityrepo.ListFilter, string) (exportfile.File, error) {
+	return f.file, f.err
 }
 
 func (f fakeActivityRepository) List(context.Context, activityrepo.ListFilter) ([]activitydomain.Activity, error) {

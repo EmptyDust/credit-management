@@ -12,6 +12,7 @@ import (
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	activityservice "credit-management/backend/internal/modules/activities/service"
 	"credit-management/backend/internal/modules/dashboard"
+	"credit-management/backend/internal/platform/exportfile"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +29,7 @@ type activityStatsService interface {
 }
 
 type activityExportService interface {
-	Export(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter) ([]byte, error)
+	Export(ctx context.Context, actorID string, actorRole string, filter activityrepo.ListFilter, format string) (exportfile.File, error)
 }
 
 type activityResponse struct {
@@ -151,15 +152,15 @@ func (h *Handler) Export(c *gin.Context) {
 		return
 	}
 
-	content, err := h.exporter.Export(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c))
+	file, err := h.exporter.Export(c.Request.Context(), claims.UserID, claims.UserType, queryFilter(c), c.Query("format"))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "export activities failed", nil)
 		return
 	}
 
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="activities.csv"`)
-	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
+	c.Header("Content-Type", file.ContentType)
+	c.Header("Content-Disposition", `attachment; filename="`+file.Filename+`"`)
+	c.Data(http.StatusOK, file.ContentType, file.Content)
 }
 
 func (h *Handler) Create(c *gin.Context) {

@@ -7,6 +7,7 @@ export interface ActivityStatsFilters {
   category?: string;
   academic_year?: string;
   semester?: string;
+  format?: "csv" | "xlsx";
 }
 
 export interface ActivityKeyLabelCount {
@@ -56,5 +57,7 @@ export async function getActivityStats(filters: ActivityStatsFilters = {}) {
 }
 
 export async function exportActivities(filters: ActivityStatsFilters = {}) {
-  return apiHelpers.downloadFile(exportPath(filters), "activities.csv");
+  const format = filters.format === "xlsx" ? "xlsx" : "csv";
+
+  return apiHelpers.downloadFile(exportPath(filters), `activities.${format}`);
 }

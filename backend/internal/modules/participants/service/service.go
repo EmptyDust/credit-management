@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
 	"errors"
 	"strconv"
 	"time"
@@ -12,6 +10,7 @@ import (
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	usersrepo "credit-management/backend/internal/modules/users/repo"
 	"credit-management/backend/internal/platform/authz"
+	"credit-management/backend/internal/platform/exportfile"
 	"credit-management/backend/internal/platform/idgen"
 )
 
@@ -251,35 +250,47 @@ func (s *Service) Stats(ctx context.Context, actorID string, actorRole string, a
 	return stats, nil
 }
 
-func (s *Service) Export(ctx context.Context, actorID string, actorRole string, activityID string) ([]byte, error) {
+func (s *Service) Export(ctx context.Context, actorID string, actorRole string, activityID string, format string) (exportfile.File, error) {
 	if _, err := s.manageableActivity(ctx, actorID, actorRole, activityID); err != nil {
-		return nil, err
+		return exportfile.File{}, err
 	}
 	items, err := s.repo.ListByActivity(ctx, activityID)
 	if err != nil {
-		return nil, err
+		return exportfile.File{}, err
 	}
 
-	buf := &bytes.Buffer{}
-	writer := csv.NewWriter(buf)
-	if err := writer.Write([]string{"participant_id", "user_id", "credits", "joined_at"}); err != nil {
-		return nil, err
-	}
+	rows := [][]string{{"participant_id", "user_id", "credits", "joined_at"}}
 	for _, item := range items {
-		if err := writer.Write([]string{
+		rows = append(rows, []string{
 			item.ID,
 			item.UserID,
 			strconv.FormatFloat(item.Credits, 'f', -1, 64),
 			item.JoinedAt.Format(time.RFC3339),
-		}); err != nil {
-			return nil, err
+		})
+	}
+
+	switch exportfile.NormalizeFormat(format) {
+	case exportfile.FormatXLSX:
+		content, err := exportfile.WriteXLSX("Participants", rows)
+		if err != nil {
+			return exportfile.File{}, err
 		}
+		return exportfile.File{
+			Filename:    "participants.xlsx",
+			ContentType: exportfile.ContentTypeXLSX,
+			Content:     content,
+		}, nil
+	default:
+		content, err := exportfile.WriteCSV(rows)
+		if err != nil {
+			return exportfile.File{}, err
+		}
+		return exportfile.File{
+			Filename:    "participants.csv",
+			ContentType: exportfile.ContentTypeCSV,
+			Content:     content,
+		}, nil
 	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
 
 func (s *Service) Leave(ctx context.Context, actorID string, actorRole string, activityID string) error {

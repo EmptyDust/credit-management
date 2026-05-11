@@ -226,7 +226,9 @@ describe("ActivityDetailPage", () => {
     expect(screen.getByLabelText("参与者 student-1 学分")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "导出参与者" }));
-    expect(mockExportActivityParticipants).toHaveBeenCalledWith("activity-1");
+    expect(mockExportActivityParticipants).toHaveBeenCalledWith("activity-1", {
+      format: "xlsx",
+    });
 
     await user.clear(screen.getByLabelText("参与者 student-1 学分"));
     await user.type(screen.getByLabelText("参与者 student-1 学分"), "4.5");

@@ -123,7 +123,7 @@ export default function ActivitiesPage() {
   });
 
   const exportMutation = useMutation({
-    mutationFn: () => exportActivities(filters),
+    mutationFn: () => exportActivities({ ...filters, format: "xlsx" }),
     onSuccess: () => {
       toast.success("活动导出已开始");
     },

@@ -1,12 +1,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	activityservice "credit-management/backend/internal/modules/activities/service"
 	authservice "credit-management/backend/internal/modules/auth/service"
 	participantservice "credit-management/backend/internal/modules/participants/service"
+	"credit-management/backend/internal/platform/exportfile"
+
+	"github.com/xuri/excelize/v2"
 )
 
 func TestApprovedActivityCreatesOrRestoresApplications(t *testing.T) {
@@ -95,6 +99,50 @@ func TestListFilteredPagePaginatesAfterFiltering(t *testing.T) {
 	}
 	if len(result.Items) != 1 || result.Items[0].ID != "app-4" {
 		t.Fatalf("unexpected paginated items: %#v", result.Items)
+	}
+}
+
+func TestExportFilteredSupportsXLSX(t *testing.T) {
+	svc := NewWithRepository(fakeApplicationRepository{
+		items: []Application{
+			{
+				ID:             "app-1",
+				ActivityID:     "activity-1",
+				UserID:         "student-1",
+				Status:         "approved",
+				AppliedCredits: 2.5,
+				AwardedCredits: 2,
+			},
+		},
+	})
+
+	file, err := svc.ExportFiltered("admin-1", "admin", Filter{}, exportfile.FormatXLSX)
+	if err != nil {
+		t.Fatalf("ExportFiltered returned error: %v", err)
+	}
+	if file.Filename != "applications.xlsx" || file.ContentType != exportfile.ContentTypeXLSX {
+		t.Fatalf("unexpected file metadata: %#v", file)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Content))
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	defer func() {
+		if closeErr := workbook.Close(); closeErr != nil {
+			t.Fatalf("close workbook: %v", closeErr)
+		}
+	}()
+
+	rows, err := workbook.GetRows("Applications")
+	if err != nil {
+		t.Fatalf("read xlsx rows: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0][0] != "id" || rows[1][0] != "app-1" {
+		t.Fatalf("unexpected xlsx rows: %#v", rows)
 	}
 }
 

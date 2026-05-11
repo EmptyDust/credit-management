@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"reflect"
@@ -9,6 +10,9 @@ import (
 
 	activitydomain "credit-management/backend/internal/modules/activities/domain"
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
+	"credit-management/backend/internal/platform/exportfile"
+
+	"github.com/xuri/excelize/v2"
 )
 
 func TestActivityExportServiceFlattensDetailsAndRespectsFilters(t *testing.T) {
@@ -50,9 +54,9 @@ func TestActivityExportServiceFlattensDetailsAndRespectsFilters(t *testing.T) {
 	}
 	service := NewActivityExportService(repo)
 
-	content, err := service.Export(context.Background(), "teacher-1", "teacher", activityrepo.ListFilter{
+	file, err := service.Export(context.Background(), "teacher-1", "teacher", activityrepo.ListFilter{
 		Category: "innovation",
-	})
+	}, exportfile.FormatCSV)
 	if err != nil {
 		t.Fatalf("Export returned error: %v", err)
 	}
@@ -61,9 +65,13 @@ func TestActivityExportServiceFlattensDetailsAndRespectsFilters(t *testing.T) {
 		t.Fatalf("expected export filter category innovation, got %#v", repo.lastFilter)
 	}
 
-	records, err := csv.NewReader(strings.NewReader(string(content))).ReadAll()
+	if file.Filename != "activities.csv" || file.ContentType != exportfile.ContentTypeCSV {
+		t.Fatalf("unexpected file metadata: %#v", file)
+	}
+
+	records, err := csv.NewReader(strings.NewReader(string(file.Content))).ReadAll()
 	if err != nil {
-		t.Fatalf("parse csv: %v\ncsv=%s", err, string(content))
+		t.Fatalf("parse csv: %v\ncsv=%s", err, string(file.Content))
 	}
 	if len(records) != 2 {
 		t.Fatalf("expected 2 csv records, got %d", len(records))
@@ -108,7 +116,7 @@ func TestActivityExportServiceScopesStudentExportsToOwnedActivities(t *testing.T
 
 	if _, err := service.Export(context.Background(), "student-1", "student", activityrepo.ListFilter{
 		Status: activitydomain.StatusApproved,
-	}); err != nil {
+	}, exportfile.FormatCSV); err != nil {
 		t.Fatalf("Export returned error: %v", err)
 	}
 
@@ -118,6 +126,58 @@ func TestActivityExportServiceScopesStudentExportsToOwnedActivities(t *testing.T
 	}
 	if !reflect.DeepEqual(repo.lastFilter, expectedFilter) {
 		t.Fatalf("unexpected export filter: %#v", repo.lastFilter)
+	}
+}
+
+func TestActivityExportServiceSupportsXLSX(t *testing.T) {
+	repo := &fakeActivityExportRepository{
+		items: []activitydomain.Activity{
+			{
+				Title:        "Innovation Lab",
+				Description:  "Build prototypes",
+				Category:     "innovation",
+				AcademicYear: "2025-2026",
+				Semester:     "autumn",
+				StartDate:    "2025-09-01",
+				EndDate:      "2025-09-15",
+				Details: map[string]any{
+					"location": "Room 101",
+				},
+			},
+		},
+	}
+	service := NewActivityExportService(repo)
+
+	file, err := service.Export(context.Background(), "teacher-1", "teacher", activityrepo.ListFilter{}, exportfile.FormatXLSX)
+	if err != nil {
+		t.Fatalf("Export returned error: %v", err)
+	}
+	if file.Filename != "activities.xlsx" || file.ContentType != exportfile.ContentTypeXLSX {
+		t.Fatalf("unexpected file metadata: %#v", file)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Content))
+	if err != nil {
+		t.Fatalf("open xlsx: %v", err)
+	}
+	defer func() {
+		if closeErr := workbook.Close(); closeErr != nil {
+			t.Fatalf("close workbook: %v", closeErr)
+		}
+	}()
+
+	rows, err := workbook.GetRows("Activities")
+	if err != nil {
+		t.Fatalf("read xlsx rows: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0][0] != "title" || rows[0][7] != "details.location" {
+		t.Fatalf("unexpected xlsx header: %#v", rows[0])
+	}
+	if rows[1][0] != "Innovation Lab" || rows[1][7] != "Room 101" {
+		t.Fatalf("unexpected xlsx row: %#v", rows[1])
 	}
 }
 

@@ -62,15 +62,15 @@ func (h *Handler) Export(c *gin.Context) {
 		return
 	}
 
-	content, err := h.service.ExportFiltered(claims.UserID, claims.UserType, queryFilter(c))
+	file, err := h.service.ExportFiltered(claims.UserID, claims.UserType, queryFilter(c), c.Query("format"))
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "export applications failed", nil)
 		return
 	}
 
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="applications.csv"`)
-	c.Data(http.StatusOK, "text/csv; charset=utf-8", content)
+	c.Header("Content-Type", file.ContentType)
+	c.Header("Content-Disposition", `attachment; filename="`+file.Filename+`"`)
+	c.Data(http.StatusOK, file.ContentType, file.Content)
 }
 
 func queryFilter(c *gin.Context) appservice.Filter {

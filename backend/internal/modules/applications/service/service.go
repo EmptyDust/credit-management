@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
 	"errors"
 	"strconv"
 	"strings"
@@ -11,6 +9,7 @@ import (
 	activityrepo "credit-management/backend/internal/modules/activities/repo"
 	fileservice "credit-management/backend/internal/modules/files/service"
 	participantservice "credit-management/backend/internal/modules/participants/service"
+	"credit-management/backend/internal/platform/exportfile"
 )
 
 var ErrApplicationNotFound = errors.New("application not found")
@@ -254,20 +253,16 @@ func (s *Service) Get(actorID string, actorRole string, applicationID string) (A
 	return s.buildView(application), nil
 }
 
-func (s *Service) Export(actorID string, actorRole string) ([]byte, error) {
-	return s.ExportFiltered(actorID, actorRole, Filter{})
+func (s *Service) Export(actorID string, actorRole string) (exportfile.File, error) {
+	return s.ExportFiltered(actorID, actorRole, Filter{}, exportfile.FormatCSV)
 }
 
-func (s *Service) ExportFiltered(actorID string, actorRole string, filter Filter) ([]byte, error) {
+func (s *Service) ExportFiltered(actorID string, actorRole string, filter Filter, format string) (exportfile.File, error) {
 	items := s.ListFiltered(actorID, actorRole, filter)
-	buf := &bytes.Buffer{}
-	writer := csv.NewWriter(buf)
-	if err := writer.Write([]string{"id", "activity_id", "user_id", "status", "applied_credits", "awarded_credits", "academic_year", "semester"}); err != nil {
-		return nil, err
-	}
+	rows := [][]string{{"id", "activity_id", "user_id", "status", "applied_credits", "awarded_credits", "academic_year", "semester"}}
 
 	for _, item := range items {
-		if err := writer.Write([]string{
+		rows = append(rows, []string{
 			item.ID,
 			stringValue(item.Activity["id"]),
 			stringValue(item.Activity["user_id"]),
@@ -276,17 +271,31 @@ func (s *Service) ExportFiltered(actorID string, actorRole string, filter Filter
 			floatString(item.AwardedCredits),
 			item.AcademicYear,
 			item.Semester,
-		}); err != nil {
-			return nil, err
+		})
+	}
+
+	switch exportfile.NormalizeFormat(format) {
+	case exportfile.FormatXLSX:
+		content, err := exportfile.WriteXLSX("Applications", rows)
+		if err != nil {
+			return exportfile.File{}, err
 		}
+		return exportfile.File{
+			Filename:    "applications.xlsx",
+			ContentType: exportfile.ContentTypeXLSX,
+			Content:     content,
+		}, nil
+	default:
+		content, err := exportfile.WriteCSV(rows)
+		if err != nil {
+			return exportfile.File{}, err
+		}
+		return exportfile.File{
+			Filename:    "applications.csv",
+			ContentType: exportfile.ContentTypeCSV,
+			Content:     content,
+		}, nil
 	}
-
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }
 
 func (s *Service) Count() int {

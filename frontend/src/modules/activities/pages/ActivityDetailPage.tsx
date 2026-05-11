@@ -1055,7 +1055,7 @@ export default function ActivityDetailPage() {
           actionMutation.mutateAsync({ type: "leave" }).then(() => undefined)
         }
         onExport={async () => {
-          await exportActivityParticipants(id);
+          await exportActivityParticipants(id, { format: "xlsx" });
         }}
         onUpdateCredits={async (participantID, credits) =>
           actionMutation
