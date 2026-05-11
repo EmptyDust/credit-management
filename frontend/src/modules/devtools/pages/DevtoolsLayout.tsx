@@ -1,21 +1,7 @@
-import { Code2, ScrollText, Sparkles, Terminal, Zap } from "lucide-react";
+import { Code2, ScrollText, Sparkles, Terminal } from "lucide-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
-import { isApiTesterEnabled } from "@/app/config/devtools";
-
 const DEVTOOLS_MENU = [
-  ...(isApiTesterEnabled()
-    ? [
-        {
-          path: "/devtools/api-tester",
-          label: "API 测试器",
-          icon: Zap,
-          desc: "测试和调试 API 端点",
-          gradient: "from-amber-500 to-orange-600",
-          iconBg: "bg-amber-500/10",
-        },
-      ]
-    : []),
   {
     path: "/devtools/logs",
     label: "服务日志",

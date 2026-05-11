@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { isApiTesterEnabled } from "@/app/config/devtools";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -14,7 +13,6 @@ import {
   User as UserIcon,
   Award,
   Terminal,
-  Zap,
   ScrollText,
   ChevronDown,
   ChevronRight,
@@ -54,9 +52,6 @@ const getMenuItems = (userType: string): MenuItem[] => {
       icon: Terminal,
       path: "/devtools",
       children: [
-        ...(isApiTesterEnabled()
-          ? [{ label: "API 测试器", icon: Zap, path: "/devtools/api-tester" }]
-          : []),
         { label: "服务日志", icon: ScrollText, path: "/devtools/logs" },
       ],
     });

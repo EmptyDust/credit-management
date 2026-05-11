@@ -77,9 +77,4 @@ describe("app router", () => {
     expect(routeTree).not.toContain("api-tester");
   });
 
-  it("enables the API tester route when debug mode is explicit", () => {
-    const routeTree = JSON.stringify(createAppRoutes({ enableApiTester: true }));
-
-    expect(routeTree).toContain("api-tester");
-  });
 });

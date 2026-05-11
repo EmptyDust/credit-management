@@ -4,7 +4,6 @@ import {
   type RouteObject,
 } from "react-router-dom";
 
-import { isApiTesterEnabled } from "@/app/config/devtools";
 import AppLayout from "@/app/layouts/AppLayout";
 import AuthLayout from "@/app/layouts/AuthLayout";
 import AdminLayout from "@/app/layouts/AdminLayout";
@@ -18,7 +17,6 @@ import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
 import LoginPage from "@/modules/auth/pages/LoginPage";
 import RegisterPage from "@/modules/auth/pages/RegisterPage";
 import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
-import ApiTesterPage from "@/modules/devtools/pages/ApiTesterPage";
 import AuditLogsPage from "@/modules/devtools/pages/AuditLogsPage";
 import DevtoolsLogsPage from "@/modules/devtools/pages/DevtoolsLogsPage";
 import DevtoolsOverviewPage from "@/modules/devtools/pages/DevtoolsOverviewPage";
@@ -27,13 +25,7 @@ import StudentsPage from "@/modules/users/pages/StudentsPage";
 import TeachersPage from "@/modules/users/pages/TeachersPage";
 import NotFound from "@/pages/NotFound";
 
-type AppRoutesOptions = {
-  enableApiTester?: boolean;
-};
-
-export function createAppRoutes(options: AppRoutesOptions = {}): RouteObject[] {
-  const enableApiTester = options.enableApiTester ?? false;
-
+export function createAppRoutes(): RouteObject[] {
   return [
   {
     path: "/",
@@ -110,14 +102,6 @@ export function createAppRoutes(options: AppRoutesOptions = {}): RouteObject[] {
                 index: true,
                 element: <DevtoolsOverviewPage />,
               },
-              ...(enableApiTester
-                ? [
-                    {
-                      path: "api-tester",
-                      element: <ApiTesterPage />,
-                    },
-                  ]
-                : []),
               {
                 path: "logs",
                 element: <DevtoolsLogsPage />,
@@ -139,8 +123,6 @@ export function createAppRoutes(options: AppRoutesOptions = {}): RouteObject[] {
   ];
 }
 
-export const appRoutes: RouteObject[] = createAppRoutes({
-  enableApiTester: isApiTesterEnabled(),
-});
+export const appRoutes: RouteObject[] = createAppRoutes();
 
 export const router = createBrowserRouter(appRoutes);
