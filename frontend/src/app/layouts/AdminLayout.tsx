@@ -1,10 +1,10 @@
 import RoleBasedRoute from "@/components/RoleBasedRoute";
-import DevToolsLayout from "@/pages/devtools";
+import DevtoolsLayout from "@/modules/devtools/pages/DevtoolsLayout";
 
 export default function AdminLayout() {
   return (
     <RoleBasedRoute allowedRoles={["admin"]}>
-      <DevToolsLayout />
+      <DevtoolsLayout />
     </RoleBasedRoute>
   );
 }
