@@ -47,6 +47,7 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 		FieldType:     "textarea",
 		Required:      false,
 		DefaultValue:  []byte(`"pending"`),
+		Placeholder:   "Describe the expected outcome",
 		OptionsSource: nil,
 		ValidationRules: []byte(`{
 			"visible_when": [{"field":"activity_mode","op":"eq","value":"offline"}],
@@ -64,6 +65,7 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 		FieldType:       "select",
 		Required:        true,
 		DefaultValue:    []byte(`"assistant"`),
+		Placeholder:     "Choose mentor title",
 		OptionsSource:   &optionSource,
 		ValidationRules: []byte(`{}`),
 		DisplayOrder:    10,
@@ -108,8 +110,8 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 	}
 
 	optionField := schema.Schema.Fields[0]
-	if optionField.Placeholder != "" {
-		t.Fatalf("expected empty placeholder because schema storage has no placeholder column, got %q", optionField.Placeholder)
+	if optionField.Placeholder != "Choose mentor title" {
+		t.Fatalf("expected placeholder from schema storage, got %q", optionField.Placeholder)
 	}
 	if len(optionField.Options) != 4 {
 		t.Fatalf("expected teacher title options from options_source, got %#v", optionField.Options)
@@ -125,8 +127,8 @@ func TestCategorySchemaRepoGetsEnabledCategorySchema(t *testing.T) {
 	if got := string(field.DefaultValue); got != `"pending"` {
 		t.Fatalf("expected default value to be preserved, got %s", got)
 	}
-	if field.Placeholder != "" {
-		t.Fatalf("expected empty placeholder because schema storage has no placeholder column, got %q", field.Placeholder)
+	if field.Placeholder != "Describe the expected outcome" {
+		t.Fatalf("expected placeholder from schema storage, got %q", field.Placeholder)
 	}
 	if len(field.Rules.VisibleWhen) != 1 || field.Rules.VisibleWhen[0].Field != "activity_mode" || string(field.Rules.VisibleWhen[0].Value) != `"offline"` {
 		t.Fatalf("expected visible_when to decode, got %#v", field.Rules.VisibleWhen)
@@ -272,6 +274,7 @@ type fieldSchemaSeed struct {
 	FieldType       string          `gorm:"column:field_type"`
 	Required        bool            `gorm:"column:required"`
 	DefaultValue    json.RawMessage `gorm:"column:default_value"`
+	Placeholder     string          `gorm:"column:placeholder"`
 	OptionsSource   *string         `gorm:"column:options_source"`
 	ValidationRules json.RawMessage `gorm:"column:validation_rules"`
 	DisplayOrder    int             `gorm:"column:display_order"`

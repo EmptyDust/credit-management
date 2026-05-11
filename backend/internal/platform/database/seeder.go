@@ -140,6 +140,7 @@ type activityFieldSchemaSeedRow struct {
 	FieldType       string `gorm:"column:field_type"`
 	Required        bool   `gorm:"column:required"`
 	DefaultValue    []byte `gorm:"column:default_value"`
+	Placeholder     string `gorm:"column:placeholder"`
 	ValidationRules []byte `gorm:"column:validation_rules"`
 	DisplayOrder    int    `gorm:"column:display_order"`
 }
@@ -276,6 +277,7 @@ func seedActivityFieldSchemas() []activityFieldSchemaSeedRow {
 			FieldType:       "text",
 			Required:        true,
 			DefaultValue:    []byte(`""`),
+			Placeholder:     "Enter activity location",
 			ValidationRules: []byte(`{}`),
 			DisplayOrder:    10,
 		},

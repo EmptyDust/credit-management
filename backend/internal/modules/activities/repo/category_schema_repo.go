@@ -91,6 +91,7 @@ type fieldSchemaRow struct {
 	FieldType       string          `gorm:"column:field_type"`
 	Required        bool            `gorm:"column:required"`
 	DefaultValue    json.RawMessage `gorm:"column:default_value"`
+	Placeholder     string          `gorm:"column:placeholder"`
 	OptionsSource   *string         `gorm:"column:options_source"`
 	ValidationRules json.RawMessage `gorm:"column:validation_rules"`
 	DisplayOrder    int             `gorm:"column:display_order"`
@@ -249,10 +250,8 @@ func (r *CategorySchemaRepo) loadSchemaOptions(ctx context.Context, optionsSourc
 	return options, nil
 }
 
-func placeholderForField(fieldSchemaRow) string {
-	// The stored schema model has no placeholder column yet, so the supported
-	// backend behavior is to return an empty placeholder until persistence exists.
-	return ""
+func placeholderForField(row fieldSchemaRow) string {
+	return row.Placeholder
 }
 
 func cloneRawMessage(payload json.RawMessage) json.RawMessage {
