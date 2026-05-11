@@ -84,25 +84,33 @@ export default function StudentsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [keyword, setKeyword] = useState("");
+  const [status, setStatus] = useState("");
+  const [grade, setGrade] = useState("");
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
   const [studentForm, setStudentForm] = useState<StudentFormState>(initialStudentForm);
   const [editingStudent, setEditingStudent] = useState<StudentEditState | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
+  const filters = {
+    keyword: keyword || undefined,
+    status: status || undefined,
+    grade: grade || undefined,
+  };
+
   const query = useQuery({
-    queryKey: ["students", "list", keyword, page],
+    queryKey: ["students", "list", filters, page],
     queryFn: () =>
       listStudents({
-        keyword: keyword || undefined,
+        ...filters,
         page,
         page_size: pageSize,
       }),
   });
 
   const statsQuery = useQuery({
-    queryKey: ["students", "stats", keyword],
-    queryFn: () => getStudentStats({ keyword: keyword || undefined }),
+    queryKey: ["students", "stats", filters],
+    queryFn: () => getStudentStats(filters),
   });
 
   const canManageStudents = user?.userType === "admin";
@@ -402,6 +410,26 @@ export default function StudentsPage() {
                 setPage(1);
               }}
             />
+            <Input
+              aria-label="学生状态筛选"
+              className="w-32"
+              placeholder="状态"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+            />
+            <Input
+              aria-label="学生年级筛选"
+              className="w-32"
+              placeholder="年级"
+              value={grade}
+              onChange={(event) => {
+                setGrade(event.target.value);
+                setPage(1);
+              }}
+            />
             <Button variant="secondary" className="gap-2" onClick={() => query.refetch()}>
               <RefreshCw className="h-4 w-4" />
               刷新
@@ -412,7 +440,11 @@ export default function StudentsPage() {
                 导入
               </Button>
             ) : null}
-            <Button variant="outline" className="gap-2" onClick={() => void exportStudents()}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => void exportStudents(filters)}
+            >
               <Download className="h-4 w-4" />
               导出
             </Button>

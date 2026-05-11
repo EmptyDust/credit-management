@@ -182,4 +182,40 @@ describe("TeachersPage", () => {
       expect(mockDeleteTeacher).toHaveBeenCalledWith("teacher-1");
     });
   });
+
+  it("applies status and title filters to list stats and export", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Tina")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("教师状态筛选"), {
+      target: { value: "active" },
+    });
+    fireEvent.change(screen.getByLabelText("教师职称筛选"), {
+      target: { value: "教授" },
+    });
+
+    await waitFor(() => {
+      expect(mockListTeachers).toHaveBeenLastCalledWith({
+        keyword: undefined,
+        status: "active",
+        title: "教授",
+        page: 1,
+        page_size: 20,
+      });
+      expect(mockGetTeacherStats).toHaveBeenLastCalledWith({
+        keyword: undefined,
+        status: "active",
+        title: "教授",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "导出" }));
+
+    expect(mockExportTeachers).toHaveBeenCalledWith({
+      keyword: undefined,
+      status: "active",
+      title: "教授",
+    });
+  });
 });

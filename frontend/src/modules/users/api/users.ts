@@ -195,10 +195,31 @@ export async function updateProfile(payload: {
   return response.data.data;
 }
 
-export async function exportStudents() {
-  return apiHelpers.downloadFile("/students/export", "students.csv");
+function compactFilters(filters: UserListFilters) {
+  return Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== undefined && value !== "")
+  );
 }
 
-export async function exportTeachers() {
-  return apiHelpers.downloadFile("/teachers/export", "teachers.csv");
+function exportPath(path: string, filters: UserListFilters) {
+  const params = new URLSearchParams(
+    compactFilters(filters) as Record<string, string>
+  );
+  const query = params.toString();
+
+  return query ? `${path}?${query}` : path;
+}
+
+export async function exportStudents(filters: UserListFilters = {}) {
+  return apiHelpers.downloadFile(
+    exportPath("/students/export", filters),
+    "students.csv"
+  );
+}
+
+export async function exportTeachers(filters: UserListFilters = {}) {
+  return apiHelpers.downloadFile(
+    exportPath("/teachers/export", filters),
+    "teachers.csv"
+  );
 }

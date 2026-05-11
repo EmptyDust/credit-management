@@ -82,25 +82,33 @@ function toTeacherEditPayload(form: TeacherEditState): UserMutationInput {
 export default function TeachersPage() {
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
+  const [status, setStatus] = useState("");
+  const [title, setTitle] = useState("");
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
   const [teacherForm, setTeacherForm] = useState<TeacherFormState>(initialTeacherForm);
   const [editingTeacher, setEditingTeacher] = useState<TeacherEditState | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
+  const filters = {
+    keyword: keyword || undefined,
+    status: status || undefined,
+    title: title || undefined,
+  };
+
   const query = useQuery({
-    queryKey: ["teachers", "list", keyword, page],
+    queryKey: ["teachers", "list", filters, page],
     queryFn: () =>
       listTeachers({
-        keyword: keyword || undefined,
+        ...filters,
         page,
         page_size: pageSize,
       }),
   });
 
   const statsQuery = useQuery({
-    queryKey: ["teachers", "stats", keyword],
-    queryFn: () => getTeacherStats({ keyword: keyword || undefined }),
+    queryKey: ["teachers", "stats", filters],
+    queryFn: () => getTeacherStats(filters),
   });
 
   const invalidateTeachers = () =>
@@ -396,6 +404,26 @@ export default function TeachersPage() {
                 setPage(1);
               }}
             />
+            <Input
+              aria-label="教师状态筛选"
+              className="w-32"
+              placeholder="状态"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+            />
+            <Input
+              aria-label="教师职称筛选"
+              className="w-32"
+              placeholder="职称"
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setPage(1);
+              }}
+            />
             <Button variant="secondary" className="gap-2" onClick={() => query.refetch()}>
               <RefreshCw className="h-4 w-4" />
               刷新
@@ -404,7 +432,11 @@ export default function TeachersPage() {
               <Upload className="h-4 w-4" />
               导入
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => void exportTeachers()}>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => void exportTeachers(filters)}
+            >
               <Download className="h-4 w-4" />
               导出
             </Button>

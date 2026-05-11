@@ -214,4 +214,40 @@ describe("StudentsPage", () => {
     expect(screen.queryByRole("button", { name: "重置 alice 密码" })).toBeNull();
     expect(screen.queryByRole("button", { name: "删除 alice" })).toBeNull();
   });
+
+  it("applies status and grade filters to list stats and export", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Alice")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("学生状态筛选"), {
+      target: { value: "active" },
+    });
+    fireEvent.change(screen.getByLabelText("学生年级筛选"), {
+      target: { value: "2024" },
+    });
+
+    await waitFor(() => {
+      expect(mockListStudents).toHaveBeenLastCalledWith({
+        keyword: undefined,
+        status: "active",
+        grade: "2024",
+        page: 1,
+        page_size: 20,
+      });
+      expect(mockGetStudentStats).toHaveBeenLastCalledWith({
+        keyword: undefined,
+        status: "active",
+        grade: "2024",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "导出" }));
+
+    expect(mockExportStudents).toHaveBeenCalledWith({
+      keyword: undefined,
+      status: "active",
+      grade: "2024",
+    });
+  });
 });
