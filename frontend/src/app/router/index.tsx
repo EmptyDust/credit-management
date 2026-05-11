@@ -4,6 +4,7 @@ import {
   type RouteObject,
 } from "react-router-dom";
 
+import { isApiTesterEnabled } from "@/app/config/devtools";
 import AppLayout from "@/app/layouts/AppLayout";
 import AuthLayout from "@/app/layouts/AuthLayout";
 import AdminLayout from "@/app/layouts/AdminLayout";
@@ -26,7 +27,14 @@ import StudentsPage from "@/modules/users/pages/StudentsPage";
 import TeachersPage from "@/modules/users/pages/TeachersPage";
 import NotFound from "@/pages/NotFound";
 
-export const appRoutes: RouteObject[] = [
+type AppRoutesOptions = {
+  enableApiTester?: boolean;
+};
+
+export function createAppRoutes(options: AppRoutesOptions = {}): RouteObject[] {
+  const enableApiTester = options.enableApiTester ?? false;
+
+  return [
   {
     path: "/",
     element: <Navigate to="/dashboard" replace />,
@@ -102,10 +110,14 @@ export const appRoutes: RouteObject[] = [
                 index: true,
                 element: <DevtoolsOverviewPage />,
               },
-              {
-                path: "api-tester",
-                element: <ApiTesterPage />,
-              },
+              ...(enableApiTester
+                ? [
+                    {
+                      path: "api-tester",
+                      element: <ApiTesterPage />,
+                    },
+                  ]
+                : []),
               {
                 path: "logs",
                 element: <DevtoolsLogsPage />,
@@ -124,6 +136,11 @@ export const appRoutes: RouteObject[] = [
     path: "*",
     element: <NotFound />,
   },
-];
+  ];
+}
+
+export const appRoutes: RouteObject[] = createAppRoutes({
+  enableApiTester: isApiTesterEnabled(),
+});
 
 export const router = createBrowserRouter(appRoutes);

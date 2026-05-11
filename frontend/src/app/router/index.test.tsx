@@ -5,7 +5,7 @@ import { render, screen } from "@testing-library/react";
 import { createMemoryRouter } from "react-router-dom";
 
 import { AppProviders } from "@/app/providers/AppProviders";
-import { appRoutes } from "@/app/router";
+import { createAppRoutes } from "@/app/router";
 
 describe("app router", () => {
   beforeEach(() => {
@@ -62,12 +62,24 @@ describe("app router", () => {
   });
 
   it("redirects anonymous users to login", async () => {
-    const router = createMemoryRouter(appRoutes, {
+    const router = createMemoryRouter(createAppRoutes(), {
       initialEntries: ["/"],
     });
 
     render(<AppProviders routerOverride={router} />);
 
     expect(await screen.findByRole("button", { name: "登录" })).toBeTruthy();
+  });
+
+  it("hides the API tester route by default", () => {
+    const routeTree = JSON.stringify(createAppRoutes());
+
+    expect(routeTree).not.toContain("api-tester");
+  });
+
+  it("enables the API tester route when debug mode is explicit", () => {
+    const routeTree = JSON.stringify(createAppRoutes({ enableApiTester: true }));
+
+    expect(routeTree).toContain("api-tester");
   });
 });

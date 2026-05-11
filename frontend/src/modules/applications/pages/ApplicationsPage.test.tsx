@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ApplicationsPage from "@/modules/applications/pages/ApplicationsPage";
 
 const {
+  mockDownloadApplicationRelatedFile,
   mockExportApplications,
   mockGetApplicationDetail,
   mockGetApplicationStats,
   mockListApplications,
 } = vi.hoisted(() => ({
+  mockDownloadApplicationRelatedFile: vi.fn(),
   mockExportApplications: vi.fn(),
   mockGetApplicationDetail: vi.fn(),
   mockGetApplicationStats: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock("@/modules/applications/api/applications", () => ({
   getApplicationStats: mockGetApplicationStats,
   getApplicationDetail: mockGetApplicationDetail,
   exportApplications: mockExportApplications,
+  downloadApplicationRelatedFile: mockDownloadApplicationRelatedFile,
 }));
 
 function createQueryClient() {
@@ -85,8 +88,22 @@ describe("ApplicationsPage", () => {
         title: "Campus Volunteer Day",
         category: "volunteer",
       },
+      related_files: [
+        {
+          id: "file-1",
+          activity_id: "activity-1",
+          name: "agenda.pdf",
+          original_name: "agenda.pdf",
+          content_type: "application/pdf",
+          file_category: "material",
+          size: 1024,
+          uploaded_by: "teacher-1",
+          created_at: "2026-05-10T00:00:00Z",
+        },
+      ],
     });
     mockExportApplications.mockResolvedValue(undefined);
+    mockDownloadApplicationRelatedFile.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -151,5 +168,24 @@ describe("ApplicationsPage", () => {
         page_size: 10,
       });
     });
+  });
+
+  it("shows related activity files in the detail dialog and downloads them", async () => {
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await screen.findByText("Campus Volunteer Day");
+    await user.click(screen.getByRole("button", { name: "详情" }));
+
+    expect(await screen.findByText("关联附件")).toBeTruthy();
+    expect(screen.getByText("agenda.pdf")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "下载 agenda.pdf" }));
+
+    expect(mockDownloadApplicationRelatedFile).toHaveBeenCalledWith(
+      "file-1",
+      "agenda.pdf"
+    );
   });
 });

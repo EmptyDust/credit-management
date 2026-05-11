@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,11 +23,13 @@ import { Download, Eye, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import {
+  downloadApplicationRelatedFile,
   exportApplications,
   getApplicationDetail,
   getApplicationStats,
   listApplications,
   type ApplicationFilters,
+  type ApplicationRelatedFile,
 } from "@/modules/applications/api/applications";
 
 function statusLabel(status: string) {
@@ -275,6 +283,9 @@ export default function ApplicationsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>申请详情</DialogTitle>
+            <DialogDescription>
+              查看申请基础信息以及所属活动提供的附件。
+            </DialogDescription>
           </DialogHeader>
           {detailQuery.isLoading ? (
             <div className="text-sm text-muted-foreground">正在加载详情...</div>
@@ -297,6 +308,7 @@ export default function ApplicationsPage() {
                 {detailQuery.data.academic_year || "-"} /{" "}
                 {detailQuery.data.semester || "-"}
               </div>
+              <RelatedFiles files={detailQuery.data.related_files ?? []} />
             </div>
           ) : (
             <div className="text-sm text-destructive">申请详情加载失败。</div>
@@ -305,4 +317,58 @@ export default function ApplicationsPage() {
       </Dialog>
     </div>
   );
+}
+
+function RelatedFiles({ files }: { files: ApplicationRelatedFile[] }) {
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <div className="font-medium">关联附件</div>
+      {files.length === 0 ? (
+        <div className="text-muted-foreground">暂无关联附件</div>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file) => {
+            const filename = file.original_name || file.name;
+
+            return (
+              <div
+                key={file.id}
+                className="flex items-center justify-between gap-3 rounded-lg border p-3"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{filename}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatFileSize(file.size)}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={`下载 ${filename}`}
+                  onClick={() => {
+                    void downloadApplicationRelatedFile(file.id, filename);
+                  }}
+                >
+                  下载
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatFileSize(size: number) {
+  if (!Number.isFinite(size) || size <= 0) {
+    return "0 B";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }

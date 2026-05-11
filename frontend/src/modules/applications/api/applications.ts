@@ -25,6 +25,22 @@ export interface ApplicationListItem {
     category?: string;
     owner_id?: string;
   };
+  related_files?: ApplicationRelatedFile[];
+}
+
+export interface ApplicationRelatedFile {
+  id: string;
+  activity_id: string;
+  name: string;
+  original_name?: string;
+  content_type?: string;
+  file_category?: string;
+  description?: string;
+  size: number;
+  uploaded_by: string;
+  created_at: string;
+  download_count?: number;
+  md5_hash?: string;
 }
 
 export interface ApplicationStats {
@@ -90,4 +106,11 @@ export async function getApplicationDetail(id: string) {
   >(`/applications/${id}`);
 
   return response.data.data.application;
+}
+
+export async function downloadApplicationRelatedFile(
+  fileID: string,
+  filename?: string
+) {
+  return apiHelpers.downloadFile(`/files/${fileID}/download`, filename);
 }
