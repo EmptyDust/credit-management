@@ -18,4 +18,27 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) {
+            return undefined;
+          }
+          if (
+            id.includes("react") ||
+            id.includes("react-router") ||
+            id.includes("@tanstack/react-query") ||
+            id.includes("@radix-ui") ||
+            id.includes("cmdk") ||
+            id.includes("lucide-react") ||
+            id.includes("zustand")
+          ) {
+            return "react-vendor";
+          }
+          return "vendor";
+        },
+      },
+    },
+  },
 });

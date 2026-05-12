@@ -6,6 +6,10 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  routerFuture,
+  routerProviderFuture,
+} from "@/app/router/future";
 import ActivityDetailPage from "@/modules/activities/pages/ActivityDetailPage";
 
 const {
@@ -127,12 +131,13 @@ function renderPage() {
     ],
     {
       initialEntries: ["/activities/activity-1"],
+      future: routerFuture,
     }
   );
 
   render(
     <QueryClientProvider client={createQueryClient()}>
-      <RouterProvider router={router} />
+      <RouterProvider router={router} future={routerProviderFuture} />
     </QueryClientProvider>
   );
 }

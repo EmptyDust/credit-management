@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { memoryRouterFuture } from "@/app/router/future";
 import ActivitiesPage from "@/modules/activities/pages/ActivitiesPage";
 
 const {
@@ -136,7 +137,7 @@ function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={memoryRouterFuture}>
         <ActivitiesPage />
       </MemoryRouter>
     </QueryClientProvider>

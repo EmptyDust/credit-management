@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+import { memoryRouterFuture } from "@/app/router/future";
 import LoginPage from "@/modules/auth/pages/LoginPage";
 
 const { mockLogin, mockNavigate, mockPost } = vi.hoisted(() => ({
@@ -64,7 +65,7 @@ it("submits the login payload and redirects to the dashboard", async () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={memoryRouterFuture}>
         <LoginPage />
       </MemoryRouter>
     );

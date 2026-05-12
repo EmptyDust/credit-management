@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { memoryRouterFuture } from "@/app/router/future";
 import RegisterPage from "@/modules/auth/pages/RegisterPage";
 
 const { mockNavigate, mockPost, mockGetOptions, mockToastSuccess } = vi.hoisted(
@@ -192,7 +193,7 @@ describe("RegisterPage", () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={memoryRouterFuture}>
         <RegisterPage />
       </MemoryRouter>
     );

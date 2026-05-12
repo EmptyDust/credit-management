@@ -6,6 +6,7 @@ import { createMemoryRouter } from "react-router-dom";
 
 import { AppProviders } from "@/app/providers/AppProviders";
 import { createAppRoutes } from "@/app/router";
+import { routerFuture } from "@/app/router/future";
 
 describe("app router", () => {
   beforeEach(() => {
@@ -62,13 +63,20 @@ describe("app router", () => {
   });
 
   it("redirects anonymous users to login", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const router = createMemoryRouter(createAppRoutes(), {
       initialEntries: ["/"],
+      future: routerFuture,
     });
 
     render(<AppProviders routerOverride={router} />);
 
     expect(await screen.findByRole("button", { name: "登录" })).toBeTruthy();
+    expect(
+      warnSpy.mock.calls.filter(([message]) =>
+        String(message).includes("React Router Future Flag Warning")
+      )
+    ).toEqual([]);
   });
 
   it("hides the API tester route by default", () => {

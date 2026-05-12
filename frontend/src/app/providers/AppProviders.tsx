@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 
 import { router } from "@/app/router";
 import { QueryProvider } from "@/app/providers/QueryProvider";
+import { routerProviderFuture } from "@/app/router/future";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
@@ -16,7 +17,10 @@ export function AppProviders({ routerOverride }: AppProvidersProps) {
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <QueryProvider>
         <AuthProvider>
-          <RouterProvider router={routerOverride ?? router} />
+          <RouterProvider
+            router={routerOverride ?? router}
+            future={routerProviderFuture}
+          />
           <Toaster
             position="top-right"
             toastOptions={{

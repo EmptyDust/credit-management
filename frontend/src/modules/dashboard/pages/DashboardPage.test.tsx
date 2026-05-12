@@ -5,6 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { memoryRouterFuture } from "@/app/router/future";
 import DashboardPage from "@/modules/dashboard/pages/DashboardPage";
 
 const { mockGetDashboardOverview } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={memoryRouterFuture}>
         <DashboardPage />
       </MemoryRouter>
     </QueryClientProvider>

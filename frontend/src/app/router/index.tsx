@@ -24,6 +24,7 @@ import ProfilePage from "@/modules/users/pages/ProfilePage";
 import StudentsPage from "@/modules/users/pages/StudentsPage";
 import TeachersPage from "@/modules/users/pages/TeachersPage";
 import NotFound from "@/pages/NotFound";
+import { routerFuture } from "@/app/router/future";
 
 export function createAppRoutes(): RouteObject[] {
   return [
@@ -125,4 +126,6 @@ export function createAppRoutes(): RouteObject[] {
 
 export const appRoutes: RouteObject[] = createAppRoutes();
 
-export const router = createBrowserRouter(appRoutes);
+export const router = createBrowserRouter(appRoutes, {
+  future: routerFuture,
+});
