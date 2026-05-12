@@ -645,12 +645,12 @@ func (f fakeActivityExportService) Export(context.Context, string, string, activ
 }
 
 func (f fakeActivityRepository) List(context.Context, activityrepo.ListFilter) ([]activitydomain.Activity, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New("unexpected fake activity repository List call")
 }
 
 func (f fakeActivityRepository) Get(context.Context, string) (*activitydomain.Activity, error) {
 	if f.activity == nil {
-		return nil, errors.New("not implemented")
+		return nil, errors.New("unexpected fake activity repository Get call")
 	}
 	clone := *f.activity
 	clone.Details = cloneTestDetails(f.activity.Details)
@@ -662,7 +662,7 @@ func (f fakeActivityRepository) Save(context.Context, *activitydomain.Activity) 
 }
 
 func (f fakeActivityRepository) Delete(context.Context, string) error {
-	return errors.New("not implemented")
+	return errors.New("unexpected fake activity repository Delete call")
 }
 
 func cloneTestDetails(source map[string]any) map[string]any {
